@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>리밸런싱 추적기</title>
+  <style>
+    /* ── 테마 변수 ──────────────────────────────────────────── */
+    :root[data-theme="dark"] {
+      --bg:          #111317;
+      --surface:     #1c1f26;
+      --surface2:    #23272f;
+      --border:      #2e323c;
+      --text:        #dde1ea;
+      --text-sub:    #7a8090;
+      --text-muted:  #4a5060;
+      --accent:      #4d9eff;
+      --buy:         #4d9eff;
+      --sell:        #ff5f5f;
+      --positive:    #3ecf8e;
+      --negative:    #ff5f5f;
+      --header-bg:   #161921;
+      --tab-active:  #4d9eff;
+      --tab-inactive:#5a6070;
+      --btn-bg:      #252930;
+      --btn-hover:   #2e333d;
+      --input-bg:    #1a1d24;
+      --row-hover:   rgba(255,255,255,0.025);
+      --th-bg:       #161921;
+    }
+    :root[data-theme="light"] {
+      --bg:          #f4f5f7;
+      --surface:     #ffffff;
+      --surface2:    #f0f1f3;
+      --border:      #d8dce4;
+      --text:        #1a1d24;
+      --text-sub:    #6b7280;
+      --text-muted:  #9ca3af;
+      --accent:      #1a73e8;
+      --buy:         #1a73e8;
+      --sell:        #d32f2f;
+      --positive:    #0f9d58;
+      --negative:    #d32f2f;
+      --header-bg:   #ffffff;
+      --tab-active:  #1a73e8;
+      --tab-inactive:#9ca3af;
+      --btn-bg:      #e8eaed;
+      --btn-hover:   #d8dce4;
+      --input-bg:    #f9fafb;
+      --row-hover:   rgba(0,0,0,0.02);
+      --th-bg:       #f4f5f7;
+    }
+
+    /* ── 리셋 / 베이스 ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input  { font-family: inherit; }
+
+    /* ── 헤더 ───────────────────────────────────────────────── */
+    #app-header {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: stretch;
+      padding: 0 12px 0 0;
+      gap: 0;
+    }
+
+    /* ── 탭 버튼 ────────────────────────────────────────────── */
+    .tabs { display: flex; align-items: stretch; }
+    .tab-btn {
+      padding: 0 20px;
+      height: 46px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      background: none;
+      color: var(--tab-inactive);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-btn.active {
+      color: var(--tab-active);
+      border-bottom-color: var(--tab-active);
+    }
+
+    /* ── 헤더 액션 버튼 ─────────────────────────────────────── */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      padding: 6px 0;
+    }
+    .btn {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--btn-bg);
+      color: var(--text);
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: background 0.12s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--btn-hover); }
+    .btn-icon { padding: 5px 10px; font-size: 15px; }
+    .btn-danger { border-color: #5a2020; color: var(--sell); }
+    .btn-danger:hover { background: #2a1515; }
+
+    /* ── 탭 컨텐츠 ──────────────────────────────────────────── */
+    .tab-content { display: none; padding: 20px 16px; }
+    .tab-content.active { display: block; }
+
+    /* ── 플레이스홀더 ───────────────────────────────────────── */
+    .placeholder {
+      color: var(--text-sub);
+      text-align: center;
+      padding: 56px 24px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .placeholder strong { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header id="app-header">
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="settings">기준설정</button>
+      <button class="tab-btn" data-tab="portfolio">포트폴리오</button>
+      <button class="tab-btn" data-tab="history">이력</button>
+    </nav>
+    <div class="header-actions">
+      <button class="btn" onclick="exportBackup()">백업 내보내기</button>
+      <button class="btn" onclick="importBackupClick()">불러오기</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
+      <button class="btn btn-danger" onclick="resetApp()">초기화</button>
+      <button class="btn btn-icon" id="theme-toggle" onclick="toggleTheme()" title="다크/라이트 전환">🌙</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-settings" class="tab-content active">
+      <div class="placeholder">
+        <strong>기준설정 탭</strong>
+        단계 ②에서 구현 예정 — 6/12 원금·환율 입력, 종목별 6/12 종가·설정비율, 배정금액·비중1당주식수 산출
+      </div>
+    </section>
+
+    <section id="tab-portfolio" class="tab-content">
+      <div class="placeholder">
+        <strong>포트폴리오 탭</strong>
+        단계 ③에서 구현 예정 — 현재가·평단·수량 입력, 조정비율 ±, 미리보기·확정 저장
+      </div>
+    </section>
+
+    <section id="tab-history" class="tab-content">
+      <div class="placeholder">
+        <strong>이력 탭</strong>
+        단계 ⑤에서 구현 예정 — 확정 스냅샷 목록, 날짜 복원·비교·되돌리기
+      </div>
+    </section>
+  </main>
+
+</div><!-- #app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  상태 객체 / 기본 시드
+// ═══════════════════════════════════════════════════════════════════
+
+const DEFAULT_STOCKS = [
+  // ── 미국(달러) ─────────────────────────────────────────────────
+  { id:'NVDA',   name:'엔비디아',           ticker:'NVDA',   market:'US',   c0:0, price:0, r:8,  adjR:8,  unit:0, q:0, avg:0, realized:0 },
+  { id:'TSM',    name:'TSMC',               ticker:'TSM',    market:'US',   c0:0, price:0, r:5,  adjR:5,  unit:0, q:0, avg:0, realized:0 },
+  { id:'SNDK',   name:'샌디스크',            ticker:'SNDK',   market:'US',   c0:0, price:0, r:4,  adjR:4,  unit:0, q:0, avg:0, realized:0 },
+  { id:'MRVL',   name:'마벨테크놀로지',      ticker:'MRVL',   market:'US',   c0:0, price:0, r:5,  adjR:5,  unit:0, q:0, avg:0, realized:0 },
+  { id:'AVGO',   name:'브로드컴',            ticker:'AVGO',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'AAPL',   name:'애플',               ticker:'AAPL',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'GOOGL',  name:'알파벳',             ticker:'GOOGL',  market:'US',   c0:0, price:0, r:6,  adjR:6,  unit:0, q:0, avg:0, realized:0 },
+  { id:'AMZN',   name:'아마존',             ticker:'AMZN',   market:'US',   c0:0, price:0, r:3,  adjR:3,  unit:0, q:0, avg:0, realized:0 },
+  { id:'META',   name:'메타',               ticker:'META',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'MSFT',   name:'마이크로소프트',      ticker:'MSFT',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'PLTR',   name:'팔란티어',            ticker:'PLTR',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'TSLA',   name:'테슬라',             ticker:'TSLA',   market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'LEU',    name:'샌트러스에너지',      ticker:'LEU',    market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'GEV',    name:'GE버노바',            ticker:'GEV',    market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'ETN',    name:'이튼',               ticker:'ETN',    market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'IEF',    name:'미국 10년 국채 ETF',  ticker:'IEF',    market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  { id:'SPACEX', name:'스페이스X',           ticker:'SPACEX', market:'US',   c0:0, price:0, r:0,  adjR:0,  unit:0, q:0, avg:0, realized:0 },
+  // ── 한국(원) ───────────────────────────────────────────────────
+  { id:'003230', name:'삼양식품',           ticker:'003230', market:'KR',   c0:0, price:0, r:2,  adjR:2,  unit:0, q:0, avg:0, realized:0 },
+  { id:'012450', name:'한화에어로스페이스',  ticker:'012450', market:'KR',   c0:0, price:0, r:1,  adjR:1,  unit:0, q:0, avg:0, realized:0 },
+  { id:'079550', name:'LIG넥스원',          ticker:'079550', market:'KR',   c0:0, price:0, r:2,  adjR:2,  unit:0, q:0, avg:0, realized:0 },
+  { id:'032830', name:'삼성생명',           ticker:'032830', market:'KR',   c0:0, price:0, r:3,  adjR:3,  unit:0, q:0, avg:0, realized:0 },
+  { id:'017670', name:'SK텔레콤',           ticker:'017670', market:'KR',   c0:0, price:0, r:5,  adjR:5,  unit:0, q:0, avg:0, realized:0 },
+  { id:'005380', name:'현대차',             ticker:'005380', market:'KR',   c0:0, price:0, r:3,  adjR:3,  unit:0, q:0, avg:0, realized:0 },
+  { id:'012330', name:'현대모비스',         ticker:'012330', market:'KR',   c0:0, price:0, r:5,  adjR:5,  unit:0, q:0, avg:0, realized:0 },
+  { id:'000660', name:'SK하이닉스',         ticker:'000660', market:'KR',   c0:0, price:0, r:18, adjR:18, unit:0, q:0, avg:0, realized:0 },
+  { id:'005930', name:'삼성전자',           ticker:'005930', market:'KR',   c0:0, price:0, r:20, adjR:20, unit:0, q:0, avg:0, realized:0 },
+  { id:'009150', name:'삼성전기',           ticker:'009150', market:'KR',   c0:0, price:0, r:3,  adjR:3,  unit:0, q:0, avg:0, realized:0 },
+  { id:'016360', name:'삼성증권',           ticker:'016360', market:'KR',   c0:0, price:0, r:2,  adjR:2,  unit:0, q:0, avg:0, realized:0 },
+  // ── 현금 (price=1, q=금액) ─────────────────────────────────────
+  { id:'CASH',   name:'현금',              ticker:'CASH',   market:'CASH', c0:1, price:1, r:4,  adjR:4,  unit:0, q:0, avg:1, realized:0 },
+];
+
+// 현재 시드 합계 = 99 (사용자 확인 후 1 조정 예정)
+
+const DEFAULT_STATE = {
+  meta: { p0: 0, fx0: 0, fxN: 0, theme: 'dark' },
+  stocks: DEFAULT_STOCKS.map(s => ({ ...s })),
+  history: []
+};
+
+let state = deepClone(DEFAULT_STATE);
+
+// ═══════════════════════════════════════════════════════════════════
+//  유틸
+// ═══════════════════════════════════════════════════════════════════
+
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  localStorage 저장 / 불러오기
+// ═══════════════════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'rebalance_state_v1';
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) {
+    console.error('저장 실패:', e);
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.meta && parsed.stocks) {
+      state = parsed;
+      applyTheme(state.meta.theme || 'dark');
+    }
+  } catch(e) {
+    console.error('불러오기 실패:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  백업 내보내기 / 불러오기 / 초기화
+// ═══════════════════════════════════════════════════════════════════
+
+function exportBackup() {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `rebalance_backup_${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function importBackupClick() {
+  document.getElementById('import-file').click();
+}
+
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const loaded = JSON.parse(e.target.result);
+      if (!loaded.meta || !Array.isArray(loaded.stocks)) {
+        throw new Error('유효하지 않은 백업 파일 형식');
+      }
+      state = loaded;
+      saveState();
+      applyTheme(state.meta.theme || 'dark');
+      render();
+      alert('불러오기 완료!');
+    } catch(err) {
+      alert('백업 파일 오류: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = ''; // 같은 파일 재선택 허용
+}
+
+function resetApp() {
+  if (!confirm('모든 데이터를 초기화하고 기본 시드로 되돌립니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?')) return;
+  state = deepClone(DEFAULT_STATE);
+  saveState();
+  applyTheme('dark');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  테마
+// ═══════════════════════════════════════════════════════════════════
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  state.meta.theme = theme;
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
+function toggleTheme() {
+  const next = state.meta.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  탭 전환
+// ═══════════════════════════════════════════════════════════════════
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    const section = document.getElementById('tab-' + tab);
+    if (section) section.classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  가격 설정 함수 (자동화 대비 분리 — 나중에 서버 호출로 교체 가능)
+// ═══════════════════════════════════════════════════════════════════
+
+function setPrice(id, value) {
+  const s = state.stocks.find(s => s.id === id);
+  if (!s) return;
+  s.price = parseFloat(String(value).replace(/,/g, '')) || 0;
+  saveState();
+  render();
+}
+
+function setBasePrice(id, value) {
+  const s = state.stocks.find(s => s.id === id);
+  if (!s) return;
+  s.c0 = parseFloat(String(value).replace(/,/g, '')) || 0;
+  saveState();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  렌더 진입점 (이후 단계에서 채워짐)
+// ═══════════════════════════════════════════════════════════════════
+
+function render() {
+  // 각 탭 렌더 함수는 단계 ②~⑤에서 구현
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  초기 실행
+// ═══════════════════════════════════════════════════════════════════
+
+loadState();
+render();
+</script>
+</body>
+</html>
