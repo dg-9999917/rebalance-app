@@ -27,6 +27,7 @@
       --input-bg:    #1a1d24;
       --row-hover:   rgba(255,255,255,0.025);
       --th-bg:       #161921;
+      --group-bg:    #14161c;
     }
     :root[data-theme="light"] {
       --bg:          #f4f5f7;
@@ -49,6 +50,7 @@
       --input-bg:    #f9fafb;
       --row-hover:   rgba(0,0,0,0.02);
       --th-bg:       #f4f5f7;
+      --group-bg:    #eef0f3;
     }
 
     /* ── 리셋 / 베이스 ─────────────────────────────────────── */
@@ -63,79 +65,176 @@
     button { font-family: inherit; cursor: pointer; }
     input  { font-family: inherit; }
 
-    /* ── 헤더 ───────────────────────────────────────────────── */
+    /* ── 앱 헤더 ────────────────────────────────────────────── */
     #app-header {
-      position: sticky;
-      top: 0;
-      z-index: 200;
+      position: sticky; top: 0; z-index: 200;
       background: var(--header-bg);
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: stretch;
-      padding: 0 12px 0 0;
-      gap: 0;
+      display: flex; align-items: stretch; padding: 0 12px 0 0;
     }
-
-    /* ── 탭 버튼 ────────────────────────────────────────────── */
     .tabs { display: flex; align-items: stretch; }
     .tab-btn {
-      padding: 0 20px;
-      height: 46px;
-      border: none;
-      border-bottom: 2px solid transparent;
-      background: none;
-      color: var(--tab-inactive);
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      transition: color 0.12s, border-color 0.12s;
-      white-space: nowrap;
+      padding: 0 20px; height: 46px;
+      border: none; border-bottom: 2px solid transparent;
+      background: none; color: var(--tab-inactive);
+      font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+      transition: color .12s, border-color .12s; white-space: nowrap;
     }
     .tab-btn:hover:not(.active) { color: var(--text); }
-    .tab-btn.active {
-      color: var(--tab-active);
-      border-bottom-color: var(--tab-active);
-    }
+    .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
 
-    /* ── 헤더 액션 버튼 ─────────────────────────────────────── */
     .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: auto;
-      padding: 6px 0;
+      display: flex; align-items: center; gap: 6px;
+      margin-left: auto; padding: 6px 0;
     }
     .btn {
-      padding: 5px 12px;
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      background: var(--btn-bg);
-      color: var(--text);
-      font-size: 12.5px;
-      font-weight: 500;
-      transition: background 0.12s;
-      white-space: nowrap;
+      padding: 5px 12px; border: 1px solid var(--border); border-radius: 5px;
+      background: var(--btn-bg); color: var(--text);
+      font-size: 12.5px; font-weight: 500; transition: background .12s; white-space: nowrap;
     }
     .btn:hover { background: var(--btn-hover); }
+    .btn-sm { padding: 3px 8px; font-size: 12px; }
     .btn-icon { padding: 5px 10px; font-size: 15px; }
     .btn-danger { border-color: #5a2020; color: var(--sell); }
     .btn-danger:hover { background: #2a1515; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: .88; background: var(--accent); }
 
     /* ── 탭 컨텐츠 ──────────────────────────────────────────── */
-    .tab-content { display: none; padding: 20px 16px; }
+    .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* ── 플레이스홀더 ───────────────────────────────────────── */
+    /* ── 공통 입력 ──────────────────────────────────────────── */
+    .inp {
+      background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 4px 8px; font-size: 13px; width: 100%;
+      transition: border-color .1s;
+    }
+    .inp:focus { outline: none; border-color: var(--accent); }
+    .inp-num { text-align: right; }
+
+    /* ── 기준설정 탭 레이아웃 ───────────────────────────────── */
+    #tab-settings { padding: 16px; }
+
+    .settings-meta {
+      display: flex; align-items: flex-end; gap: 24px;
+      padding: 12px 16px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .meta-field { display: flex; flex-direction: column; gap: 4px; }
+    .meta-label { font-size: 11px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .meta-input-row { display: flex; align-items: center; gap: 6px; }
+    .meta-sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; }
+
+    .ratio-sum-badge {
+      margin-left: auto; padding: 6px 14px;
+      border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface2); font-size: 13px; white-space: nowrap;
+      align-self: center;
+    }
+    .ratio-sum-badge .sum-val { font-weight: 700; font-size: 16px; }
+    .ratio-sum-badge.ok .sum-val { color: var(--positive); }
+    .ratio-sum-badge.err .sum-val { color: var(--negative); }
+
+    /* ── 공통 표 스타일 ─────────────────────────────────────── */
+    .tbl-wrap {
+      overflow-x: auto; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--surface);
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px; table-layout: auto;
+    }
+    thead th {
+      position: sticky; top: 46px; z-index: 10;
+      background: var(--th-bg); border-bottom: 1px solid var(--border);
+      padding: 8px 10px; font-size: 11.5px; font-weight: 700;
+      color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    thead th.num { text-align: right; }
+    thead th.center { text-align: center; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--row-hover); }
+    tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
+    tbody td.num { text-align: right; }
+    tbody td.center { text-align: center; }
+
+    /* 그룹 헤더 행 */
+    tr.group-hdr td {
+      background: var(--group-bg); color: var(--text-sub);
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; padding: 5px 10px;
+      border-top: 1px solid var(--border);
+    }
+    tr.group-hdr:first-child td { border-top: none; }
+
+    /* ± ratio 셀 */
+    .ratio-cell { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+    .ratio-cell .pm-btn {
+      width: 22px; height: 22px; border: 1px solid var(--border);
+      border-radius: 3px; background: var(--btn-bg); color: var(--text);
+      font-size: 14px; line-height: 1; padding: 0; flex-shrink: 0;
+    }
+    .ratio-cell .pm-btn:hover { background: var(--btn-hover); }
+    .ratio-cell .inp-r {
+      width: 52px; text-align: right;
+      background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 2px 6px; font-size: 13px;
+    }
+    .ratio-cell .inp-r:focus { outline: none; border-color: var(--accent); }
+
+    /* 6/12 종가 입력 */
+    .inp-c0 { width: 88px; }
+
+    /* 종목명 셀 */
+    .stock-name { font-weight: 600; }
+    .stock-ticker { font-size: 11px; color: var(--text-sub); margin-left: 4px; }
+
+    /* 구분 배지 */
+    .badge {
+      display: inline-block; padding: 1px 6px; border-radius: 3px;
+      font-size: 11px; font-weight: 700; letter-spacing: .03em;
+    }
+    .badge-us   { background: #1e3a5a; color: #6bb5ff; }
+    .badge-kr   { background: #3a1e2a; color: #ff8888; }
+    .badge-cash { background: #1e3a28; color: #5ecf88; }
+    :root[data-theme="light"] .badge-us   { background: #dbeafe; color: #1d4ed8; }
+    :root[data-theme="light"] .badge-kr   { background: #fee2e2; color: #b91c1c; }
+    :root[data-theme="light"] .badge-cash { background: #dcfce7; color: #15803d; }
+
+    /* 삭제 버튼 */
+    .del-btn {
+      width: 22px; height: 22px; border: 1px solid transparent; border-radius: 3px;
+      background: none; color: var(--text-muted); font-size: 14px; line-height: 1; padding: 0;
+    }
+    .del-btn:hover { border-color: var(--sell); color: var(--sell); background: rgba(255,95,95,.08); }
+
+    /* 종목 추가 폼 */
+    .add-stock-form {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;
+      padding: 12px 16px; border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .add-stock-form .meta-field { min-width: 100px; }
+    .add-stock-form .meta-field.narrow { min-width: 70px; }
+
+    /* 플레이스홀더 */
     .placeholder {
-      color: var(--text-sub);
-      text-align: center;
-      padding: 56px 24px;
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      margin: 8px 0;
+      color: var(--text-sub); text-align: center; padding: 56px 24px;
+      border: 1px dashed var(--border); border-radius: 8px; margin: 8px 16px;
       font-size: 13px;
     }
     .placeholder strong { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text); }
+
+    /* 숫자 하이라이트 */
+    .val-pos { color: var(--positive); }
+    .val-neg { color: var(--negative); }
+    .val-dim { color: var(--text-sub); }
   </style>
 </head>
 <body>
@@ -157,13 +256,53 @@
   </header>
 
   <main>
+    <!-- ══════════════ 기준설정 탭 ══════════════ -->
     <section id="tab-settings" class="tab-content active">
-      <div class="placeholder">
-        <strong>기준설정 탭</strong>
-        단계 ②에서 구현 예정 — 6/12 원금·환율 입력, 종목별 6/12 종가·설정비율, 배정금액·비중1당주식수 산출
+      <!-- 상단 메타 입력 -->
+      <div class="settings-meta">
+        <div class="meta-field">
+          <span class="meta-label">6/12 원금 (P0)</span>
+          <div class="meta-input-row">
+            <input class="inp inp-num" style="width:130px" id="in-p0"
+              placeholder="0" oninput="onMetaInput('p0',this.value)">
+            <span class="meta-sub">원</span>
+          </div>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">1%당 금액</span>
+          <div class="meta-input-row">
+            <span id="disp-per1pct" class="meta-sub" style="font-size:14px;color:var(--text)">—</span>
+            <span class="meta-sub">원</span>
+          </div>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">6/12 환율 (fx0)</span>
+          <div class="meta-input-row">
+            <input class="inp inp-num" style="width:100px" id="in-fx0"
+              placeholder="0" oninput="onMetaInput('fx0',this.value)">
+            <span class="meta-sub">₩/$</span>
+          </div>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">현재 환율 (fxN)</span>
+          <div class="meta-input-row">
+            <input class="inp inp-num" style="width:100px" id="in-fxN"
+              placeholder="0" oninput="onMetaInput('fxN',this.value)">
+            <span class="meta-sub">₩/$</span>
+          </div>
+        </div>
+        <div id="ratio-sum-badge" class="ratio-sum-badge">
+          설정비율 합계 <span class="sum-val" id="disp-rsum">0.00</span> / 100
+        </div>
+      </div>
+
+      <!-- 종목 표 -->
+      <div class="tbl-wrap" id="settings-tbl-wrap">
+        <!-- renderSettingsTable() 로 채워짐 -->
       </div>
     </section>
 
+    <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
     <section id="tab-portfolio" class="tab-content">
       <div class="placeholder">
         <strong>포트폴리오 탭</strong>
@@ -171,6 +310,7 @@
       </div>
     </section>
 
+    <!-- ══════════════ 이력 탭 ══════════════ -->
     <section id="tab-history" class="tab-content">
       <div class="placeholder">
         <strong>이력 탭</strong>
@@ -218,10 +358,9 @@ const DEFAULT_STOCKS = [
   { id:'009150', name:'삼성전기',           ticker:'009150', market:'KR',   c0:0, price:0, r:3,  adjR:3,  unit:0, q:0, avg:0, realized:0 },
   { id:'016360', name:'삼성증권',           ticker:'016360', market:'KR',   c0:0, price:0, r:2,  adjR:2,  unit:0, q:0, avg:0, realized:0 },
   // ── 현금 (price=1, q=금액) ─────────────────────────────────────
-  { id:'CASH',   name:'현금',              ticker:'CASH',   market:'CASH', c0:1, price:1, r:4,  adjR:4,  unit:0, q:0, avg:1, realized:0 },
+  { id:'CASH',   name:'현금',              ticker:'CASH',   market:'CASH', c0:1, price:1, r:5,  adjR:5,  unit:0, q:0, avg:1, realized:0 },
 ];
-
-// 현재 시드 합계 = 99 (사용자 확인 후 1 조정 예정)
+// 시드 합계 = 100 (현금 5)
 
 const DEFAULT_STATE = {
   meta: { p0: 0, fx0: 0, fxN: 0, theme: 'dark' },
@@ -237,6 +376,33 @@ let state = deepClone(DEFAULT_STATE);
 
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
+function fmtNum(n, decimals = 0) {
+  if (!isFinite(n) || n === null) return '—';
+  return n.toLocaleString('ko-KR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtDec(n, d = 2) {
+  if (!isFinite(n) || n === null) return '—';
+  return n.toFixed(d);
+}
+
+function parseNum(str) {
+  if (str === '' || str === null || str === undefined) return 0;
+  return parseFloat(String(str).replace(/,/g, '')) || 0;
+}
+
+// p0 기준 unit 계산
+function calcUnit(s) {
+  const p0 = state.meta.p0;
+  if (!p0) return 0;
+  const per1 = p0 / 100;
+  if (s.market === 'CASH') return per1; // unit = 1%당 금액
+  const fx0 = state.meta.fx0 || 1;
+  const c0w = s.market === 'US' ? s.c0 * fx0 : s.c0;
+  if (!c0w) return 0;
+  return per1 / c0w;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  localStorage 저장 / 불러오기
 // ═══════════════════════════════════════════════════════════════════
@@ -244,11 +410,8 @@ function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 const STORAGE_KEY = 'rebalance_state_v1';
 
 function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch(e) {
-    console.error('저장 실패:', e);
-  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e) { console.error('저장 실패:', e); }
 }
 
 function loadState() {
@@ -260,9 +423,7 @@ function loadState() {
       state = parsed;
       applyTheme(state.meta.theme || 'dark');
     }
-  } catch(e) {
-    console.error('불러오기 실패:', e);
-  }
+  } catch(e) { console.error('불러오기 실패:', e); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -271,50 +432,33 @@ function loadState() {
 
 function exportBackup() {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const json = JSON.stringify(state, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `rebalance_backup_${ts}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(a.href);
 }
 
-function importBackupClick() {
-  document.getElementById('import-file').click();
-}
+function importBackupClick() { document.getElementById('import-file').click(); }
 
 function importBackup(input) {
-  const file = input.files[0];
-  if (!file) return;
+  const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const loaded = JSON.parse(e.target.result);
-      if (!loaded.meta || !Array.isArray(loaded.stocks)) {
-        throw new Error('유효하지 않은 백업 파일 형식');
-      }
-      state = loaded;
-      saveState();
-      applyTheme(state.meta.theme || 'dark');
-      render();
+      if (!loaded.meta || !Array.isArray(loaded.stocks)) throw new Error('유효하지 않은 백업 파일');
+      state = loaded; saveState(); applyTheme(state.meta.theme || 'dark'); render();
       alert('불러오기 완료!');
-    } catch(err) {
-      alert('백업 파일 오류: ' + err.message);
-    }
+    } catch(err) { alert('백업 파일 오류: ' + err.message); }
   };
-  reader.readAsText(file);
-  input.value = ''; // 같은 파일 재선택 허용
+  reader.readAsText(file); input.value = '';
 }
 
 function resetApp() {
-  if (!confirm('모든 데이터를 초기화하고 기본 시드로 되돌립니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?')) return;
-  state = deepClone(DEFAULT_STATE);
-  saveState();
-  applyTheme('dark');
-  render();
+  if (!confirm('모든 데이터를 초기화하고 기본 시드로 되돌립니다.\n되돌릴 수 없습니다. 계속하시겠습니까?')) return;
+  state = deepClone(DEFAULT_STATE); saveState(); applyTheme('dark'); render();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -329,8 +473,7 @@ function applyTheme(theme) {
 }
 
 function toggleTheme() {
-  const next = state.meta.theme === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
+  applyTheme(state.meta.theme === 'dark' ? 'light' : 'dark');
   saveState();
 }
 
@@ -344,37 +487,236 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
-    const section = document.getElementById('tab-' + tab);
-    if (section) section.classList.add('active');
+    const s = document.getElementById('tab-' + tab); if (s) s.classList.add('active');
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  가격 설정 함수 (자동화 대비 분리 — 나중에 서버 호출로 교체 가능)
+//  가격 설정 함수 (자동화 대비 분리)
 // ═══════════════════════════════════════════════════════════════════
 
 function setPrice(id, value) {
-  const s = state.stocks.find(s => s.id === id);
-  if (!s) return;
-  s.price = parseFloat(String(value).replace(/,/g, '')) || 0;
-  saveState();
-  render();
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.price = parseNum(value); saveState(); render();
 }
-
 function setBasePrice(id, value) {
-  const s = state.stocks.find(s => s.id === id);
-  if (!s) return;
-  s.c0 = parseFloat(String(value).replace(/,/g, '')) || 0;
-  saveState();
-  render();
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.c0 = parseNum(value); saveState(); render();
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  렌더 진입점 (이후 단계에서 채워짐)
+//  기준설정 탭 — 입력 핸들러
+// ═══════════════════════════════════════════════════════════════════
+
+function onMetaInput(key, raw) {
+  state.meta[key] = parseNum(raw);
+  saveState();
+  renderSettingsDerived(); // 표 파생값만 갱신 (입력 커서 유지)
+}
+
+function onRatioChange(id, delta) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  const nv = Math.max(0, +((s.r + delta).toFixed(2)));
+  s.r = nv; s.adjR = nv;
+  saveState(); renderSettingsTable();
+}
+
+function onRatioInput(id, raw) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  const nv = Math.max(0, parseNum(raw));
+  s.r = nv; s.adjR = nv;
+  saveState(); renderSettingsDerived();
+}
+
+function onC0Input(id, raw) {
+  setBasePrice(id, raw);
+}
+
+function deleteStock(id) {
+  if (!confirm('종목을 삭제하시겠습니까?')) return;
+  state.stocks = state.stocks.filter(s => s.id !== id);
+  saveState(); renderSettingsTable();
+}
+
+function addStockFromForm() {
+  const name   = document.getElementById('add-name').value.trim();
+  const ticker = document.getElementById('add-ticker').value.trim().toUpperCase();
+  const market = document.getElementById('add-market').value;
+  const c0raw  = document.getElementById('add-c0').value.trim();
+  if (!name || !ticker) { alert('종목명과 티커를 입력하세요.'); return; }
+  if (state.stocks.find(s => s.id === ticker)) { alert('이미 존재하는 티커입니다: ' + ticker); return; }
+  const c0 = market === 'CASH' ? 1 : (parseNum(c0raw) || 0);
+  state.stocks.push({ id: ticker, name, ticker, market, c0, price: 0, r: 0, adjR: 0, unit: 0, q: 0, avg: 0, realized: 0 });
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-ticker').value = '';
+  document.getElementById('add-c0').value = '';
+  saveState(); renderSettingsTable();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  기준설정 탭 — 렌더
+// ═══════════════════════════════════════════════════════════════════
+
+function renderSettingsMeta() {
+  const p0 = state.meta.p0;
+  const el = v => document.getElementById(v);
+
+  // 입력칸 동기 (포커스 중인 칸은 건드리지 않음)
+  syncInput(el('in-p0'),  state.meta.p0);
+  syncInput(el('in-fx0'), state.meta.fx0);
+  syncInput(el('in-fxN'), state.meta.fxN);
+
+  el('disp-per1pct').textContent = p0 ? fmtNum(p0 / 100) : '—';
+
+  const rsum = state.stocks.reduce((a, s) => a + (s.r || 0), 0);
+  const badge = document.getElementById('ratio-sum-badge');
+  document.getElementById('disp-rsum').textContent = fmtDec(rsum, 2);
+  badge.classList.toggle('ok',  Math.abs(rsum - 100) < 0.001);
+  badge.classList.toggle('err', Math.abs(rsum - 100) >= 0.001);
+}
+
+// 포커스 중인 input은 값을 덮어쓰지 않음
+function syncInput(el, val) {
+  if (!el || document.activeElement === el) return;
+  el.value = val ? fmtNum(val) : '';
+}
+
+function renderSettingsDerived() {
+  renderSettingsMeta();
+  // 파생 열만 갱신 (테이블 전체 재렌더 없이)
+  state.stocks.forEach(s => {
+    const unit = calcUnit(s);
+    const per1 = state.meta.p0 / 100;
+    const alloc = s.r * per1;
+    const q0    = s.r * unit;
+
+    const elAlloc = document.getElementById(`cell-alloc-${s.id}`);
+    const elUnit  = document.getElementById(`cell-unit-${s.id}`);
+    const elQ0    = document.getElementById(`cell-q0-${s.id}`);
+    if (elAlloc) elAlloc.textContent = per1 ? fmtNum(alloc) : '—';
+    if (elUnit)  elUnit.textContent  = (unit && isFinite(unit)) ? fmtDec(unit, 4) : '—';
+    if (elQ0)    elQ0.textContent    = (unit && isFinite(unit)) ? fmtDec(q0, 2)   : '—';
+  });
+}
+
+function renderSettingsTable() {
+  renderSettingsMeta();
+  const wrap = document.getElementById('settings-tbl-wrap');
+
+  const groups = [
+    { label: '미국 (USD)', market: 'US' },
+    { label: '한국 (KRW)', market: 'KR' },
+    { label: '현금',       market: 'CASH' },
+  ];
+
+  let html = `<table>
+    <thead><tr>
+      <th>종목</th>
+      <th class="center">구분</th>
+      <th class="num">설정비율</th>
+      <th class="num">6/12 종가</th>
+      <th class="num">배정금액 (원)</th>
+      <th class="num">비중1당 주식수</th>
+      <th class="num">6/12 보유수량</th>
+      <th class="center">삭제</th>
+    </tr></thead><tbody>`;
+
+  const per1 = state.meta.p0 / 100;
+
+  groups.forEach(g => {
+    const stocks = state.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+
+    html += `<tr class="group-hdr"><td colspan="8">${g.label}</td></tr>`;
+
+    stocks.forEach(s => {
+      const unit  = calcUnit(s);
+      const alloc = s.r * per1;
+      const q0    = s.r * unit;
+      const isCash = s.market === 'CASH';
+      const badgeClass = s.market === 'US' ? 'badge-us' : s.market === 'KR' ? 'badge-kr' : 'badge-cash';
+
+      const allocStr = per1 ? fmtNum(alloc) : '—';
+      const unitStr  = (unit && isFinite(unit)) ? fmtDec(unit, 4) : '—';
+      const q0Str    = (unit && isFinite(unit)) ? fmtDec(q0, 2)   : '—';
+
+      html += `<tr>
+        <td>
+          <span class="stock-name">${esc(s.name)}</span>
+          <span class="stock-ticker">${esc(s.ticker)}</span>
+        </td>
+        <td class="center"><span class="badge ${badgeClass}">${s.market}</span></td>
+        <td class="num">
+          <div class="ratio-cell">
+            <button class="pm-btn" onclick="onRatioChange('${s.id}',-1)">−</button>
+            <input class="inp-r" type="number" min="0" step="0.5"
+              value="${s.r}"
+              onchange="onRatioInput('${s.id}',this.value)"
+              oninput="onRatioInput('${s.id}',this.value)">
+            <button class="pm-btn" onclick="onRatioChange('${s.id}',1)">+</button>
+          </div>
+        </td>
+        <td class="num">
+          ${isCash
+            ? '<span class="val-dim">1</span>'
+            : `<input class="inp inp-num inp-c0" type="text" inputmode="decimal"
+                value="${s.c0 || ''}"
+                placeholder="0"
+                onchange="onC0Input('${s.id}',this.value)">`
+          }
+        </td>
+        <td class="num" id="cell-alloc-${s.id}">${allocStr}</td>
+        <td class="num" id="cell-unit-${s.id}">${unitStr}</td>
+        <td class="num" id="cell-q0-${s.id}">${q0Str}</td>
+        <td class="center">
+          <button class="del-btn" onclick="deleteStock('${s.id}')" title="삭제">✕</button>
+        </td>
+      </tr>`;
+    });
+  });
+
+  html += `</tbody></table>
+  <div class="add-stock-form">
+    <div class="meta-field">
+      <span class="meta-label">종목명</span>
+      <input class="inp" id="add-name" placeholder="삼성SDI" style="width:110px">
+    </div>
+    <div class="meta-field narrow">
+      <span class="meta-label">티커</span>
+      <input class="inp" id="add-ticker" placeholder="006400" style="width:80px">
+    </div>
+    <div class="meta-field narrow">
+      <span class="meta-label">시장</span>
+      <select class="inp" id="add-market" style="width:80px">
+        <option value="KR">KR</option>
+        <option value="US">US</option>
+        <option value="CASH">CASH</option>
+      </select>
+    </div>
+    <div class="meta-field">
+      <span class="meta-label">6/12 종가</span>
+      <input class="inp inp-num" id="add-c0" placeholder="0" style="width:90px">
+    </div>
+    <div class="meta-field" style="justify-content:flex-end">
+      <span class="meta-label">&nbsp;</span>
+      <button class="btn btn-primary btn-sm" onclick="addStockFromForm()">+ 종목 추가</button>
+    </div>
+  </div>`;
+
+  wrap.innerHTML = html;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  렌더 진입점
 // ═══════════════════════════════════════════════════════════════════
 
 function render() {
-  // 각 탭 렌더 함수는 단계 ②~⑤에서 구현
+  renderSettingsTable();
+  // 포트폴리오·이력 탭은 이후 단계에서 구현
 }
 
 // ═══════════════════════════════════════════════════════════════════
