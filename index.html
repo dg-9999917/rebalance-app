@@ -343,6 +343,7 @@
     #tab-monitor { padding: 16px; }
     .monitor-grid {
       display: flex; flex-direction: column; gap: 16px;
+      max-width: 960px; margin: 0 auto;
     }
     .chart-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -1816,7 +1817,7 @@ function renderMonitorTab() {
   if (snapshots.length < 2) {
     lineChart = `<div class="chart-empty">스냅샷이 2개 이상 쌓이면 그래프가 표시됩니다.<br>현재 ${snapshots.length}개</div>`;
   } else {
-    const W = 520, H = 220, PAD = { t: 16, r: 20, b: 48, l: 64 };
+    const W = 600, H = 160, PAD = { t: 16, r: 20, b: 48, l: 64 };
     const vals   = snapshots.map(s => s.totals.totalVal);
     const p0     = snapshots[0].p0 || 0;
     const allVals = p0 > 0 ? [...vals, p0] : vals;
