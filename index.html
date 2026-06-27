@@ -258,6 +258,14 @@
     .pf-summary-item .s-val   { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; }
     .pf-summary-item .s-sub   { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
     .pf-summary-sep { width: 1px; background: var(--border); align-self: stretch; margin: 4px 0; }
+    .inp-pf-fxn {
+      width: 75px; text-align: right; font-size: 15px; font-weight: 700;
+      background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+    }
+    .inp-pf-fxn:focus { outline: none; border-color: var(--accent); }
+    .hist-row-buy  { background: rgba(26,115,232,0.08); }
+    .hist-row-sell { background: rgba(211,47,47,0.08); }
 
     .pf-tbl-wrap { padding: 12px 16px; }
     .pf-tbl-wrap .tbl-wrap { margin-bottom: 12px; }
@@ -381,7 +389,7 @@
               placeholder="0"
               onfocus="commaFocus(this)"
               oninput="onMetaInput('fxN',this.value)"
-              onblur="commaBlur(this)">
+              onblur="commaBlur(this); syncFxNPortfolio();">
             <span class="meta-sub">₩/$</span>
           </div>
         </div>
@@ -628,7 +636,12 @@ function setBasePrice(id, value) {
 function onMetaInput(key, raw) {
   state.meta[key] = parseNum(raw);
   saveState();
-  renderSettingsDerived(); // 표 파생값만 갱신 (입력 커서 유지)
+  renderSettingsDerived();
+  if (key === 'fxN') {
+    const pfEl = document.getElementById('pf-in-fxN');
+    if (pfEl && document.activeElement !== pfEl) pfEl.value = raw.replace(/,/g, '');
+    _updatePortfolioRows();
+  }
 }
 
 function onRatioChange(id, delta) {
@@ -953,8 +966,12 @@ function renderPortfolioSummary() {
     </div>
     <div class="pf-summary-sep"></div>
     <div class="pf-summary-item">
-      <span class="s-label">현재 환율</span>
-      <span class="s-val">${hasFxN ? fmtNum(fxN) + ' ₩/$' : '<span style="color:var(--neg)">미입력</span>'}</span>
+      <span class="s-label">현재 환율 (₩/$)</span>
+      <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
+        value="${fxN ? fmtNum(fxN) : ''}" placeholder="미입력"
+        onfocus="commaFocus(this)"
+        oninput="onPortfolioFxNInput(this.value)"
+        onblur="onPortfolioFxNBlur(this)">
     </div>`;
 }
 
@@ -1023,7 +1040,7 @@ function renderPortfolioTable() {
           <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
         </td>
         <td class="num">
-          ${isCash ? '<span class="val-dim">1</span>'
+          ${isCash ? '<span class="val-dim">—</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.price)}" placeholder="0"
                 onfocus="commaFocus(this)"
@@ -1031,7 +1048,7 @@ function renderPortfolioTable() {
                 onblur="commaBlur(this)">`}
         </td>
         <td class="num">
-          ${isCash ? '<span class="val-dim">1</span>'
+          ${isCash ? '<span class="val-dim">—</span>'
             : `<input class="inp-avg" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.avg)}" placeholder="0"
                 onfocus="commaFocus(this)"
@@ -1057,7 +1074,7 @@ function renderPortfolioTable() {
           </div>
         </td>
         <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-        <td class="num val-dim">${unit ? fmtDec(unit,4) : '—'}</td>
+        <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
         <td class="num val-dim">${per1 ? fmtNum(alloc) : '—'}</td>
         <td class="num" id="pf-need-${s.id}">${needStr}</td>
         <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
@@ -1079,10 +1096,9 @@ function renderPortfolioTable() {
   wrap.innerHTML = html;
 }
 
-// 파생값만 부분 갱신 (입력 커서 유지)
-function renderPortfolioDerived() {
-  renderPortfolioSummary();
-  const per1  = state.meta.p0 / 100;
+// 포트폴리오 행 파생값만 갱신 (summary bar 재빌드 없이 — 입력 커서 유지)
+function _updatePortfolioRows() {
+  const per1   = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
   state.stocks.forEach(s => {
     const unit   = calcUnit(s);
@@ -1111,6 +1127,32 @@ function renderPortfolioDerived() {
       unrealEl.textContent = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
     }
   });
+}
+
+function renderPortfolioDerived() {
+  renderPortfolioSummary();
+  _updatePortfolioRows();
+}
+
+// 포트폴리오 탭 환율 입력칸 핸들러
+function syncFxNPortfolio() {
+  const pfEl = document.getElementById('pf-in-fxN');
+  if (pfEl) pfEl.value = state.meta.fxN ? fmtNum(state.meta.fxN) : '';
+}
+function onPortfolioFxNInput(raw) {
+  state.meta.fxN = parseNum(raw);
+  saveState();
+  const settingsEl = document.getElementById('in-fxN');
+  if (settingsEl && document.activeElement !== settingsEl) settingsEl.value = raw.replace(/,/g, '');
+  _updatePortfolioRows();
+}
+function onPortfolioFxNBlur(el) {
+  commaBlur(el);
+  state.meta.fxN = parseNum(el.value);
+  saveState();
+  const settingsEl = document.getElementById('in-fxN');
+  if (settingsEl) settingsEl.value = state.meta.fxN ? fmtNum(state.meta.fxN) : '';
+  renderPortfolioDerived();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1412,19 +1454,42 @@ function renderHistoryTab() {
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평단</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재가</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정비율</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">비중1당</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재비중</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">실현손익</th>
             </tr></thead><tbody>`;
 
+    const prevSnap = state.history[i + 1];
     snap.stocks.filter(s => s.q > 0 || s.realized).forEach(s => {
+      const isCashS = s.market === 'CASH';
       const rCl = (s.realized || 0) >= 0 ? 'var(--positive)' : 'var(--negative)';
-      html += `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:4px 8px;font-weight:600">${esc(s.name)} <span style="color:var(--text-sub);font-size:10px">${esc(s.ticker)}</span></td>
-        <td style="text-align:right;padding:4px 8px">${fmtDec(s.q, 2)}</td>
-        <td style="text-align:right;padding:4px 8px">${s.avg ? fmtNum(s.avg) : '—'}</td>
-        <td style="text-align:right;padding:4px 8px">${s.price ? fmtNum(s.price) : '—'}</td>
+
+      const prevS = prevSnap ? prevSnap.stocks.find(ps => ps.id === s.id) : null;
+      const prevQ = prevS != null ? prevS.q : null;
+      const qDelta = prevQ !== null ? s.q - prevQ : 0;
+      const rowCls = Math.abs(qDelta) > 0.0001
+        ? (qDelta > 0 ? 'hist-row-buy' : 'hist-row-sell') : '';
+      const dirBadge = Math.abs(qDelta) > 0.0001
+        ? `<span style="font-size:10px;margin-left:4px;color:${qDelta>0?'var(--buy)':'var(--sell)'}">${qDelta>0?'▲매수':'▼매도'}</span>` : '';
+      const qDeltaStr = (prevQ !== null && Math.abs(qDelta) > 0.0001)
+        ? `<span style="display:block;font-size:10px;color:${qDelta>0?'var(--buy)':'var(--sell)'}">${qDelta>0?'+':''}${fmtDec(qDelta,2)}</span>` : '';
+
+      const prevUnit = prevS ? prevS.unit : null;
+      const unitDelta = (!isCashS && s.unit && prevUnit != null && Math.abs(s.unit - prevUnit) > 0.000001)
+        ? s.unit - prevUnit : null;
+      const unitCell = isCashS || !s.unit ? '—'
+        : unitDelta !== null
+          ? `${fmtDec(s.unit,4)}<span style="display:block;font-size:10px;color:${unitDelta>0?'var(--positive)':'var(--negative)'}">${unitDelta>0?'+':''}${fmtDec(unitDelta,4)}</span>`
+          : fmtDec(s.unit,4);
+
+      html += `<tr class="${rowCls}" style="border-bottom:1px solid var(--border)">
+        <td style="padding:4px 8px;font-weight:600">${esc(s.name)} <span style="color:var(--text-sub);font-size:10px">${esc(s.ticker)}</span>${dirBadge}</td>
+        <td style="text-align:right;padding:4px 8px">${fmtDec(s.q,2)}${qDeltaStr}</td>
+        <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.avg ? fmtNum(s.avg, s.avg%1?2:0) : '—')}</td>
+        <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.price ? fmtNum(s.price, s.price%1?2:0) : '—')}</td>
         <td style="text-align:right;padding:4px 8px">${s.r}</td>
+        <td style="text-align:right;padding:4px 8px">${unitCell}</td>
         <td style="text-align:right;padding:4px 8px">${fmtNum(s.val || 0)}</td>
         <td style="text-align:right;padding:4px 8px">${fmtDec(s.weight || 0, 2)}</td>
         <td style="text-align:right;padding:4px 8px;color:${rCl}">${fmtNum(s.realized || 0)}</td>
