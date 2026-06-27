@@ -1,6 +1,6 @@
 # 구현 진행 상황
 
-## 3차 작업 진행 중 (계좌 분리) — 2026-06-27
+## 🎉 3차 작업 완료 (계좌 분리) — 2026-06-27
 
 ### 3차 완료 단계
 - [x] **1단계: 데이터 구조 + 마이그레이션** — appData/state 포인터 구조, 구형 rebalance_state_v1 → "기본 계좌" 자동 이전, saveState/loadState 교체, resetApp/importBackup 포인터 안전 처리
