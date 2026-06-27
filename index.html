@@ -1502,6 +1502,8 @@ function closeConfirmModal() {
 //  이력 탭 (step ⑤)
 // ═══════════════════════════════════════════════════════════════════
 
+let _histSubTab = 'snapshots'; // 'snapshots' | 'tradelog'
+
 function renderHistoryTab() {
   const tab = document.getElementById('tab-history');
   if (!state.history || !state.history.length) {
@@ -1512,11 +1514,26 @@ function renderHistoryTab() {
     return;
   }
 
+  const subBtnStyle = (key) => `padding:5px 14px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:${_histSubTab===key?'var(--accent)':'var(--btn-bg)'};color:${_histSubTab===key?'#fff':'var(--text)'};cursor:pointer`;
+
   let html = `<div style="padding:0">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
-      <span style="font-size:14px;font-weight:700">확정 이력 (${state.history.length}건)</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:6px">
+        <button style="${subBtnStyle('snapshots')}" onclick="_histSubTab='snapshots';renderHistoryTab()">스냅샷 목록</button>
+        <button style="${subBtnStyle('tradelog')}"  onclick="_histSubTab='tradelog';renderHistoryTab()">거래 로그</button>
+      </div>
       <button class="btn btn-danger btn-sm" onclick="revertLastSnapshot()">↩ 직전 확정 되돌리기</button>
     </div>`;
+
+  if (_histSubTab === 'tradelog') {
+    html += buildTradeLogHtml();
+    html += '</div>';
+    tab.innerHTML = html;
+    return;
+  }
+
+  // ── 스냅샷 목록 ─────────────────────────────────────────────────
+  html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${state.history.length}건</div>`;
 
   state.history.forEach((snap, i) => {
     const dt     = new Date(snap.ts);
@@ -1651,6 +1668,105 @@ function revertLastSnapshot() {
   state.history.shift();
   restoreSnapshotToState(state.history[0]);
   saveState(); render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  C. 거래 로그 — 연속 스냅샷 비교로 파생
+// ═══════════════════════════════════════════════════════════════════
+
+function buildTradeLogHtml() {
+  // history는 최신순(index 0 = 가장 최근)
+  // 비교: history[i](신) vs history[i+1](구) → 거래 추출
+  const rows = [];
+  for (let i = 0; i < state.history.length - 1; i++) {
+    const newer = state.history[i];
+    const older = state.history[i + 1];
+    newer.stocks.forEach(ns => {
+      if (ns.market === 'CASH') return;
+      const os = older.stocks.find(s => s.id === ns.id);
+      if (!os) return;
+      const delta = ns.q - os.q;
+      if (Math.abs(delta) < 0.0001) return;
+      const dir = delta > 0 ? 'BUY' : 'SELL';
+      const unitFrom = os.unit || 0;
+      const unitTo   = ns.unit || 0;
+      const unitDelta = unitTo - unitFrom;
+      // 실현손익 변화 (매도 시)
+      const realDelta = dir === 'SELL' ? ((ns.realized || 0) - (os.realized || 0)) : null;
+      rows.push({
+        ts:        newer.ts,
+        name:      ns.name,
+        ticker:    ns.ticker,
+        market:    ns.market,
+        dir,
+        qDelta:    delta,
+        price:     ns.price,
+        unitFrom,
+        unitTo,
+        unitDelta,
+        realDelta,
+      });
+    });
+  }
+
+  if (!rows.length) {
+    return `<div class="chart-empty" style="padding:48px 24px;text-align:center;color:var(--text-sub)">
+      아직 거래 기록이 없습니다.<br>스냅샷이 2개 이상 있어야 비교할 수 있습니다.
+    </div>`;
+  }
+
+  const thStyle = `padding:7px 10px;font-size:11px;color:var(--text-sub);font-weight:700;text-align:`;
+  const tdStyle = `padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);`;
+
+  let html = `<div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead style="position:sticky;top:0;z-index:10;background:var(--th-bg)">
+      <tr>
+        <th style="${thStyle}left;white-space:nowrap;border-bottom:1px solid var(--border)">날짜/시각</th>
+        <th style="${thStyle}left;white-space:nowrap;border-bottom:1px solid var(--border)">종목</th>
+        <th style="${thStyle}center;white-space:nowrap;border-bottom:1px solid var(--border)">매수/매도</th>
+        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">변동 수량</th>
+        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">체결가</th>
+        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">비중1당 변화</th>
+        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">실현손익</th>
+      </tr>
+    </thead><tbody>`;
+
+  rows.forEach(r => {
+    const dt    = new Date(r.ts);
+    const dtStr = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const isBuy = r.dir === 'BUY';
+    const dirC  = isBuy ? 'var(--buy)' : 'var(--sell)';
+    const dirLabel = isBuy ? '▲ 매수' : '▼ 매도';
+    const qSign    = isBuy ? '+' : '';
+    const unitSign = r.unitDelta >= 0 ? '+' : '';
+    const unitC    = r.unitDelta > 0 ? 'var(--positive)' : r.unitDelta < 0 ? 'var(--negative)' : 'var(--text-sub)';
+    const priceUnit = r.market === 'US' ? 'USD' : 'KRW';
+    const realStr   = r.realDelta !== null
+      ? `<span style="color:${r.realDelta>=0?'var(--positive)':'var(--negative)'};">${fmtNum(r.realDelta)}</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+
+    html += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
+      <td style="${tdStyle}left">
+        <span style="font-weight:600">${esc(r.name)}</span>
+        <span style="color:var(--text-sub);font-size:10px;margin-left:4px">${esc(r.ticker)}</span>
+      </td>
+      <td style="${tdStyle}center;font-weight:700;color:${dirC}">${dirLabel}</td>
+      <td style="${tdStyle}right;font-weight:700;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}</td>
+      <td style="${tdStyle}right">${r.price ? fmtNum(r.price, r.price%1?2:0) + ' ' + priceUnit : '—'}</td>
+      <td style="${tdStyle}right">
+        <span style="color:var(--text-sub)">${fmtDec(r.unitFrom, 4)}</span>
+        <span style="color:var(--text-muted)"> → </span>
+        <span>${fmtDec(r.unitTo, 4)}</span>
+        <span style="display:block;font-size:10px;color:${unitC}">${unitSign}${fmtDec(r.unitDelta, 4)}</span>
+      </td>
+      <td style="${tdStyle}right">${realStr}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  return html;
 }
 
 // ── 입력칸 콤마 포매터 ──────────────────────────────────────────────
