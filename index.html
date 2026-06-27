@@ -100,6 +100,22 @@
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
 
+    /* 계좌 선택 드롭다운 */
+    #account-select {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 4px 28px 4px 10px; font-size: 13px; font-weight: 600;
+      font-family: inherit; cursor: pointer; max-width: 160px;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8090'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 9px center;
+    }
+    #account-select:focus { outline: none; border-color: var(--accent); }
+    .account-label {
+      font-size: 11px; color: var(--text-sub); font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+    }
+
     /* ── 탭 컨텐츠 ──────────────────────────────────────────── */
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -373,6 +389,10 @@
       <button class="tab-btn" data-tab="history">이력</button>
     </nav>
     <div class="header-actions">
+      <span class="account-label">계좌</span>
+      <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
+        <option>기본 계좌</option>
+      </select>
       <button class="btn" onclick="exportBackup()">백업 내보내기</button>
       <button class="btn" onclick="importBackupClick()">불러오기</button>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
@@ -2016,7 +2036,24 @@ function renderMonitorTab() {
 //  렌더 진입점
 // ═══════════════════════════════════════════════════════════════════
 
+// ── 계좌 드롭다운 ──────────────────────────────────────────────────
+function renderAccountDropdown() {
+  const sel = document.getElementById('account-select');
+  if (!sel) return;
+  sel.innerHTML = appData.accounts.map(a =>
+    `<option value="${esc(a.id)}"${a.id === appData.activeAccountId ? ' selected' : ''}>${esc(a.name)}</option>`
+  ).join('');
+}
+
+function onAccountChange(id) {
+  if (id === appData.activeAccountId) return;
+  activateAccount(id);
+  saveState();
+  render();
+}
+
 function render() {
+  renderAccountDropdown();
   renderSettingsTable();
   renderPortfolioTable();
   renderMonitorTab();
