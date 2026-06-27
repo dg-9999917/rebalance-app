@@ -467,8 +467,12 @@
             <span class="meta-sub">₩/$</span>
           </div>
         </div>
-        <div id="ratio-sum-badge" class="ratio-sum-badge">
-          설정비율 합계 <span class="sum-val" id="disp-rsum">0.00</span> / 100
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+          <div id="ratio-sum-badge" class="ratio-sum-badge" style="margin-left:0">
+            설정비율 합계 <span class="sum-val" id="disp-rsum">0.00</span> / 100
+          </div>
+          <button class="btn btn-sm" onclick="syncSettingsToPortfolio()">동기화</button>
+          <span id="sync-msg" style="font-size:12px;color:var(--positive);display:none;white-space:nowrap">✓ 동기화 완료</span>
         </div>
         <div class="meta-field">
           <span class="meta-label">기준가격 모드</span>
@@ -970,6 +974,21 @@ function renderSettingsDerived() {
     if (elUnit)  elUnit.textContent  = (unit && isFinite(unit)) ? fmtDec(unit, 4) : '—';
     if (elQ0)    elQ0.textContent    = (unit && isFinite(unit)) ? fmtDec(q0, 2)   : '—';
   });
+}
+
+function syncSettingsToPortfolio() {
+  const rsum = state.stocks.reduce((a, s) => a + (s.r || 0), 0);
+  if (Math.abs(rsum - 100) >= 0.001) {
+    alert(`설정비율 합계가 100이어야 동기화할 수 있습니다. 현재 ${fmtDec(rsum, 2)}.`);
+    return;
+  }
+  renderPortfolioTable();
+  const msg = document.getElementById('sync-msg');
+  if (msg) {
+    msg.style.display = 'inline';
+    clearTimeout(msg._t);
+    msg._t = setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  }
 }
 
 function renderSettingsTable() {
