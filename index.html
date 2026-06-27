@@ -1569,7 +1569,7 @@ function renderConfirmBody() {
       html += `<tr id="crow-${i}" style="border-bottom:1px solid var(--border)">
         <td style="text-align:center;padding:6px 4px">
           <input type="checkbox" id="cchk-${i}" checked
-            onchange="document.getElementById('crow-${i}').style.opacity=this.checked?'1':'0.4'">
+            onchange="document.getElementById('crow-${i}').style.opacity=this.checked?'1':'0.4';updateConfirmCashDelta()">
         </td>
         <td style="padding:6px 8px">
           <span style="font-weight:600">${s ? esc(s.name) : esc(row.id)}</span>
@@ -1583,13 +1583,13 @@ function renderConfirmBody() {
           <input id="cqty-${i}" type="text" inputmode="decimal"
             style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
             value="${row.initQty ? fmtNum(row.initQty, 2) : ''}"
-            onfocus="commaFocus(this)" onblur="commaBlurQty(this)">
+            onfocus="commaFocus(this)" onblur="commaBlurQty(this)" oninput="updateConfirmCashDelta()">
         </td>
         <td style="text-align:right;padding:6px 8px">
           <input id="cprice-${i}" type="text" inputmode="decimal"
             style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
             value="${fmtPriceVal(row.initPrice)}"
-            onfocus="commaFocus(this)" onblur="commaBlur(this)">
+            onfocus="commaFocus(this)" onblur="commaBlur(this)" oninput="updateConfirmCashDelta()">
         </td>
         <td style="text-align:center;padding:6px 8px;color:var(--text-sub);font-size:11px">${priceUnit}</td>
       </tr>`;
@@ -1597,11 +1597,15 @@ function renderConfirmBody() {
     html += '</tbody></table>';
   }
 
-  html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+  html += `<div id="confirm-cash-delta" style="margin:12px 0 4px;padding:9px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:5px;font-size:13px;text-align:center;color:var(--text-sub)">
+    현금 변동 계산 중…
+  </div>`;
+  html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--border)">
     <button class="btn" onclick="closeConfirmModal()">취소</button>
     <button class="btn btn-primary" onclick="commitTrades()">확정 저장</button>
   </div></div>`;
   body.innerHTML = html;
+  updateConfirmCashDelta();
 }
 
 function commitTrades() {
@@ -1691,6 +1695,34 @@ function buildSnapshot(label, cashSettlement) {
 
 function closeConfirmModal() {
   document.getElementById('confirm-overlay').style.display = 'none';
+}
+
+function updateConfirmCashDelta() {
+  const fxN = state.meta.fxN || 1;
+  let S = 0, B = 0;
+  _confirmRows.forEach((row, i) => {
+    const chk   = document.getElementById(`cchk-${i}`);
+    if (!chk || !chk.checked) return;
+    const qty   = parseNum(document.getElementById(`cqty-${i}`)?.value);
+    const price = parseNum(document.getElementById(`cprice-${i}`)?.value);
+    if (qty <= 0 || price <= 0) return;
+    const s = state.stocks.find(st => st.id === row.id);
+    if (!s) return;
+    const pKRW = s.market === 'US' ? price * fxN : price;
+    if (row.dir === 'SELL') S += qty * pKRW;
+    else                    B += qty * pKRW;
+  });
+  const delta = S - B;
+  const el = document.getElementById('confirm-cash-delta');
+  if (!el) return;
+  const sign   = delta > 0 ? '+' : '';
+  const color  = delta < 0 ? '#ef4444' : delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
+  const suffix = delta < 0
+    ? ' <span style="font-size:11px;color:#ef4444;font-weight:600">(추가 입금 필요)</span>'
+    : '';
+  el.innerHTML =
+    `현금 변동: <strong style="color:${color}">${sign}${fmtNum(Math.round(delta))} 원</strong>${suffix}` +
+    ` <span style="font-size:11px;color:var(--text-sub)">(매도 합 ${fmtNum(Math.round(S))} − 매수 합 ${fmtNum(Math.round(B))})</span>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════
