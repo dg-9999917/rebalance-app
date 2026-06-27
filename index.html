@@ -1647,10 +1647,11 @@ function commitTrades() {
   }
 
   const fxN = state.meta.fxN || 1;
-  let _S = 0, _B = 0;  // 매도/매수 체결대금 합계 (원화)
+  let _S = 0, _B = 0;  // 주식 종목 매도/매수 체결대금 합계 (원화, 현금 제외)
   toProcess.forEach(row => {
     const s = state.stocks.find(st => st.id === row.id);
     if (!s) return;
+    if (s.market === 'CASH') return;  // 현금은 루프에서 완전 제외 — q/평단/실현손익 직접 변동 없음
     const pKRW = s.market === 'US' ? row.price * fxN : row.price;
     if (row.dir === 'SELL') {
       _S += row.qty * pKRW;
@@ -1726,7 +1727,7 @@ function updateConfirmCashDelta() {
     const price = parseNum(document.getElementById(`cprice-${i}`)?.value);
     if (qty <= 0 || price <= 0) return;
     const s = state.stocks.find(st => st.id === row.id);
-    if (!s) return;
+    if (!s || s.market === 'CASH') return;  // 현금 제외 — commitTrades와 동일 규칙
     const pKRW = s.market === 'US' ? price * fxN : price;
     if (row.dir === 'SELL') S += qty * pKRW;
     else                    B += qty * pKRW;
