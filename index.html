@@ -140,17 +140,24 @@
 
     /* ── 공통 표 스타일 ─────────────────────────────────────── */
     .tbl-wrap {
-      overflow-x: auto; border: 1px solid var(--border);
+      overflow-x: auto; overflow-y: auto;
+      max-height: calc(100vh - 200px); /* 컨테이너 내부 스크롤 → sticky top:0 동작 */
+      border: 1px solid var(--border);
       border-radius: 8px; background: var(--surface);
     }
+    /* 기준설정 탭: 상단 meta 영역 높이 반영 */
+    #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
+    /* 포트폴리오 탭: summary 바 + 액션 버튼 높이 반영 */
+    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 175px); }
+
     table {
       width: 100%; border-collapse: collapse;
       font-size: 13px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 47px; z-index: 20;
+      position: sticky; top: 0; z-index: 20; /* top:0 = .tbl-wrap 스크롤 컨테이너 기준 */
       background: var(--th-bg);
-      box-shadow: 0 1px 0 var(--border); /* border-collapse 겹침 방지용 shadow */
+      box-shadow: 0 1px 0 var(--border);
       padding: 8px 10px; font-size: 11.5px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
