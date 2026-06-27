@@ -539,7 +539,10 @@ const DEFAULT_STATE = {
   history: []
 };
 
-let state = deepClone(DEFAULT_STATE);
+// appData: 전체 계좌 컨테이너 (3차)
+// state: 항상 appData.accounts[active].state 를 가리키는 포인터 — 기존 계산 로직 무변경
+let appData = null;
+let state   = null;
 
 // ═══════════════════════════════════════════════════════════════════
 //  유틸
@@ -585,23 +588,67 @@ function calcUnit(s) {
 //  localStorage 저장 / 불러오기
 // ═══════════════════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'rebalance_state_v1';
+const STORAGE_KEY     = 'rebalance_state_v1'; // 구형 키 (마이그레이션 읽기 전용)
+const APP_STORAGE_KEY = 'rebalance_app_v2';   // 신형 키
+
+// 활성 계좌를 state 포인터에 연결
+function activateAccount(id) {
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return false;
+  appData.activeAccountId = acc.id;
+  state = acc.state;
+  return true;
+}
 
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  try { localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(appData)); }
   catch(e) { console.error('저장 실패:', e); }
 }
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.meta && parsed.stocks) {
-      state = parsed;
-      applyTheme(state.meta.theme || 'dark');
+    // ① 신형 구조 시도
+    const raw = localStorage.getItem(APP_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.accounts) && parsed.accounts.length) {
+        appData = parsed;
+        const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
+          ? appData.activeAccountId : appData.accounts[0].id;
+        activateAccount(validId);
+        applyTheme(state.meta.theme || 'dark');
+        return;
+      }
     }
-  } catch(e) { console.error('불러오기 실패:', e); }
+    // ② 구형 단일 state 마이그레이션
+    const oldRaw = localStorage.getItem(STORAGE_KEY);
+    if (oldRaw) {
+      const oldState = JSON.parse(oldRaw);
+      if (oldState && oldState.meta && Array.isArray(oldState.stocks)) {
+        console.log('[migration] 기존 데이터 → "기본 계좌" 이전');
+        const acc = { id: 'acc_1', name: '기본 계좌', state: oldState };
+        appData = { activeAccountId: 'acc_1', accounts: [acc] };
+        saveState(); // 신형으로 즉시 저장
+        activateAccount('acc_1');
+        applyTheme(state.meta.theme || 'dark');
+        return;
+      }
+    }
+    // ③ 완전 초기 (처음 사용)
+    const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE) };
+    appData = { activeAccountId: 'acc_1', accounts: [fresh] };
+    saveState();
+    activateAccount('acc_1');
+    applyTheme('dark');
+  } catch(e) {
+    console.error('로드 실패:', e);
+    // 데이터 손실 방지 — 실패 시 임의 초기화 금지, 비상 초기화만
+    if (!appData || !state) {
+      const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE) };
+      appData = { activeAccountId: 'acc_1', accounts: [fresh] };
+      activateAccount('acc_1');
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -627,7 +674,11 @@ function importBackup(input) {
     try {
       const loaded = JSON.parse(e.target.result);
       if (!loaded.meta || !Array.isArray(loaded.stocks)) throw new Error('유효하지 않은 백업 파일');
-      state = loaded; saveState(); applyTheme(state.meta.theme || 'dark'); render();
+      const acc = appData.accounts.find(a => a.id === appData.activeAccountId);
+      if (!acc) throw new Error('활성 계좌를 찾을 수 없습니다');
+      acc.state = loaded;
+      state = loaded; // 포인터 재연결
+      saveState(); applyTheme(state.meta.theme || 'dark'); render();
       alert('불러오기 완료!');
     } catch(err) { alert('백업 파일 오류: ' + err.message); }
   };
@@ -636,7 +687,11 @@ function importBackup(input) {
 
 function resetApp() {
   if (!confirm('모든 데이터를 초기화하고 기본 시드로 되돌립니다.\n되돌릴 수 없습니다. 계속하시겠습니까?')) return;
-  state = deepClone(DEFAULT_STATE); saveState(); applyTheme('dark'); render();
+  const acc = appData.accounts.find(a => a.id === appData.activeAccountId);
+  if (!acc) return;
+  acc.state = deepClone(DEFAULT_STATE);
+  state = acc.state; // 포인터 재연결
+  saveState(); applyTheme('dark'); render();
 }
 
 // ═══════════════════════════════════════════════════════════════════
