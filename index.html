@@ -695,7 +695,7 @@ function renderSettingsMeta() {
 // 포커스 중인 input은 값을 덮어쓰지 않음
 function syncInput(el, val) {
   if (!el || document.activeElement === el) return;
-  el.value = val ? fmtNum(val) : '';
+  el.value = val ? fmtNum(val, val % 1 ? 2 : 0) : '';
 }
 
 function renderSettingsDerived() {
@@ -777,7 +777,7 @@ function renderSettingsTable() {
           ${isCash
             ? '<span class="val-dim">1</span>'
             : `<input class="inp inp-num inp-c0" type="text" inputmode="decimal"
-                value="${s.c0 ? fmtNum(s.c0) : ''}"
+                value="${fmtPriceVal(s.c0)}"
                 placeholder="0"
                 onfocus="commaFocus(this)"
                 onchange="onC0Input('${s.id}',this.value)"
@@ -1014,7 +1014,7 @@ function renderPortfolioTable() {
         <td class="num">
           ${isCash ? '<span class="val-dim">1</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
-                value="${s.price ? fmtNum(s.price) : ''}" placeholder="0"
+                value="${fmtPriceVal(s.price)}" placeholder="0"
                 onfocus="commaFocus(this)"
                 onchange="onPriceInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">`}
@@ -1022,7 +1022,7 @@ function renderPortfolioTable() {
         <td class="num">
           ${isCash ? '<span class="val-dim">1</span>'
             : `<input class="inp-avg" type="text" inputmode="decimal"
-                value="${s.avg ? fmtNum(s.avg) : ''}" placeholder="0"
+                value="${fmtPriceVal(s.avg)}" placeholder="0"
                 onfocus="commaFocus(this)"
                 onchange="onAvgInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">`}
@@ -1251,7 +1251,7 @@ function renderConfirmBody() {
         <td style="text-align:right;padding:6px 8px">
           <input id="cprice-${i}" type="text" inputmode="decimal"
             style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
-            value="${row.initPrice ? fmtNum(row.initPrice) : ''}"
+            value="${fmtPriceVal(row.initPrice)}"
             onfocus="commaFocus(this)" onblur="commaBlur(this)">
         </td>
         <td style="text-align:center;padding:6px 8px;color:var(--text-sub);font-size:11px">${priceUnit}</td>
@@ -1475,8 +1475,17 @@ function revertLastSnapshot() {
 
 // ── 입력칸 콤마 포매터 ──────────────────────────────────────────────
 function commaFocus(el)   { el.value = el.value.replace(/,/g, ''); }
-function commaBlur(el)    { const v = parseNum(el.value); el.value = v ? fmtNum(v) : ''; }
+function commaBlur(el) {
+  const raw = el.value.replace(/,/g, '');
+  const v = parseFloat(raw);
+  if (isNaN(v) || raw === '') { el.value = ''; return; }
+  const dot = raw.indexOf('.');
+  const dec = dot >= 0 ? Math.min(raw.length - dot - 1, 4) : 0;
+  el.value = fmtNum(v, dec);
+}
 function commaBlurQty(el) { const v = parseNum(el.value); el.value = v ? fmtNum(v, 2) : ''; }
+// 가격 표시용: 소수 있으면 2자리, 정수면 0자리
+function fmtPriceVal(n) { return n ? fmtNum(n, n % 1 ? 2 : 0) : ''; }
 
 // ═══════════════════════════════════════════════════════════════════
 //  렌더 진입점
