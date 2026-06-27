@@ -235,6 +235,83 @@
     .val-pos { color: var(--positive); }
     .val-neg { color: var(--negative); }
     .val-dim { color: var(--text-sub); }
+
+    /* ── 포트폴리오 탭 ──────────────────────────────────────── */
+    #tab-portfolio { padding: 0; }
+
+    .pf-summary {
+      display: flex; flex-wrap: wrap; gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface); padding: 10px 16px; gap: 20px;
+      align-items: center;
+    }
+    .pf-summary-item { display: flex; flex-direction: column; gap: 2px; }
+    .pf-summary-item .s-label { font-size: 10px; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .pf-summary-item .s-val   { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .pf-summary-item .s-sub   { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
+    .pf-summary-sep { width: 1px; background: var(--border); align-self: stretch; margin: 4px 0; }
+
+    .pf-tbl-wrap { padding: 12px 16px; }
+    .pf-tbl-wrap .tbl-wrap { margin-bottom: 12px; }
+
+    /* 포트폴리오 표 입력칸 */
+    .inp-price, .inp-avg, .inp-qty {
+      background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 6px; font-size: 12.5px; text-align: right;
+    }
+    .inp-price:focus, .inp-avg:focus, .inp-qty:focus { outline: none; border-color: var(--accent); }
+    .inp-price { width: 80px; }
+    .inp-avg   { width: 80px; }
+    .inp-qty   { width: 72px; }
+
+    /* 필요매매 */
+    .need-buy  { color: var(--buy);  font-weight: 700; }
+    .need-sell { color: var(--sell); font-weight: 700; }
+    .need-zero { color: var(--text-muted); }
+
+    /* 종합행 */
+    tr.subtotal-row td {
+      background: var(--surface2); font-weight: 700;
+      font-size: 12px; border-top: 1px solid var(--border);
+    }
+
+    /* 포트폴리오 액션 버튼 줄 */
+    .pf-actions {
+      display: flex; gap: 10px; align-items: center;
+      padding: 0 16px 16px;
+    }
+
+    /* ── 미리보기 모달 ──────────────────────────────────────── */
+    #preview-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 500;
+      align-items: center; justify-content: center;
+    }
+    #preview-overlay.open { display: flex; }
+    #preview-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; width: min(760px, 95vw); max-height: 80vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      font-weight: 700; font-size: 15px;
+    }
+    .modal-body { overflow-y: auto; padding: 16px 18px; flex: 1; }
+    .modal-close {
+      width: 28px; height: 28px; border: none; border-radius: 4px;
+      background: var(--btn-bg); color: var(--text); font-size: 16px; cursor: pointer;
+    }
+    .modal-close:hover { background: var(--btn-hover); }
+
+    .preview-pool {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .preview-pool .pool-val { font-size: 16px; font-weight: 700; color: var(--positive); }
   </style>
 </head>
 <body>
@@ -304,18 +381,41 @@
 
     <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
     <section id="tab-portfolio" class="tab-content">
-      <div class="placeholder">
-        <strong>포트폴리오 탭</strong>
-        단계 ③에서 구현 예정 — 현재가·평단·수량 입력, 조정비율 ±, 미리보기·확정 저장
+      <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
+      <div class="pf-tbl-wrap">
+        <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
+        <div class="pf-actions">
+          <button class="btn btn-primary" onclick="showPreview()">미리보기 (리밸런싱 시뮬)</button>
+          <button class="btn" onclick="showConfirmModal()">확정 저장</button>
+        </div>
       </div>
     </section>
 
+    <!-- ══════════════ 미리보기 모달 ══════════════ -->
+    <div id="preview-overlay" onclick="if(event.target===this)closePreview()">
+      <div id="preview-modal">
+        <div class="modal-header">
+          리밸런싱 미리보기 <span style="font-size:12px;font-weight:400;color:var(--text-sub)">(장부 미변경)</span>
+          <button class="modal-close" onclick="closePreview()">✕</button>
+        </div>
+        <div class="modal-body" id="preview-body"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 확정 저장 모달 ══════════════ -->
+    <div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;" onclick="if(event.target===this)closeConfirmModal()">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;width:min(680px,95vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+        <div class="modal-header">
+          확정 저장 — 실제 체결 입력
+          <button class="modal-close" onclick="closeConfirmModal()">✕</button>
+        </div>
+        <div class="modal-body" id="confirm-body"></div>
+      </div>
+    </div>
+
     <!-- ══════════════ 이력 탭 ══════════════ -->
     <section id="tab-history" class="tab-content">
-      <div class="placeholder">
-        <strong>이력 탭</strong>
-        단계 ⑤에서 구현 예정 — 확정 스냅샷 목록, 날짜 복원·비교·되돌리기
-      </div>
+      <!-- renderHistoryTab() 으로 채워짐 -->
     </section>
   </main>
 
@@ -711,12 +811,648 @@ function esc(str) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  계산 헬퍼
+// ═══════════════════════════════════════════════════════════════════
+
+// 현재가(원화)
+function priceKRW(s) {
+  if (s.market === 'CASH') return 1;
+  const fxN = state.meta.fxN || 1;
+  return s.market === 'US' ? s.price * fxN : s.price;
+}
+
+// 평단가(원화)
+function avgKRW(s) {
+  if (s.market === 'CASH') return 1;
+  const fxN = state.meta.fxN || 1;
+  return s.market === 'US' ? s.avg * fxN : s.avg;
+}
+
+// 평가금액(원화)
+function evalVal(s) { return s.q * priceKRW(s); }
+
+// 현재비중
+function currWeight(s) {
+  const per1 = state.meta.p0 / 100;
+  if (!per1) return 0;
+  return evalVal(s) / per1;
+}
+
+// 평가손익(원화)
+function unrealizedPnL(s) {
+  if (!s.q || !s.avg) return 0;
+  return (priceKRW(s) - avgKRW(s)) * s.q;
+}
+
+// unit 갱신 후 저장
+function recalcUnit(s) {
+  s.unit = calcUnit(s);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  포트폴리오 탭 — 입력 핸들러
+// ═══════════════════════════════════════════════════════════════════
+
+function onPriceInput(id, raw) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.price = parseNum(raw); saveState(); renderPortfolioDerived();
+}
+function onAvgInput(id, raw) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.avg = parseNum(raw); saveState(); renderPortfolioDerived();
+}
+function onQtyInput(id, raw) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.q = parseNum(raw); saveState(); renderPortfolioDerived();
+}
+function onAdjRChange(id, delta) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.adjR = Math.max(0, +((s.adjR + delta).toFixed(2)));
+  saveState(); renderPortfolioTable();
+}
+function onAdjRInput(id, raw) {
+  const s = state.stocks.find(s => s.id === id); if (!s) return;
+  s.adjR = Math.max(0, parseNum(raw)); saveState(); renderPortfolioDerived();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  포트폴리오 탭 — 렌더
+// ═══════════════════════════════════════════════════════════════════
+
+function renderPortfolioSummary() {
+  const p0   = state.meta.p0;
+  const per1 = p0 / 100;
+  const fxN  = state.meta.fxN;
+
+  const totalVal    = state.stocks.reduce((a, s) => a + evalVal(s), 0);
+  const totalReal   = state.stocks.reduce((a, s) => a + (s.realized || 0), 0);
+  const rsum        = state.stocks.reduce((a, s) => a + (s.r || 0), 0);
+  const cashStock   = state.stocks.find(s => s.market === 'CASH');
+  const cashVal     = cashStock ? cashStock.q : 0;
+  const pctChg      = p0 ? (totalVal - p0) / p0 * 100 : null;
+
+  const pctStr  = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
+  const pctCls  = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
+  const realCls = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const rsumCls = Math.abs(rsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
+
+  document.getElementById('pf-summary-bar').innerHTML = `
+    <div class="pf-summary-item">
+      <span class="s-label">총 평가금액</span>
+      <span class="s-val">${fmtNum(totalVal)} 원</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">원금 → 현재 총자산</span>
+      <span class="s-val">${p0 ? fmtNum(p0) : '—'} → ${fmtNum(totalVal)} 원</span>
+      <span class="s-sub ${pctCls}">${pctStr}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">설정비율 합계</span>
+      <span class="s-val ${rsumCls}">${fmtDec(rsum, 2)} / 100</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">실현손익 누계</span>
+      <span class="s-val ${realCls}">${fmtNum(totalReal)} 원</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">현금</span>
+      <span class="s-val">${fmtNum(cashVal)} 원</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">현재 환율</span>
+      <span class="s-val">${fxN ? fmtNum(fxN) + ' ₩/$' : '—'}</span>
+    </div>`;
+}
+
+function renderPortfolioTable() {
+  renderPortfolioSummary();
+  const wrap = document.getElementById('pf-tbl-wrap');
+  const per1 = state.meta.p0 / 100;
+
+  const groups = [
+    { label: '미국 (USD)', market: 'US'   },
+    { label: '한국 (KRW)', market: 'KR'   },
+    { label: '현금',       market: 'CASH' },
+  ];
+
+  let html = `<table>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num">현재가</th>
+      <th class="num">평단가</th>
+      <th class="num">보유수량</th>
+      <th class="num">설정비율</th>
+      <th class="num">조정비율</th>
+      <th class="num">현재비중</th>
+      <th class="num">1%당주식수</th>
+      <th class="num">배정금액(원)</th>
+      <th class="num">필요매매</th>
+      <th class="num">평가손익</th>
+      <th class="num">실현손익</th>
+    </tr></thead><tbody>`;
+
+  groups.forEach(g => {
+    const stocks = state.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+
+    html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
+
+    let subVal = 0, subWeight = 0;
+
+    stocks.forEach(s => {
+      const unit   = calcUnit(s);
+      const pKRW   = priceKRW(s);
+      const val    = evalVal(s);
+      const wt     = currWeight(s);
+      const alloc  = s.r * per1;
+      const adjQty = s.adjR * unit;           // 조정수량
+      const need   = adjQty - s.q;            // 필요매매
+      const unreal = unrealizedPnL(s);
+      subVal    += val;
+      subWeight += wt;
+
+      const badgeClass = g.market === 'US' ? 'badge-us' : g.market === 'KR' ? 'badge-kr' : 'badge-cash';
+      const needStr  = !unit ? '—' : (Math.abs(need) < 0.005 ? '<span class="need-zero">—</span>'
+                       : need > 0 ? `<span class="need-buy">+${fmtDec(need,2)}</span>`
+                                  : `<span class="need-sell">${fmtDec(need,2)}</span>`);
+      const unrealCls = unreal >= 0 ? 'val-pos' : 'val-neg';
+      const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
+      const wtCls     = wt > s.r ? 'val-pos' : '';
+      const isCash    = g.market === 'CASH';
+
+      html += `<tr>
+        <td>
+          <span class="stock-name">${esc(s.name)}</span>
+          <span class="stock-ticker">${esc(s.ticker)}</span>
+          <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+        </td>
+        <td class="num">
+          ${isCash ? '<span class="val-dim">1</span>'
+            : `<input class="inp-price" type="text" inputmode="decimal"
+                value="${s.price || ''}" placeholder="0"
+                onchange="onPriceInput('${s.id}',this.value)">`}
+        </td>
+        <td class="num">
+          ${isCash ? '<span class="val-dim">1</span>'
+            : `<input class="inp-avg" type="text" inputmode="decimal"
+                value="${s.avg || ''}" placeholder="0"
+                onchange="onAvgInput('${s.id}',this.value)">`}
+        </td>
+        <td class="num">
+          <input class="inp-qty" type="text" inputmode="decimal"
+            value="${s.q || ''}" placeholder="0"
+            onchange="onQtyInput('${s.id}',this.value)">
+        </td>
+        <td class="num val-dim">${s.r}</td>
+        <td class="num">
+          <div class="ratio-cell">
+            <button class="pm-btn" onclick="onAdjRChange('${s.id}',-1)">−</button>
+            <input class="inp-r" type="number" min="0" step="0.5"
+              value="${s.adjR}"
+              onchange="onAdjRInput('${s.id}',this.value)"
+              oninput="onAdjRInput('${s.id}',this.value)">
+            <button class="pm-btn" onclick="onAdjRChange('${s.id}',1)">+</button>
+          </div>
+        </td>
+        <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 ? fmtDec(wt,2) : '—'}</td>
+        <td class="num val-dim">${unit ? fmtDec(unit,4) : '—'}</td>
+        <td class="num val-dim">${per1 ? fmtNum(alloc) : '—'}</td>
+        <td class="num" id="pf-need-${s.id}">${needStr}</td>
+        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${s.q && s.avg && s.price ? fmtNum(unreal) : '—'}</td>
+        <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
+      </tr>`;
+    });
+
+    // 시장 종합행
+    const subWtCls = subWeight > 0 ? 'val-pos' : '';
+    html += `<tr class="subtotal-row">
+      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td class="num ${subWtCls}">${per1 ? fmtDec(subWeight,2) : '—'}</td>
+      <td colspan="5" class="num">${fmtNum(subVal)} 원</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// 파생값만 부분 갱신 (입력 커서 유지)
+function renderPortfolioDerived() {
+  renderPortfolioSummary();
+  const per1 = state.meta.p0 / 100;
+  state.stocks.forEach(s => {
+    const unit   = calcUnit(s);
+    const wt     = currWeight(s);
+    const adjQty = s.adjR * unit;
+    const need   = adjQty - s.q;
+    const unreal = unrealizedPnL(s);
+
+    const needStr = !unit ? '—' : (Math.abs(need) < 0.005
+      ? '<span class="need-zero">—</span>'
+      : need > 0 ? `<span class="need-buy">+${fmtDec(need,2)}</span>`
+                 : `<span class="need-sell">${fmtDec(need,2)}</span>`);
+
+    const wtEl = document.getElementById(`pf-wt-${s.id}`);
+    const needEl = document.getElementById(`pf-need-${s.id}`);
+    const unrealEl = document.getElementById(`pf-unreal-${s.id}`);
+    if (wtEl) {
+      wtEl.textContent = per1 ? fmtDec(wt, 2) : '—';
+      wtEl.className = 'num ' + (wt > s.r ? 'val-pos' : '');
+    }
+    if (needEl) needEl.innerHTML = needStr;
+    if (unrealEl) {
+      const cls = unreal >= 0 ? 'val-pos' : 'val-neg';
+      unrealEl.className = `num ${cls}`;
+      unrealEl.textContent = s.q && s.avg && s.price ? fmtNum(unreal) : '—';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  미리보기 모달
+// ═══════════════════════════════════════════════════════════════════
+
+function calcRebalancing() {
+  // 매도/매수 계산 (장부 미변경)
+  const sells = [], buys = [];
+  let sellPool = 0;
+  let totalAdjR = 0;
+
+  state.stocks.forEach(s => {
+    const unit = calcUnit(s);
+    const delta = s.adjR - s.r;
+    totalAdjR += s.adjR;
+    if (delta < -0.0001) {
+      const qty = Math.abs(delta) * unit;
+      const amt = qty * priceKRW(s);
+      sells.push({ s, delta, qty, amt });
+      sellPool += amt;
+    } else if (delta > 0.0001) {
+      buys.push({ s, delta });
+    }
+  });
+
+  const sumPosDelta = buys.reduce((a, b) => a + b.delta, 0);
+  buys.forEach(b => {
+    const allocAmt = sumPosDelta > 0 ? sellPool * (b.delta / sumPosDelta) : 0;
+    const pKRW = priceKRW(b.s);
+    b.qty = pKRW > 0 ? allocAmt / pKRW : 0;
+    b.amt = allocAmt;
+  });
+
+  return { sells, buys, sellPool, sumPosDelta };
+}
+
+function showPreview() {
+  const { sells, buys, sellPool } = calcRebalancing();
+  const body = document.getElementById('preview-body');
+
+  let html = `<div class="preview-pool">
+    매도 풀 합계: <span class="pool-val">${fmtNum(sellPool)} 원</span>
+  </div>`;
+
+  html += `<table style="width:100%;margin-bottom:14px">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+      <th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">비율변화</th>
+      <th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량</th>
+      <th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">금액(원)</th>
+    </tr></thead><tbody>`;
+
+  if (sells.length) {
+    html += `<tr><td colspan="4" style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--sell);background:var(--group-bg)">▼ 매도</td></tr>`;
+    sells.forEach(({s, delta, qty, amt}) => {
+      html += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px">${esc(s.name)} <span style="color:var(--text-sub);font-size:11px">${esc(s.ticker)}</span></td>
+        <td style="text-align:right;padding:6px 8px;color:var(--sell)">${fmtDec(delta,2)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--sell)">−${fmtDec(qty,2)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--sell)">−${fmtNum(amt)}</td>
+      </tr>`;
+    });
+  }
+
+  if (buys.length) {
+    html += `<tr><td colspan="4" style="padding:6px 8px;font-size:11px;font-weight:700;color:var(--buy);background:var(--group-bg)">▲ 매수</td></tr>`;
+    buys.forEach(({s, delta, qty, amt}) => {
+      html += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px">${esc(s.name)} <span style="color:var(--text-sub);font-size:11px">${esc(s.ticker)}</span></td>
+        <td style="text-align:right;padding:6px 8px;color:var(--buy)">+${fmtDec(delta,2)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--buy)">+${fmtDec(qty,2)}</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--buy)">+${fmtNum(amt)}</td>
+      </tr>`;
+    });
+  }
+
+  if (!sells.length && !buys.length) {
+    html += `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다.</td></tr>`;
+  }
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
+  document.getElementById('preview-overlay').classList.add('open');
+}
+
+function closePreview() {
+  document.getElementById('preview-overlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  확정 저장 모달 — 실제 체결 입력 (step ④)
+// ═══════════════════════════════════════════════════════════════════
+
+let _confirmRows = [];
+
+function showConfirmModal() {
+  const { sells, buys } = calcRebalancing();
+  _confirmRows = [];
+  sells.forEach(({ s, qty }) => {
+    _confirmRows.push({ id: s.id, dir: 'SELL', initQty: +fmtDec(qty, 2), initPrice: s.price });
+  });
+  buys.forEach(({ s, qty }) => {
+    _confirmRows.push({ id: s.id, dir: 'BUY',  initQty: +fmtDec(qty, 2), initPrice: s.price });
+  });
+  renderConfirmBody();
+  document.getElementById('confirm-overlay').style.display = 'flex';
+}
+
+function renderConfirmBody() {
+  const body = document.getElementById('confirm-body');
+  let html = `<div style="padding:14px 18px">
+    <p style="color:var(--text-sub);font-size:12px;margin-bottom:12px">
+      시뮬레이션 기준 초기값이 채워집니다. 실제 체결 수량·단가를 수정하고, 미체결 항목은 체크 해제 후 확정하세요.
+    </p>`;
+
+  if (!_confirmRows.length) {
+    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.</div>`;
+  } else {
+    html += `<table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="width:32px;padding:5px 4px;border-bottom:1px solid var(--border)"></th>
+        <th style="text-align:left;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">종목</th>
+        <th style="text-align:center;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">방향</th>
+        <th style="text-align:right;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">체결수량</th>
+        <th style="text-align:right;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">체결단가</th>
+        <th style="text-align:center;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">단위</th>
+      </tr></thead><tbody>`;
+    _confirmRows.forEach((row, i) => {
+      const s = state.stocks.find(st => st.id === row.id);
+      const dirCls    = row.dir === 'SELL' ? 'color:var(--sell)' : 'color:var(--buy)';
+      const dirLabel  = row.dir === 'SELL' ? '매도 ▼' : '매수 ▲';
+      const priceUnit = !s ? '—' : s.market === 'US' ? 'USD' : s.market === 'KR' ? 'KRW' : '원';
+      html += `<tr id="crow-${i}" style="border-bottom:1px solid var(--border)">
+        <td style="text-align:center;padding:6px 4px">
+          <input type="checkbox" id="cchk-${i}" checked
+            onchange="document.getElementById('crow-${i}').style.opacity=this.checked?'1':'0.4'">
+        </td>
+        <td style="padding:6px 8px">
+          <span style="font-weight:600">${s ? esc(s.name) : esc(row.id)}</span>
+          <span style="color:var(--text-sub);font-size:11px;margin-left:4px">${esc(row.id)}</span>
+        </td>
+        <td style="text-align:center;padding:6px 8px">
+          <span style="${dirCls};font-weight:700;font-size:12px">${dirLabel}</span>
+        </td>
+        <td style="text-align:right;padding:6px 8px">
+          <input id="cqty-${i}" type="text" inputmode="decimal"
+            style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
+            value="${row.initQty}">
+        </td>
+        <td style="text-align:right;padding:6px 8px">
+          <input id="cprice-${i}" type="text" inputmode="decimal"
+            style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
+            value="${row.initPrice || ''}">
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:var(--text-sub);font-size:11px">${priceUnit}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+    <button class="btn" onclick="closeConfirmModal()">취소</button>
+    <button class="btn btn-primary" onclick="commitTrades()">확정 저장</button>
+  </div></div>`;
+  body.innerHTML = html;
+}
+
+function commitTrades() {
+  const toProcess = [];
+  _confirmRows.forEach((row, i) => {
+    const chk   = document.getElementById(`cchk-${i}`);
+    if (!chk || !chk.checked) return;
+    const qty   = parseNum(document.getElementById(`cqty-${i}`)?.value);
+    const price = parseNum(document.getElementById(`cprice-${i}`)?.value);
+    if (qty <= 0) return;
+    toProcess.push({ ...row, qty, price });
+  });
+
+  if (!toProcess.length) { alert('체결된 항목이 없습니다.'); return; }
+  if (!confirm(`${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`)) return;
+
+  // 최초 확정 시 거래 전 상태 보관 (되돌리기 기준점)
+  if (!state.history.length) {
+    state.history.push(buildSnapshot('초기 상태'));
+  }
+
+  const fxN = state.meta.fxN || 1;
+  toProcess.forEach(row => {
+    const s = state.stocks.find(st => st.id === row.id);
+    if (!s) return;
+    const pKRW = s.market === 'US' ? row.price * fxN : row.price;
+    if (row.dir === 'SELL') {
+      s.realized = (s.realized || 0) + (pKRW - avgKRW(s)) * row.qty;
+      s.q = Math.max(0, s.q - row.qty);
+    } else {
+      if (s.q > 0 && s.avg > 0) {
+        const newAvgKRW = (s.q * avgKRW(s) + row.qty * pKRW) / (s.q + row.qty);
+        s.avg = s.market === 'US' ? newAvgKRW / fxN : newAvgKRW;
+      } else {
+        s.avg = row.price;
+      }
+      s.q += row.qty;
+    }
+  });
+
+  // 설정비율 = 조정비율, unit 재계산
+  state.stocks.forEach(s => {
+    s.r    = s.adjR;
+    s.unit = (s.r > 0 && s.q > 0) ? s.q / s.r : calcUnit(s);
+  });
+
+  state.history.unshift(buildSnapshot('리밸런싱 확정'));
+  saveState();
+  closeConfirmModal();
+  render();
+  alert('확정 저장 완료! 이력 탭에서 스냅샷을 확인하세요.');
+}
+
+function buildSnapshot(label) {
+  return {
+    ts:    new Date().toISOString(),
+    label: label || '',
+    p0:    state.meta.p0,
+    fx0:   state.meta.fx0,
+    fxN:   state.meta.fxN,
+    stocks: state.stocks.map(s => ({
+      id: s.id, name: s.name, ticker: s.ticker, market: s.market,
+      q: s.q, avg: s.avg, price: s.price, r: s.r, unit: s.unit, realized: s.realized,
+      val: evalVal(s), weight: currWeight(s)
+    })),
+    totals: {
+      totalVal:      state.stocks.reduce((a, s) => a + evalVal(s), 0),
+      totalRealized: state.stocks.reduce((a, s) => a + (s.realized || 0), 0)
+    }
+  };
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  이력 탭 (step ⑤)
+// ═══════════════════════════════════════════════════════════════════
+
+function renderHistoryTab() {
+  const tab = document.getElementById('tab-history');
+  if (!state.history || !state.history.length) {
+    tab.innerHTML = `<div class="placeholder">
+      <strong>이력 없음</strong>
+      확정 저장 후 스냅샷이 여기에 쌓입니다.
+    </div>`;
+    return;
+  }
+
+  let html = `<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span style="font-size:14px;font-weight:700">확정 이력 (${state.history.length}건)</span>
+      <button class="btn btn-danger btn-sm" onclick="revertLastSnapshot()">↩ 직전 확정 되돌리기</button>
+    </div>`;
+
+  state.history.forEach((snap, i) => {
+    const dt     = new Date(snap.ts);
+    const dtStr  = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const pct    = snap.p0 ? (snap.totals.totalVal - snap.p0) / snap.p0 * 100 : null;
+    const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + fmtDec(pct, 2) + '%' : '';
+    const pctCls = pct !== null ? (pct >= 0 ? 'val-pos' : 'val-neg') : '';
+    const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+
+    html += `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;gap:16px;flex-wrap:wrap"
+          onclick="toggleHistorySnap(${i})">
+          <div style="flex:0 0 auto">
+            <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}</div>
+            <div style="font-size:13px;font-weight:700">${dtStr}</div>
+          </div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1">
+            <div>
+              <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
+              <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
+                ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
+              <div class="${realCls}" style="font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
+            </div>
+          </div>
+          <span style="color:var(--text-sub);font-size:13px" id="hsnap-arrow-${i}">▼</span>
+        </div>
+        <div id="hsnap-body-${i}" style="display:none;border-top:1px solid var(--border);padding:10px 14px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr>
+              <th style="text-align:left;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">보유</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평단</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재가</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정비율</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재비중</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">실현손익</th>
+            </tr></thead><tbody>`;
+
+    snap.stocks.filter(s => s.q > 0 || s.realized).forEach(s => {
+      const rCl = (s.realized || 0) >= 0 ? 'var(--positive)' : 'var(--negative)';
+      html += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:4px 8px;font-weight:600">${esc(s.name)} <span style="color:var(--text-sub);font-size:10px">${esc(s.ticker)}</span></td>
+        <td style="text-align:right;padding:4px 8px">${fmtDec(s.q, 2)}</td>
+        <td style="text-align:right;padding:4px 8px">${s.avg ? fmtNum(s.avg) : '—'}</td>
+        <td style="text-align:right;padding:4px 8px">${s.price ? fmtNum(s.price) : '—'}</td>
+        <td style="text-align:right;padding:4px 8px">${s.r}</td>
+        <td style="text-align:right;padding:4px 8px">${fmtNum(s.val || 0)}</td>
+        <td style="text-align:right;padding:4px 8px">${fmtDec(s.weight || 0, 2)}</td>
+        <td style="text-align:right;padding:4px 8px;color:${rCl}">${fmtNum(s.realized || 0)}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button class="btn btn-sm" onclick="restoreSnapshot(${i})">이 시점으로 복원</button>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  html += '</div>';
+  tab.innerHTML = html;
+}
+
+function toggleHistorySnap(i) {
+  const body  = document.getElementById(`hsnap-body-${i}`);
+  const arrow = document.getElementById(`hsnap-arrow-${i}`);
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (arrow) arrow.textContent = open ? '▲' : '▼';
+}
+
+function restoreSnapshot(i) {
+  const snap = state.history[i];
+  if (!snap) return;
+  const dt = new Date(snap.ts).toLocaleString('ko-KR');
+  if (!confirm(`"${dt}" 시점(${snap.label || ''})으로 장부를 복원합니다.\n보유수량·평단·실현손익이 해당 값으로 덮어쓰입니다. 계속하시겠습니까?`)) return;
+  restoreSnapshotToState(snap);
+  saveState(); render();
+}
+
+function restoreSnapshotToState(snap) {
+  snap.stocks.forEach(snapS => {
+    const s = state.stocks.find(st => st.id === snapS.id);
+    if (!s) return;
+    s.q        = snapS.q;
+    s.avg      = snapS.avg;
+    s.realized = snapS.realized;
+    s.r        = snapS.r;
+    s.unit     = snapS.unit;
+    s.adjR     = snapS.r;
+  });
+}
+
+function revertLastSnapshot() {
+  if (state.history.length < 2) {
+    alert('되돌릴 수 없습니다. 이전 스냅샷이 없습니다 (초기 상태 기준점 1건만 있음).');
+    return;
+  }
+  const snap0 = state.history[0];
+  const dt    = new Date(snap0.ts).toLocaleString('ko-KR');
+  if (!confirm(`"${dt}" 확정(${snap0.label || ''})을 취소하고 직전 상태로 되돌립니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+  state.history.shift();
+  restoreSnapshotToState(state.history[0]);
+  saveState(); render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  렌더 진입점
 // ═══════════════════════════════════════════════════════════════════
 
 function render() {
   renderSettingsTable();
-  // 포트폴리오·이력 탭은 이후 단계에서 구현
+  renderPortfolioTable();
+  renderHistoryTab();
 }
 
 // ═══════════════════════════════════════════════════════════════════
