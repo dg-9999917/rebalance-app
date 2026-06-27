@@ -115,12 +115,13 @@
     .inp-num { text-align: right; }
 
     /* ── 기준설정 탭 레이아웃 ───────────────────────────────── */
-    #tab-settings { padding: 16px; }
+    /* A-3: 표가 전체 폭 — padding은 settings-meta 자체에 있음 */
+    #tab-settings { padding: 0; }
 
     .settings-meta {
       display: flex; align-items: flex-end; gap: 24px;
       padding: 12px 16px; background: var(--surface);
-      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid var(--border); margin-bottom: 0;
       flex-wrap: wrap;
     }
     .meta-field { display: flex; flex-direction: column; gap: 4px; }
@@ -138,12 +139,16 @@
     .ratio-sum-badge.ok .sum-val { color: var(--positive); }
     .ratio-sum-badge.err .sum-val { color: var(--negative); }
 
+    /* A-1: 조정비율 숫자 입력 스피너 제거 */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
     /* ── 공통 표 스타일 ─────────────────────────────────────── */
     .tbl-wrap {
       overflow-x: auto; overflow-y: auto;
-      max-height: calc(100vh - 200px); /* 컨테이너 내부 스크롤 → sticky top:0 동작 */
-      border: 1px solid var(--border);
-      border-radius: 8px; background: var(--surface);
+      max-height: calc(100vh - 200px);
+      background: var(--surface);
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
@@ -171,11 +176,11 @@
     tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
 
-    /* 그룹 헤더 행 */
+    /* A-2: 그룹 헤더 행 — 합계행과 동일한 크기 */
     tr.group-hdr td {
       background: var(--group-bg); color: var(--text-sub);
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .08em; padding: 5px 10px;
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; padding: 7px 10px;
       border-top: 1px solid var(--border);
     }
     tr.group-hdr:first-child td { border-top: none; }
@@ -271,8 +276,9 @@
     .hist-row-buy  { background: rgba(26,115,232,0.08); }
     .hist-row-sell { background: rgba(211,47,47,0.08); }
 
-    .pf-tbl-wrap { padding: 12px 16px; }
-    .pf-tbl-wrap .tbl-wrap { margin-bottom: 12px; }
+    /* A-3: 표 전체 폭 — 좌우 패딩 제거 */
+    .pf-tbl-wrap { padding: 0; }
+    .pf-tbl-wrap .tbl-wrap { margin-bottom: 0; }
 
     /* 포트폴리오 표 입력칸 */
     .inp-price, .inp-avg, .inp-qty {
@@ -770,7 +776,17 @@ function renderSettingsTable() {
   const mode = state.meta.priceMode || 'hist';
   const priceHdr = mode === 'curr' ? '현재가(임시)' : '종가';
 
-  let html = `<table>
+  let html = `<table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:180px"><!-- 종목 -->
+      <col style="width:60px"> <!-- 구분 -->
+      <col style="width:120px"><!-- 설정비율 -->
+      <col style="width:110px"><!-- 종가 -->
+      <col style="width:120px"><!-- 배정금액 -->
+      <col style="width:110px"><!-- 비중1당 -->
+      <col style="width:110px"><!-- 보유수량 -->
+      <col style="width:44px"> <!-- 삭제 -->
+    </colgroup>
     <thead><tr>
       <th>종목</th>
       <th class="center">구분</th>
@@ -1027,7 +1043,21 @@ function renderPortfolioTable() {
     { label: '현금',       market: 'CASH' },
   ];
 
-  let html = `<table>
+  let html = `<table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:160px"><!-- 종목 -->
+      <col style="width:88px"> <!-- 현재가 -->
+      <col style="width:88px"> <!-- 평단가 -->
+      <col style="width:80px"> <!-- 보유수량 -->
+      <col style="width:60px"> <!-- 설정비율 -->
+      <col style="width:110px"><!-- 조정비율 -->
+      <col style="width:68px"> <!-- 현재비중 -->
+      <col style="width:76px"> <!-- 1%당주식수 -->
+      <col style="width:100px"><!-- 배정금액 -->
+      <col style="width:88px"> <!-- 필요매매 -->
+      <col style="width:90px"> <!-- 평가손익 -->
+      <col style="width:80px"> <!-- 실현손익 -->
+    </colgroup>
     <thead><tr>
       <th>종목</th>
       <th class="num">현재가</th>
@@ -1453,8 +1483,8 @@ function renderHistoryTab() {
     return;
   }
 
-  let html = `<div style="padding:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+  let html = `<div style="padding:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
       <span style="font-size:14px;font-weight:700">확정 이력 (${state.history.length}건)</span>
       <button class="btn btn-danger btn-sm" onclick="revertLastSnapshot()">↩ 직전 확정 되돌리기</button>
     </div>`;
@@ -1468,7 +1498,7 @@ function renderHistoryTab() {
     const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
 
     html += `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">
+      <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
         <div style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;gap:16px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
           <div style="flex:0 0 auto">
