@@ -1841,8 +1841,20 @@ function renderHistoryTab() {
       </tr>`;
     });
 
-    html += `</tbody></table>
-          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+    html += `</tbody></table>`;
+    // 현금 정산 요약 (cashSettlement이 있는 스냅샷만)
+    if (snap.cashSettlement) {
+      const cs = snap.cashSettlement;
+      const sign  = cs.delta > 0 ? '+' : '';
+      const color = cs.delta < 0 ? '#ef4444' : cs.delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
+      html += `<div style="margin-top:8px;padding:7px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;font-size:12px;color:var(--text-sub)">
+        현금 정산: 매도 합 <strong>${fmtNum(cs.S)} 원</strong> − 매수 합 <strong>${fmtNum(cs.B)} 원</strong>
+        = <strong style="color:${color}">${sign}${fmtNum(cs.delta)} 원</strong>
+        &nbsp;→&nbsp; 현금 잔액 <strong>${fmtNum(cs.cashAfter)} 원</strong>
+        ${cs.delta < 0 ? '<span style="color:#ef4444">(추가 입금 필요)</span>' : ''}
+      </div>`;
+    }
+    html += `<div style="display:flex;justify-content:flex-end;margin-top:10px">
             <button class="btn btn-sm" onclick="restoreSnapshot(${i})">이 시점으로 복원</button>
           </div>
         </div>
@@ -1934,6 +1946,11 @@ function buildTradeLogHtml() {
         realDelta,
       });
     });
+    // 현금 정산 내역 (cashSettlement 기록이 있는 경우)
+    const cs = newer.cashSettlement;
+    if (cs && (cs.S || cs.B || cs.delta)) {
+      rows.push({ ts: newer.ts, type: 'CASH_SETTLEMENT', S: cs.S, B: cs.B, delta: cs.delta, cashAfter: cs.cashAfter });
+    }
   }
 
   if (!rows.length) {
@@ -1962,6 +1979,24 @@ function buildTradeLogHtml() {
   rows.forEach(r => {
     const dt    = new Date(r.ts);
     const dtStr = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+
+    // 현금 정산 행 (별도 렌더링)
+    if (r.type === 'CASH_SETTLEMENT') {
+      const sign  = r.delta > 0 ? '+' : '';
+      const color = r.delta < 0 ? '#ef4444' : r.delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
+      const sfx   = r.delta < 0 ? ' <span style="font-size:10px;color:#ef4444">(추가 입금 필요)</span>' : '';
+      html += `<tr style="border-bottom:1px solid var(--border);background:var(--input-bg)">
+        <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
+        <td style="${tdStyle}left;font-weight:600;color:var(--text-sub)">현금 정산</td>
+        <td style="${tdStyle}center;font-size:11px;color:var(--text-sub)">S − B</td>
+        <td style="${tdStyle}right;font-weight:700;color:${color}">${sign}${fmtNum(r.delta)} 원${sfx}</td>
+        <td style="${tdStyle}right;font-size:11px;color:var(--text-sub)">매도 ${fmtNum(r.S)}<br>매수 ${fmtNum(r.B)}</td>
+        <td style="${tdStyle}right;color:var(--text-muted)">—</td>
+        <td style="${tdStyle}right;font-size:11px;color:var(--text-sub)">잔액 ${fmtNum(r.cashAfter)} 원</td>
+      </tr>`;
+      return;
+    }
+
     const isBuy = r.dir === 'BUY';
     const dirC  = isBuy ? 'var(--buy)' : 'var(--sell)';
     const dirLabel = isBuy ? '▲ 매수' : '▼ 매도';
