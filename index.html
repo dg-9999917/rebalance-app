@@ -1772,13 +1772,13 @@ function renderHistoryTab() {
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
-        <div style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;gap:16px;flex-wrap:wrap"
+        <div style="display:flex;align-items:center;padding:12px 18px;cursor:pointer;gap:32px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
           <div style="flex:0 0 auto">
             <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}</div>
             <div style="font-size:13px;font-weight:700">${dtStr}</div>
           </div>
-          <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1">
+          <div style="display:flex;gap:56px;flex-wrap:wrap;flex:1">
             <div>
               <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
               <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
