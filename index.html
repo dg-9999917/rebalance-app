@@ -666,8 +666,21 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     const s = document.getElementById('tab-' + tab); if (s) s.classList.add('active');
+    localStorage.setItem('rebalance_active_tab', tab);
   });
 });
+
+function restoreActiveTab() {
+  const saved = localStorage.getItem('rebalance_active_tab');
+  if (!saved) return;
+  const btn = document.querySelector(`.tab-btn[data-tab="${saved}"]`);
+  const sec = document.getElementById('tab-' + saved);
+  if (!btn || !sec) return;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  sec.classList.add('active');
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  가격 설정 함수 (자동화 대비 분리)
@@ -1959,6 +1972,7 @@ function render() {
 // ═══════════════════════════════════════════════════════════════════
 
 loadState();
+restoreActiveTab();
 render();
 </script>
 </body>
