@@ -1220,7 +1220,7 @@ function renderPortfolioSummary() {
     <div class="pf-summary-sep"></div>
     <div class="pf-summary-item">
       <span class="s-label">현금</span>
-      <span class="s-val">${fmtNum(cashVal)} 원</span>
+      <span class="s-val" style="${cashVal < 0 ? 'color:#ef4444' : ''}">${fmtNum(cashVal)} 원${cashVal < 0 ? ' <span style="font-size:11px">(추가 입금 필요)</span>' : ''}</span>
     </div>
     <div class="pf-summary-sep"></div>
     <div class="pf-summary-item">
@@ -1624,14 +1624,17 @@ function commitTrades() {
   }
 
   const fxN = state.meta.fxN || 1;
+  let _S = 0, _B = 0;  // 매도/매수 체결대금 합계 (원화)
   toProcess.forEach(row => {
     const s = state.stocks.find(st => st.id === row.id);
     if (!s) return;
     const pKRW = s.market === 'US' ? row.price * fxN : row.price;
     if (row.dir === 'SELL') {
+      _S += row.qty * pKRW;
       s.realized = (s.realized || 0) + (pKRW - avgKRW(s)) * row.qty;
       s.q = Math.max(0, s.q - row.qty);
     } else {
+      _B += row.qty * pKRW;
       if (s.q > 0 && s.avg > 0) {
         const newAvgKRW = (s.q * avgKRW(s) + row.qty * pKRW) / (s.q + row.qty);
         s.avg = s.market === 'US' ? newAvgKRW / fxN : newAvgKRW;
@@ -1642,23 +1645,35 @@ function commitTrades() {
     }
   });
 
+  // 차액(S − B)만 현금에 반영 — 이중계산 금지: 전체 매도/매수가 아닌 실제 체결 차액만
+  const _cashDelta = _S - _B;
+  const _cashStock = state.stocks.find(s => s.market === 'CASH');
+  if (_cashStock) _cashStock.q += _cashDelta;
+
   // 설정비율 = 조정비율, unit 재계산
   state.stocks.forEach(s => {
     s.r    = s.adjR;
     s.unit = (s.r > 0 && s.q > 0) ? s.q / s.r : calcUnit(s);
   });
 
-  state.history.unshift(buildSnapshot('리밸런싱 확정'));
+  const _cashSettlement = {
+    S:         Math.round(_S),
+    B:         Math.round(_B),
+    delta:     Math.round(_cashDelta),
+    cashAfter: _cashStock ? Math.round(_cashStock.q) : 0
+  };
+  state.history.unshift(buildSnapshot('리밸런싱 확정', _cashSettlement));
   saveState();
   closeConfirmModal();
   render();
   alert('확정 저장 완료! 이력 탭에서 스냅샷을 확인하세요.');
 }
 
-function buildSnapshot(label) {
+function buildSnapshot(label, cashSettlement) {
   return {
-    ts:    new Date().toISOString(),
-    label: label || '',
+    ts:              new Date().toISOString(),
+    label:           label || '',
+    cashSettlement:  cashSettlement || null,
     p0:    state.meta.p0,
     fx0:   state.meta.fx0,
     fxN:   state.meta.fxN,
