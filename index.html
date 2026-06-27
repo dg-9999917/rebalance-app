@@ -355,6 +355,26 @@
     }
     .preview-pool .pool-val { font-size: 16px; font-weight: 700; color: var(--positive); }
 
+    /* ── 계좌설정 탭 ────────────────────────────────────────────── */
+    #tab-accounts { padding: 16px; }
+    .acc-list-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .acc-list-card.active-acc { border-color: var(--accent); }
+    .acc-badge-active {
+      font-size: 11px; background: var(--accent); color: #fff;
+      padding: 1px 7px; border-radius: 3px; font-weight: 700;
+    }
+    .acc-form-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; margin-top: 16px;
+    }
+    .acc-form-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+    .acc-radio-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .acc-radio-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+
     /* ── 모니터링 탭 ────────────────────────────────────────────── */
     #tab-monitor { padding: 16px; }
     .monitor-grid {
@@ -387,6 +407,7 @@
       <button class="tab-btn" data-tab="portfolio">포트폴리오</button>
       <button class="tab-btn" data-tab="monitor">모니터링</button>
       <button class="tab-btn" data-tab="history">이력</button>
+      <button class="tab-btn" data-tab="accounts">계좌설정</button>
     </nav>
     <div class="header-actions">
       <span class="account-label">계좌</span>
@@ -507,6 +528,11 @@
     <!-- ══════════════ 이력 탭 ══════════════ -->
     <section id="tab-history" class="tab-content">
       <!-- renderHistoryTab() 으로 채워짐 -->
+    </section>
+
+    <!-- ══════════════ 계좌설정 탭 ══════════════ -->
+    <section id="tab-accounts" class="tab-content">
+      <!-- renderAccountsTab() 으로 채워짐 -->
     </section>
   </main>
 
@@ -1872,6 +1898,136 @@ function commaBlurQty(el) { const v = parseNum(el.value); el.value = v ? fmtNum(
 function fmtPriceVal(n) { return n ? fmtNum(n, n % 1 ? 2 : 0) : ''; }
 
 // ═══════════════════════════════════════════════════════════════════
+//  계좌설정 탭 (3단계)
+// ═══════════════════════════════════════════════════════════════════
+
+function getAccountSummary(acc) {
+  const s = acc.state;
+  const fxN = s.meta.fxN || 0;
+  let totalVal = 0;
+  s.stocks.forEach(st => {
+    if (st.market === 'CASH') { totalVal += st.q || 0; return; }
+    const pKRW = st.market === 'US' ? (st.price || 0) * fxN : (st.price || 0);
+    totalVal += (st.q || 0) * pKRW;
+  });
+  const stockCount = s.stocks.filter(st => st.market !== 'CASH' && (st.r || 0) > 0).length;
+  return { totalVal, stockCount };
+}
+
+function renderAccountsTab() {
+  const tab = document.getElementById('tab-accounts');
+  if (!tab) return;
+
+  let html = `<div style="max-width:700px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">계좌 목록 (${appData.accounts.length}개)</div>`;
+
+  appData.accounts.forEach(acc => {
+    const { totalVal, stockCount } = getAccountSummary(acc);
+    const isActive = acc.id === appData.activeAccountId;
+    const canDelete = appData.accounts.length > 1;
+    html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700">${esc(acc.name)}</span>
+          ${isActive ? '<span class="acc-badge-active">현재</span>' : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:3px">
+          종목 ${stockCount}개 · 총평가 ${totalVal > 0 ? fmtNum(totalVal) + ' 원' : '—'}
+        </div>
+      </div>
+      ${!isActive ? `<button class="btn btn-sm" onclick="onAccountChange('${acc.id}')">전환</button>` : ''}
+      <button class="btn btn-sm" onclick="renameAccount('${acc.id}')">이름 변경</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteAccount('${acc.id}')"
+        ${canDelete ? '' : 'disabled title="계좌는 최소 1개 이상 있어야 합니다"'}>삭제</button>
+    </div>`;
+  });
+
+  html += `<div class="acc-form-card">
+    <div class="acc-form-title">새 계좌 추가</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="meta-label" style="margin-bottom:4px">계좌 이름</div>
+        <input class="inp" id="new-acc-name" placeholder="예: 연금저축, 해외주식" style="width:240px">
+      </div>
+      <div>
+        <div class="meta-label" style="margin-bottom:8px">시작 방식</div>
+        <div class="acc-radio-row">
+          <label class="acc-radio-label">
+            <input type="radio" name="new-acc-mode" value="fresh" checked>
+            기본 양식으로 시작 <span style="font-size:11px;color:var(--text-sub)">(빈 포트폴리오)</span>
+          </label>
+          <label class="acc-radio-label">
+            <input type="radio" name="new-acc-mode" value="clone">
+            현재 계좌 복제 <span style="font-size:11px;color:var(--text-sub)">(이력 제외, 보유·설정 복사)</span>
+          </label>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" onclick="addAccount()">+ 계좌 추가</button>
+      </div>
+    </div>
+  </div>
+  </div>`;
+
+  tab.innerHTML = html;
+}
+
+function addAccount() {
+  const nameEl = document.getElementById('new-acc-name');
+  const name = (nameEl ? nameEl.value : '').trim();
+  if (!name) { alert('계좌 이름을 입력해 주세요.'); nameEl && nameEl.focus(); return; }
+
+  const modeEl = document.querySelector('input[name="new-acc-mode"]:checked');
+  const mode = modeEl ? modeEl.value : 'fresh';
+
+  let newState;
+  if (mode === 'clone') {
+    newState = deepClone(state);   // 현재 계좌 전체 복제
+    newState.history = [];         // 이력만 제외
+  } else {
+    newState = deepClone(DEFAULT_STATE);
+  }
+
+  const id = 'acc_' + Date.now();
+  appData.accounts.push({ id, name, state: newState });
+  activateAccount(id);  // 새 계좌로 즉시 전환
+  saveState();
+  render();
+}
+
+function renameAccount(id) {
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return;
+  const newName = prompt('새 계좌 이름을 입력하세요:', acc.name);
+  if (newName === null) return;          // 취소
+  const trimmed = newName.trim();
+  if (!trimmed) { alert('이름을 비워둘 수 없습니다.'); return; }
+  acc.name = trimmed;
+  saveState();
+  render();
+}
+
+function deleteAccount(id) {
+  if (appData.accounts.length <= 1) {
+    alert('계좌는 최소 1개 이상 있어야 합니다.');
+    return;
+  }
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return;
+  if (!confirm(`"${acc.name}" 계좌를 삭제합니다.\n이 계좌의 모든 데이터(종목·이력 포함)가 사라집니다.\n계속하시겠습니까?`)) return;
+
+  // 활성 계좌 삭제 시 다른 계좌로 먼저 전환
+  if (id === appData.activeAccountId) {
+    const other = appData.accounts.find(a => a.id !== id);
+    if (other) activateAccount(other.id);
+  }
+
+  appData.accounts = appData.accounts.filter(a => a.id !== id);
+  saveState();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  모니터링 탭 (B)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -2054,6 +2210,7 @@ function onAccountChange(id) {
 
 function render() {
   renderAccountDropdown();
+  renderAccountsTab();
   renderSettingsTable();
   renderPortfolioTable();
   renderMonitorTab();

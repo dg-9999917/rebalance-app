@@ -5,6 +5,7 @@
 ### 3차 완료 단계
 - [x] **1단계: 데이터 구조 + 마이그레이션** — appData/state 포인터 구조, 구형 rebalance_state_v1 → "기본 계좌" 자동 이전, saveState/loadState 교체, resetApp/importBackup 포인터 안전 처리
 - [x] **2단계: 계좌 전환 드롭다운** — 헤더에 select 추가, onAccountChange → activateAccount → render() 전체 전환, 선택 저장(appData.activeAccountId)
+- [x] **3단계: [계좌설정] 탭** — 계좌 목록(종목수·총평가 요약), 새 계좌 추가(기본양식/현재계좌 복제·이력제외), 이름 변경, 삭제(최소 1개 보호·활성계좌 삭제 시 자동 전환)
 
 ---
 
