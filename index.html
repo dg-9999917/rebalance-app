@@ -148,8 +148,9 @@
       font-size: 13px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 46px; z-index: 10;
-      background: var(--th-bg); border-bottom: 1px solid var(--border);
+      position: sticky; top: 47px; z-index: 20;
+      background: var(--th-bg);
+      box-shadow: 0 1px 0 var(--border); /* border-collapse 겹침 방지용 shadow */
       padding: 8px 10px; font-size: 11.5px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
@@ -341,7 +342,10 @@
           <span class="meta-label">6/12 원금 (P0)</span>
           <div class="meta-input-row">
             <input class="inp inp-num" style="width:130px" id="in-p0"
-              placeholder="0" oninput="onMetaInput('p0',this.value)">
+              placeholder="0"
+              onfocus="commaFocus(this)"
+              oninput="onMetaInput('p0',this.value)"
+              onblur="commaBlur(this)">
             <span class="meta-sub">원</span>
           </div>
         </div>
@@ -356,7 +360,10 @@
           <span class="meta-label">6/12 환율 (fx0)</span>
           <div class="meta-input-row">
             <input class="inp inp-num" style="width:100px" id="in-fx0"
-              placeholder="0" oninput="onMetaInput('fx0',this.value)">
+              placeholder="0"
+              onfocus="commaFocus(this)"
+              oninput="onMetaInput('fx0',this.value)"
+              onblur="commaBlur(this)">
             <span class="meta-sub">₩/$</span>
           </div>
         </div>
@@ -364,7 +371,10 @@
           <span class="meta-label">현재 환율 (fxN)</span>
           <div class="meta-input-row">
             <input class="inp inp-num" style="width:100px" id="in-fxN"
-              placeholder="0" oninput="onMetaInput('fxN',this.value)">
+              placeholder="0"
+              onfocus="commaFocus(this)"
+              oninput="onMetaInput('fxN',this.value)"
+              onblur="commaBlur(this)">
             <span class="meta-sub">₩/$</span>
           </div>
         </div>
@@ -760,9 +770,11 @@ function renderSettingsTable() {
           ${isCash
             ? '<span class="val-dim">1</span>'
             : `<input class="inp inp-num inp-c0" type="text" inputmode="decimal"
-                value="${s.c0 || ''}"
+                value="${s.c0 ? fmtNum(s.c0) : ''}"
                 placeholder="0"
-                onchange="onC0Input('${s.id}',this.value)">`
+                onfocus="commaFocus(this)"
+                onchange="onC0Input('${s.id}',this.value)"
+                onblur="commaBlur(this)">`
           }
         </td>
         <td class="num" id="cell-alloc-${s.id}">${allocStr}</td>
@@ -795,7 +807,8 @@ function renderSettingsTable() {
     </div>
     <div class="meta-field">
       <span class="meta-label">6/12 종가</span>
-      <input class="inp inp-num" id="add-c0" placeholder="0" style="width:90px">
+      <input class="inp inp-num" id="add-c0" placeholder="0" style="width:90px"
+        onfocus="commaFocus(this)" onblur="commaBlur(this)">
     </div>
     <div class="meta-field" style="justify-content:flex-end">
       <span class="meta-label">&nbsp;</span>
@@ -994,19 +1007,25 @@ function renderPortfolioTable() {
         <td class="num">
           ${isCash ? '<span class="val-dim">1</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
-                value="${s.price || ''}" placeholder="0"
-                onchange="onPriceInput('${s.id}',this.value)">`}
+                value="${s.price ? fmtNum(s.price) : ''}" placeholder="0"
+                onfocus="commaFocus(this)"
+                onchange="onPriceInput('${s.id}',this.value)"
+                onblur="commaBlur(this)">`}
         </td>
         <td class="num">
           ${isCash ? '<span class="val-dim">1</span>'
             : `<input class="inp-avg" type="text" inputmode="decimal"
-                value="${s.avg || ''}" placeholder="0"
-                onchange="onAvgInput('${s.id}',this.value)">`}
+                value="${s.avg ? fmtNum(s.avg) : ''}" placeholder="0"
+                onfocus="commaFocus(this)"
+                onchange="onAvgInput('${s.id}',this.value)"
+                onblur="commaBlur(this)">`}
         </td>
         <td class="num">
           <input class="inp-qty" type="text" inputmode="decimal"
-            value="${s.q || ''}" placeholder="0"
-            onchange="onQtyInput('${s.id}',this.value)">
+            value="${s.q ? fmtNum(s.q, 2) : ''}" placeholder="0"
+            onfocus="commaFocus(this)"
+            onchange="onQtyInput('${s.id}',this.value)"
+            onblur="commaBlurQty(this)">
         </td>
         <td class="num val-dim">${s.r}</td>
         <td class="num">
@@ -1219,12 +1238,14 @@ function renderConfirmBody() {
         <td style="text-align:right;padding:6px 8px">
           <input id="cqty-${i}" type="text" inputmode="decimal"
             style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
-            value="${row.initQty}">
+            value="${row.initQty ? fmtNum(row.initQty, 2) : ''}"
+            onfocus="commaFocus(this)" onblur="commaBlurQty(this)">
         </td>
         <td style="text-align:right;padding:6px 8px">
           <input id="cprice-${i}" type="text" inputmode="decimal"
             style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
-            value="${row.initPrice || ''}">
+            value="${row.initPrice ? fmtNum(row.initPrice) : ''}"
+            onfocus="commaFocus(this)" onblur="commaBlur(this)">
         </td>
         <td style="text-align:center;padding:6px 8px;color:var(--text-sub);font-size:11px">${priceUnit}</td>
       </tr>`;
@@ -1444,6 +1465,11 @@ function revertLastSnapshot() {
   restoreSnapshotToState(state.history[0]);
   saveState(); render();
 }
+
+// ── 입력칸 콤마 포매터 ──────────────────────────────────────────────
+function commaFocus(el)   { el.value = el.value.replace(/,/g, ''); }
+function commaBlur(el)    { const v = parseNum(el.value); el.value = v ? fmtNum(v) : ''; }
+function commaBlurQty(el) { const v = parseNum(el.value); el.value = v ? fmtNum(v, 2) : ''; }
 
 // ═══════════════════════════════════════════════════════════════════
 //  렌더 진입점
