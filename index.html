@@ -701,12 +701,27 @@ function loadState() {
 //  백업 내보내기 / 불러오기 / 초기화
 // ═══════════════════════════════════════════════════════════════════
 
+// 전체 계좌 백업 (appData 통째로)
 function exportBackup() {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `rebalance_backup_${ts}.json`;
+  a.download = `rebalance_전체_${ts}.json`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
+
+// 단일 계좌 내보내기
+function exportAccountById(id) {
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const payload = { _type: 'single_account', id: acc.id, name: acc.name, state: acc.state };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `rebalance_${acc.name.replace(/[/\\:*?"<>|]/g,'_')}_${ts}.json`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(a.href);
 }
@@ -719,13 +734,64 @@ function importBackup(input) {
   reader.onload = e => {
     try {
       const loaded = JSON.parse(e.target.result);
-      if (!loaded.meta || !Array.isArray(loaded.stocks)) throw new Error('유효하지 않은 백업 파일');
-      const acc = appData.accounts.find(a => a.id === appData.activeAccountId);
-      if (!acc) throw new Error('활성 계좌를 찾을 수 없습니다');
-      acc.state = loaded;
-      state = loaded; // 포인터 재연결
-      saveState(); applyTheme(state.meta.theme || 'dark'); render();
-      alert('불러오기 완료!');
+
+      // ── A. 전체 appData 형식 ──────────────────────────────────
+      if (loaded.accounts && Array.isArray(loaded.accounts) && loaded.accounts.length) {
+        const n = loaded.accounts.length;
+        if (!confirm(
+          `전체 계좌 백업 파일입니다 (${n}개 계좌).\n` +
+          `현재 모든 계좌 데이터가 이 파일로 교체됩니다.\n` +
+          `이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`
+        )) return;
+        appData = loaded;
+        const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
+          ? appData.activeAccountId : appData.accounts[0].id;
+        activateAccount(validId);
+        saveState(); applyTheme(state.meta.theme || 'dark'); render();
+        alert(`전체 복원 완료! (${n}개 계좌)`);
+        return;
+      }
+
+      // ── B/C. 단일 계좌 state 추출 ────────────────────────────
+      let singleState = null;
+      let suggestedName = '불러온 계좌';
+
+      if (loaded._type === 'single_account' && loaded.state?.meta && Array.isArray(loaded.state?.stocks)) {
+        // B. 우리 앱이 내보낸 단일 계좌 형식
+        singleState = loaded.state;
+        suggestedName = loaded.name ? loaded.name + ' (복사본)' : '불러온 계좌';
+      } else if (loaded.meta && Array.isArray(loaded.stocks)) {
+        // C. 구형 단일 state 형식 (3차 이전 백업)
+        singleState = loaded;
+      }
+
+      if (!singleState) throw new Error('지원하지 않는 파일 형식입니다.\n전체 백업 또는 단일 계좌 파일만 불러올 수 있습니다.');
+
+      const curAccName = appData.accounts.find(a => a.id === appData.activeAccountId)?.name || '현재 계좌';
+      const addNew = confirm(
+        `단일 계좌 데이터입니다.\n\n` +
+        `[확인]  새 계좌로 추가\n` +
+        `[취소]  "${curAccName}"에 덮어쓰기`
+      );
+
+      if (addNew) {
+        const name = prompt('새 계좌 이름을 입력하세요:', suggestedName);
+        if (name === null) return;
+        const trimmed = name.trim() || suggestedName;
+        const id = 'acc_' + Date.now();
+        appData.accounts.push({ id, name: trimmed, state: singleState });
+        activateAccount(id);
+        saveState(); applyTheme(state.meta.theme || 'dark'); render();
+        alert(`"${trimmed}" 계좌로 추가했습니다.`);
+      } else {
+        if (!confirm(`"${curAccName}"의 모든 데이터가 이 파일로 교체됩니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+        const acc = appData.accounts.find(a => a.id === appData.activeAccountId);
+        if (!acc) throw new Error('활성 계좌를 찾을 수 없습니다');
+        acc.state = singleState;
+        state = singleState;
+        saveState(); applyTheme(state.meta.theme || 'dark'); render();
+        alert(`"${curAccName}"에 불러오기 완료!`);
+      }
     } catch(err) { alert('백업 파일 오류: ' + err.message); }
   };
   reader.readAsText(file); input.value = '';
@@ -1936,6 +2002,7 @@ function renderAccountsTab() {
         </div>
       </div>
       ${!isActive ? `<button class="btn btn-sm" onclick="onAccountChange('${acc.id}')">전환</button>` : ''}
+      <button class="btn btn-sm" onclick="exportAccountById('${acc.id}')">내보내기</button>
       <button class="btn btn-sm" onclick="renameAccount('${acc.id}')">이름 변경</button>
       <button class="btn btn-sm btn-danger" onclick="deleteAccount('${acc.id}')"
         ${canDelete ? '' : 'disabled title="계좌는 최소 1개 이상 있어야 합니다"'}>삭제</button>
