@@ -1021,6 +1021,15 @@ function fillCashFromRemainder() {
 
   const remaining = p0 - totalCost;
   cashStock.q = remaining;
+
+  // 현금 adjR = 100 − (현금 제외 종목 adjR 합)
+  const stockAdjRSum = state.stocks
+    .filter(s => s.market !== 'CASH')
+    .reduce((sum, s) => sum + (s.adjR || 0), 0);
+  const rawCashAdjR = +(100 - stockAdjRSum).toFixed(2);
+  const adjROverflow = rawCashAdjR < 0;
+  cashStock.adjR = adjROverflow ? 0 : rawCashAdjR;
+
   saveState();
   renderSettingsTable();
   renderPortfolioTable();
@@ -1029,11 +1038,15 @@ function fillCashFromRemainder() {
   const isNeg = remaining < 0;
 
   let msg = `원금 ${fmtNum(p0)} 원 − 보유 매입원가 ${fmtNum(totalCost)} 원`
-          + ` = <strong style="color:${isNeg ? 'var(--negative)' : 'var(--positive)'}">${fmtNum(remaining)} 원</strong>으로 현금을 설정했습니다.`;
+          + ` = <strong style="color:${isNeg ? 'var(--negative)' : 'var(--positive)'}">${fmtNum(remaining)} 원</strong>`
+          + ` / 조정비율 <strong>${fmtDec(cashStock.adjR, 2)}%</strong> 로 현금을 설정했습니다.`;
   if (hasUS && fxN) {
     msg += `<br><span style="font-size:12px;color:var(--text-sub)">미국 종목은 <strong>현재 환율 ${fmtNum(fxN)} 기준</strong>으로 계산됩니다. 매수 당시 환율과 다르면 약간의 오차가 있을 수 있어요.</span>`;
   } else if (hasUS && !fxN) {
     msg += `<br><span style="font-size:12px;color:var(--negative)">⚠️ 미국 종목이 있지만 현재 환율(fxN)이 미입력입니다. 정확한 계산을 위해 환율을 먼저 입력하세요.</span>`;
+  }
+  if (adjROverflow) {
+    msg += `<br><span style="color:var(--negative)">⚠️ 주식 조정비율 합이 이미 100을 넘어 현금 비율을 0으로 두었습니다. 조정비율을 확인하세요.</span>`;
   }
   if (isNeg) {
     msg += `<br><span style="color:var(--negative)">⚠️ 보유 매입원가가 원금을 초과합니다 — 원금 또는 보유 정보를 확인하세요. (현금 ${fmtNum(remaining)} 원)</span>`;
