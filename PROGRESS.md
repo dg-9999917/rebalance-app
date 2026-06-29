@@ -1,5 +1,20 @@
 # 구현 진행 상황
 
+## 🎉 6차 작업 완료 (증감폭 조정 + 요약바 UI 다듬기) — 2026-06-28
+
+### 6차 체크리스트
+- [x] **작업1: 기준설정 비중 +/− 0.5 단위** — 커밋 d0623b9
+  — onRatioChange 호출 delta ±1 → ±0.5 / 포트폴리오 onAdjRChange는 기존 0.5 유지
+- [x] **작업2: 요약바 양끝 항목 중앙 쪽으로** — 커밋 a9ea7cd
+  — .pf-summary justify-content: space-between → space-evenly
+- [x] **작업3: 요약바 라벨 글자 키우기** — 커밋 1c1917b
+  — .pf-summary-item .s-label font-size 10px → 12px, letter-spacing .05em → .03em
+- [x] **작업4: 요약바 ↔ 표 헤더 구분 (간격+색상)** — 커밋 fa8ebcb
+  — .pf-summary 및 .settings-meta border-bottom 1px → 2px (구분선 강화)
+  — thead th background: var(--th-bg) → var(--surface2) (헤더 다른 톤)
+
+---
+
 ## 🎉 5차 작업 완료 (현금 정산 교정 + 동기화 버튼 + UI 다듬기) — 2026-06-28
 
 ### 5차 체크리스트
