@@ -487,6 +487,15 @@
       <div class="tbl-wrap" id="settings-tbl-wrap">
         <!-- renderSettingsTable() 로 채워짐 -->
       </div>
+
+      <!-- 남는 돈 현금 채우기 -->
+      <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
+          <span style="font-size:12px;color:var(--text-sub)">초기 세팅용 — 기존 현금 값을 덮어씁니다</span>
+        </div>
+        <div id="fill-cash-result" style="display:none;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
+      </div>
     </section>
 
     <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
@@ -989,6 +998,52 @@ function syncSettingsToPortfolio() {
     clearTimeout(msg._t);
     msg._t = setTimeout(() => { msg.style.display = 'none'; }, 2000);
   }
+}
+
+// ── 남는 돈 현금으로 채우기 (초기 세팅용) ───────────────────────────
+function fillCashFromRemainder() {
+  const p0 = state.meta.p0;
+  if (!p0) { alert('원금(p0)을 먼저 입력하세요.'); return; }
+
+  const cashStock = state.stocks.find(s => s.market === 'CASH');
+  if (!cashStock) {
+    alert('현금 종목이 없습니다. 기준설정 탭에서 현금(CASH) 종목이 추가돼 있는지 확인하세요.');
+    return;
+  }
+
+  const fxN  = state.meta.fxN;
+  const hasUS = state.stocks.some(s => s.market === 'US' && (s.q > 0 || s.avg > 0));
+
+  // 매입원가 합계 (현금 제외, avgKRW 재사용)
+  const totalCost = state.stocks
+    .filter(s => s.market !== 'CASH')
+    .reduce((sum, s) => sum + avgKRW(s) * (s.q || 0), 0);
+
+  const remaining = p0 - totalCost;
+  cashStock.q = remaining;
+  saveState();
+  renderSettingsTable();
+  renderPortfolioTable();
+
+  const resultEl = document.getElementById('fill-cash-result');
+  const isNeg = remaining < 0;
+
+  let msg = `원금 ${fmtNum(p0)} 원 − 보유 매입원가 ${fmtNum(totalCost)} 원`
+          + ` = <strong style="color:${isNeg ? 'var(--negative)' : 'var(--positive)'}">${fmtNum(remaining)} 원</strong>으로 현금을 설정했습니다.`;
+  if (hasUS && fxN) {
+    msg += `<br><span style="font-size:12px;color:var(--text-sub)">미국 종목은 <strong>현재 환율 ${fmtNum(fxN)} 기준</strong>으로 계산됩니다. 매수 당시 환율과 다르면 약간의 오차가 있을 수 있어요.</span>`;
+  } else if (hasUS && !fxN) {
+    msg += `<br><span style="font-size:12px;color:var(--negative)">⚠️ 미국 종목이 있지만 현재 환율(fxN)이 미입력입니다. 정확한 계산을 위해 환율을 먼저 입력하세요.</span>`;
+  }
+  if (isNeg) {
+    msg += `<br><span style="color:var(--negative)">⚠️ 보유 매입원가가 원금을 초과합니다 — 원금 또는 보유 정보를 확인하세요. (현금 ${fmtNum(remaining)} 원)</span>`;
+  }
+
+  resultEl.style.display  = 'block';
+  resultEl.style.background   = isNeg ? 'rgba(255,95,95,0.08)' : 'var(--surface2)';
+  resultEl.style.borderColor  = isNeg ? 'var(--negative)' : 'var(--border)';
+  resultEl.style.color        = 'var(--text)';
+  resultEl.innerHTML = msg;
 }
 
 function renderSettingsTable() {
