@@ -506,6 +506,15 @@
         </div>
       </div>
 
+      <!-- 가격 서버 설정 -->
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+        <span class="meta-label" style="white-space:nowrap">가격 서버</span>
+        <input type="url" id="price-server-url" placeholder="https://xxxx.onrender.com"
+          style="width:300px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--input-bg);color:var(--text);font-size:13px"
+          oninput="savePriceServerUrl(this.value)">
+        <span style="font-size:12px;color:var(--text-sub)">https 주소 입력 시 시세 자동입력 활성화</span>
+      </div>
+
       <!-- 종목 표 -->
       <div class="tbl-wrap" id="settings-tbl-wrap">
         <!-- renderSettingsTable() 로 채워짐 -->
@@ -518,10 +527,13 @@
       <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
       <div class="pf-tbl-wrap">
         <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
-        <div class="pf-actions">
+        <div class="pf-actions" style="flex-wrap:wrap;row-gap:6px">
           <button class="btn btn-primary" onclick="showPreview()">미리보기 (Beta)</button>
           <button class="btn" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
+          <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
           <span id="adjr-warn" style="font-size:12px;color:var(--negative)"></span>
+          <span id="fetch-result" style="font-size:12px;display:none;white-space:pre-wrap"></span>
+          <span style="font-size:11px;color:var(--text-muted);width:100%">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
         </div>
         <!-- 남는 돈 현금 채우기 -->
         <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
@@ -2485,6 +2497,121 @@ function render() {
 loadState();
 restoreActiveTab();
 render();
+loadPriceServerUrl();
+
+// ── 시세 서버 연동 ──────────────────────────────────────
+function loadPriceServerUrl() {
+  const url = localStorage.getItem('price_server_url') || '';
+  const el = document.getElementById('price-server-url');
+  if (el) el.value = url;
+  updateFetchButtonState();
+}
+
+function savePriceServerUrl(val) {
+  localStorage.setItem('price_server_url', val.trim());
+  updateFetchButtonState();
+}
+
+function getPriceServerUrl() {
+  return (localStorage.getItem('price_server_url') || '').trim().replace(/\/$/, '');
+}
+
+function updateFetchButtonState() {
+  const btn = document.getElementById('btn-fetch-prices');
+  if (!btn) return;
+  const hasUrl = !!getPriceServerUrl();
+  btn.disabled = !hasUrl;
+  btn.title = hasUrl ? '' : '기준설정 탭에서 가격 서버 주소를 먼저 입력하세요';
+}
+
+async function fetchPrices() {
+  const base = getPriceServerUrl();
+  if (!base) return;
+
+  const btn = document.getElementById('btn-fetch-prices');
+  if (btn) { btn.disabled = true; btn.textContent = '가져오는 중…'; }
+  showFetchResult('서버에 연결하는 중… (처음 요청 시 최대 60초)', 'info');
+
+  const TIMEOUT_MS = 65000;
+  function timedFetch(url) {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(tid));
+  }
+
+  const results = [];
+
+  // 환율
+  try {
+    const res = await timedFetch(`${base}/price/fx`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (typeof data.rate === 'number' && data.rate > 0) {
+      state.meta.fxN = data.rate;
+      const settEl = document.getElementById('in-fxN');
+      if (settEl) settEl.value = fmtNum(data.rate);
+      const pfEl = document.getElementById('pf-in-fxN');
+      if (pfEl) pfEl.value = fmtNum(data.rate);
+      results.push({ name: '환율', ok: true, val: data.rate });
+    } else {
+      results.push({ name: '환율', ok: false, msg: '값 오류' });
+    }
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? '타임아웃' : '서버 응답 없음 — 주소 확인 또는 직접 입력';
+    results.push({ name: '환율', ok: false, msg });
+  }
+
+  // 종목별 (현금·ticker 없는 종목 제외, 병렬)
+  const targets = state.stocks.filter(s => s.market !== 'CASH' && s.ticker);
+  await Promise.all(targets.map(async s => {
+    const url = s.market === 'US'
+      ? `${base}/price/us?symbol=${encodeURIComponent(s.ticker)}`
+      : `${base}/price/kr?code=${encodeURIComponent(s.ticker)}`;
+    try {
+      const res = await timedFetch(url);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        results.push({ name: s.name, ok: false, msg: errBody.detail || `HTTP ${res.status}` });
+        return;
+      }
+      const data = await res.json();
+      if (typeof data.price === 'number' && data.price > 0) {
+        s.price = data.price;
+        results.push({ name: s.name, ok: true, val: data.price });
+      } else {
+        results.push({ name: s.name, ok: false, msg: '조회 실패, 직접 입력' });
+      }
+    } catch (e) {
+      results.push({ name: s.name, ok: false, msg: e.name === 'AbortError' ? '타임아웃' : '조회 실패, 직접 입력' });
+    }
+  }));
+
+  saveState();
+  renderPortfolioTable();
+  renderPortfolioSummary();
+  _updatePortfolioRows();
+
+  if (btn) { btn.disabled = false; btn.textContent = '시세 새로고침'; }
+  updateFetchButtonState();
+
+  const ok   = results.filter(r => r.ok);
+  const fail = results.filter(r => !r.ok);
+  let msg = `✓ ${ok.length}개 업데이트 완료`;
+  if (fail.length) msg += `\n⚠ 실패 ${fail.length}개: ${fail.map(r => `${r.name}(${r.msg})`).join(', ')}`;
+  showFetchResult(msg, fail.length > 0 ? 'warn' : 'ok');
+}
+
+function showFetchResult(msg, type) {
+  const el = document.getElementById('fetch-result');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = type === 'warn'  ? 'var(--negative)'
+                 : type === 'ok'    ? 'var(--positive)'
+                 :                    'var(--text-sub)';
+  el.style.display = 'block';
+  clearTimeout(el._tid);
+  if (type !== 'info') el._tid = setTimeout(() => { el.style.display = 'none'; }, 10000);
+}
 
 // ── 백업 알림 토스트 ────────────────────────────────────
 let _backupCollapseTimer = null;
