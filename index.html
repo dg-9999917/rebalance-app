@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리밸런싱 추적기</title>
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#4d9eff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="리밸런싱">
+  <link rel="apple-touch-icon" href="./icon-192.png">
   <style>
     /* ── 테마 변수 ──────────────────────────────────────────── */
     :root[data-theme="dark"] {
@@ -2498,6 +2506,10 @@ loadState();
 restoreActiveTab();
 render();
 loadPriceServerUrl();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 
 // ── 시세 서버 연동 ──────────────────────────────────────
 function loadPriceServerUrl() {
