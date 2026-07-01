@@ -1494,7 +1494,7 @@ function renderPortfolioTable() {
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
     html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
 
-    let subVal = 0, subWeight = 0;
+    let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
       const unit   = calcUnit(s);
@@ -1507,6 +1507,9 @@ function renderPortfolioTable() {
       const unreal = unrealizedPnL(s);
       subVal    += val;
       subWeight += wt;
+      subAlloc  += alloc;
+      subUnreal += unreal;
+      subReal   += (s.realized || 0);
 
       const badgeClass = g.market === 'US' ? 'badge-us' : g.market === 'KR' ? 'badge-kr' : 'badge-cash';
       const needStr  = !unit ? '—' : (Math.abs(need) < 0.005 ? '<span class="need-zero">—</span>'
@@ -1572,13 +1575,28 @@ function renderPortfolioTable() {
       </tr>`;
     });
 
-    // 시장 종합행
-    const subWtCls = subWeight > 0 ? 'val-pos' : '';
-    const showUsWarn = g.market === 'US' && !hasFxN;
+    // 시장 종합행 (12열 = colspan6 + 현재비중 + 1%당 + 배정금액 + 필요매매 + 평가손익 + 실현손익)
+    const subWtCls     = subWeight > 0 ? 'val-pos' : '';
+    const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
+    const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
+    const showUsWarn   = g.market === 'US' && !hasFxN;
+    const grpUSD       = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
+
+    const subAllocStr  = !per1 ? '—'
+      : grpUSD ? '$' + fmtNum(subAlloc  / fxNv, 2) : fmtNum(subAlloc);
+    const subUnrealStr = showUsWarn || !per1 ? '—'
+      : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
+    const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
+    const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
+
     html += `<tr class="subtotal-row">
-      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span></td>
+      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
       <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td colspan="5" class="num">${showUsWarn ? '<span style="color:var(--neg);font-size:11px">환율 미입력</span>' : fmtNum(subVal) + ' 원'}</td>
+      <td class="num"></td>
+      <td class="num">${subAllocStr}</td>
+      <td class="num"></td>
+      <td class="num ${subUnrealCls}">${subUnrealStr}</td>
+      <td class="num ${subRealCls}">${subRealStr}</td>
     </tr>`;
   });
 
