@@ -476,7 +476,7 @@
             <span class="meta-sub">원</span>
           </div>
         </div>
-        <div class="meta-field">
+        <div class="meta-field" id="field-fx0">
           <span class="meta-label">기준 환율</span>
           <div class="meta-input-row">
             <input class="inp inp-num" style="width:100px" id="in-fx0"
@@ -1024,6 +1024,8 @@ function renderSettingsMeta() {
   const mode = state.meta.priceMode || 'curr';
   document.getElementById('mode-btn-hist')?.classList.toggle('active', mode === 'hist');
   document.getElementById('mode-btn-curr')?.classList.toggle('active', mode === 'curr');
+  const showFx0 = (mode === 'hist');
+  document.getElementById('field-fx0')?.style.setProperty('display', showFx0 ? '' : 'none');
 }
 
 // 포커스 중인 input은 값을 덮어쓰지 않음
