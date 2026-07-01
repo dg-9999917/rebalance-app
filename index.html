@@ -1517,6 +1517,11 @@ function renderPortfolioTable() {
       const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
       const wtCls     = valOk && wt > s.r ? 'val-pos' : '';
       const isCash    = g.market === 'CASH';
+      const usUSD     = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
+      const unrealStr = s.q && s.avg && s.price && valOk
+        ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
+      const realStr   = s.realized
+        ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
 
       html += `<tr>
         <td>
@@ -1562,8 +1567,8 @@ function renderPortfolioTable() {
         <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
         <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
         <td class="num" id="pf-need-${s.id}">${needStr}</td>
-        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
-        <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
+        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${unrealStr}</td>
+        <td class="num ${realCls}">${realStr}</td>
       </tr>`;
     });
 
