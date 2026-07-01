@@ -453,18 +453,6 @@
       margin-left: auto;
     }
     #backup-toast-badge.show { display: flex; }
-
-    /* ── 글자 크기 단계 ─────────────────────────────────────── */
-    body.font-lg { font-size: 16px; }
-    body.font-xl { font-size: 18px; }
-    .font-scale-ctrl { display: flex; align-items: center; gap: 2px; }
-    .fs-btn {
-      padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px;
-      background: var(--btn-bg); color: var(--text-sub);
-      cursor: pointer; line-height: 1; transition: background .12s, color .12s;
-    }
-    .fs-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .fs-btn:hover:not(.active) { background: var(--btn-hover); }
   </style>
 </head>
 <body>
@@ -480,11 +468,6 @@
       <button class="tab-btn" data-tab="reset">초기화</button>
     </nav>
     <div class="header-actions">
-      <div class="font-scale-ctrl" title="글자 크기">
-        <button class="fs-btn" id="fs-btn-0" onclick="setFontScale(0)" title="보통" style="font-size:11px">A</button>
-        <button class="fs-btn" id="fs-btn-1" onclick="setFontScale(1)" title="크게"    style="font-size:14px">A</button>
-        <button class="fs-btn" id="fs-btn-2" onclick="setFontScale(2)" title="더 크게" style="font-size:17px">A</button>
-      </div>
       <span class="account-label">계좌</span>
       <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
         <option>기본 계좌</option>
@@ -2588,27 +2571,9 @@ function render() {
 //  초기 실행
 // ═══════════════════════════════════════════════════════════════════
 
-function setFontScale(level) {
-  level = Math.max(0, Math.min(2, level));
-  localStorage.setItem('fontScale', level);
-  document.body.classList.remove('font-lg', 'font-xl');
-  if (level === 1) document.body.classList.add('font-lg');
-  if (level === 2) document.body.classList.add('font-xl');
-  [0, 1, 2].forEach(i => {
-    const btn = document.getElementById('fs-btn-' + i);
-    if (btn) btn.classList.toggle('active', i === level);
-  });
-}
-
-function initFontScale() {
-  const saved = parseInt(localStorage.getItem('fontScale') || '0', 10);
-  setFontScale(isNaN(saved) ? 0 : saved);
-}
-
 loadState();
 restoreActiveTab();
 render();
-initFontScale();
 loadPriceServerUrl();
 
 if ('serviceWorker' in navigator) {
