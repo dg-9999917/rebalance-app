@@ -439,7 +439,7 @@
       <button class="tab-btn" data-tab="monitor">모니터링</button>
       <button class="tab-btn" data-tab="history">이력</button>
       <button class="tab-btn" data-tab="accounts">계좌설정</button>
-      <button class="tab-btn" data-tab="reset" style="color:var(--negative)">초기화</button>
+      <button class="tab-btn" data-tab="reset">초기화</button>
     </nav>
     <div class="header-actions">
       <span class="account-label">계좌</span>
@@ -689,9 +689,9 @@ function parseNum(str) {
 }
 
 // p0 기준 unit 계산
-// 모드에 따른 기준가격 반환 (hist=종가, curr=종가+100 스텁)
+// 모드에 따른 기준가격 반환 (hist=종가, curr=실제 시세 s.price)
 function getBasePrice(s) {
-  if ((state.meta.priceMode || 'curr') === 'curr') return (s.c0 || 0) + 100;
+  if ((state.meta.priceMode || 'curr') === 'curr') return s.price || 0;
   return s.c0;
 }
 
@@ -1123,6 +1123,12 @@ function fillCashFromRemainder() {
   resultEl.innerHTML = msg;
 }
 
+function toggleAllocCurrency() {
+  const cur = localStorage.getItem('allocCurrency') || 'KRW';
+  localStorage.setItem('allocCurrency', cur === 'KRW' ? 'USD' : 'KRW');
+  renderSettingsTable();
+}
+
 function renderSettingsTable() {
   renderSettingsMeta();
   const wrap = document.getElementById('settings-tbl-wrap');
@@ -1134,7 +1140,9 @@ function renderSettingsTable() {
   ];
 
   const mode = state.meta.priceMode || 'curr';
-  const priceHdr = mode === 'curr' ? '현재가(임시)' : '종가';
+  const priceHdr = mode === 'curr' ? '현재가' : '종가';
+  const allocCur = localStorage.getItem('allocCurrency') || 'KRW';
+  const fxNv = state.meta.fxN;
 
   let html = `<table style="table-layout:fixed">
     <colgroup>
@@ -1152,7 +1160,7 @@ function renderSettingsTable() {
       <th class="center">구분</th>
       <th class="center">설정비율</th>
       <th class="num">${priceHdr}</th>
-      <th class="num">배정금액 (원)</th>
+      <th class="num">배정금액 <button class="btn btn-sm" style="font-size:11px;padding:1px 6px;margin-left:4px;vertical-align:middle" onclick="toggleAllocCurrency()" title="원/달러 표시 전환">${allocCur === 'KRW' ? '원' : '$'}</button></th>
       <th class="num">비중1당 주식수</th>
       <th class="num">기준 보유수량</th>
       <th class="center">삭제</th>
@@ -1173,7 +1181,12 @@ function renderSettingsTable() {
       const isCash = s.market === 'CASH';
       const badgeClass = s.market === 'US' ? 'badge-us' : s.market === 'KR' ? 'badge-kr' : 'badge-cash';
 
-      const allocStr = per1 ? fmtNum(alloc) : '—';
+      let allocStr;
+      if (allocCur === 'USD' && s.market === 'US') {
+        allocStr = (per1 && fxNv > 0) ? '$' + fmtNum(alloc / fxNv, 2) : '—';
+      } else {
+        allocStr = per1 ? fmtNum(alloc) : '—';
+      }
       const unitStr  = (unit && isFinite(unit)) ? fmtDec(unit, 4) : '—';
       const q0Str    = (unit && isFinite(unit)) ? fmtDec(q0, 2)   : '—';
 
@@ -1197,7 +1210,7 @@ function renderSettingsTable() {
           ${isCash
             ? '<span class="val-dim">1</span>'
             : mode === 'curr'
-              ? `<span class="val-dim">${fmtPriceVal((s.c0 || 0) + 100)}</span>`
+              ? `<span class="val-dim">${s.price ? fmtPriceVal(s.price) : '—'}</span>`
               : `<input class="inp inp-num inp-c0" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.c0)}"
                 placeholder="0"
@@ -1377,7 +1390,7 @@ function renderPortfolioSummary() {
     <div class="pf-summary-item">
       <span class="s-label">현재 환율 (₩/$)</span>
       <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
-        value="${fxN ? fmtNum(fxN) : ''}" placeholder="미입력"
+        value="${fxN ? fmtNum(fxN, 2) : ''}" placeholder="미입력"
         onfocus="commaFocus(this)"
         oninput="onPortfolioFxNInput(this.value)"
         onblur="onPortfolioFxNBlur(this)">
@@ -1567,7 +1580,7 @@ function renderPortfolioDerived() {
 // 포트폴리오 탭 환율 입력칸 핸들러
 function syncFxNPortfolio() {
   const pfEl = document.getElementById('pf-in-fxN');
-  if (pfEl) pfEl.value = state.meta.fxN ? fmtNum(state.meta.fxN) : '';
+  if (pfEl) pfEl.value = state.meta.fxN ? fmtNum(state.meta.fxN, 2) : '';
 }
 function onPortfolioFxNInput(raw) {
   state.meta.fxN = parseNum(raw);
@@ -1581,7 +1594,7 @@ function onPortfolioFxNBlur(el) {
   state.meta.fxN = parseNum(el.value);
   saveState();
   const settingsEl = document.getElementById('in-fxN');
-  if (settingsEl) settingsEl.value = state.meta.fxN ? fmtNum(state.meta.fxN) : '';
+  if (settingsEl) settingsEl.value = state.meta.fxN ? fmtNum(state.meta.fxN, 2) : '';
   renderPortfolioDerived();
 }
 
