@@ -727,11 +727,19 @@ function calcUnit(s) {
   if (!p0) return 0;
   const per1 = p0 / 100;
   if (s.market === 'CASH') return per1; // unit = 1%당 금액
-  const fx0 = state.meta.fx0 || 1;
-  const base = getBasePrice(s);
-  const c0w = s.market === 'US' ? base * fx0 : base;
-  if (!c0w) return 0;
-  return per1 / c0w;
+
+  const mode = state.meta.priceMode || 'curr';
+  const base = getBasePrice(s);         // curr=s.price, hist=s.c0
+  let baseKRW;
+  if (s.market === 'US') {
+    // 현재가 모드는 fxN, 과거 종가 모드는 fx0 — ||1 폴백 금지(환율 없으면 0 반환)
+    const fx = (mode === 'curr') ? (state.meta.fxN || 0) : (state.meta.fx0 || 0);
+    baseKRW = base * fx;
+  } else {
+    baseKRW = base;
+  }
+  if (!baseKRW) return 0;
+  return per1 / baseKRW;
 }
 
 // ═══════════════════════════════════════════════════════════════════
