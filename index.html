@@ -521,8 +521,9 @@
           style="width:300px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--input-bg);color:var(--text);font-size:13px"
           oninput="savePriceServerUrl(this.value)">
         <span style="font-size:12px;color:var(--text-sub)">https 주소 입력 시 시세 자동입력 활성화</span>
+        <span id="fetch-result-settings" style="font-size:12px;margin-left:auto;white-space:pre-wrap;display:none"></span>
         <button class="btn" id="btn-fetch-prices-settings" onclick="fetchPrices()" disabled
-          title="서버 주소를 먼저 입력하세요" style="margin-left:auto;white-space:nowrap">시세 새로고침</button>
+          title="서버 주소를 먼저 입력하세요" style="margin-left:8px;white-space:nowrap">시세 새로고침</button>
       </div>
 
       <!-- 종목 표 -->
@@ -2656,15 +2657,18 @@ async function fetchPrices() {
 }
 
 function showFetchResult(msg, type) {
-  const el = document.getElementById('fetch-result');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = type === 'warn'  ? 'var(--negative)'
-                 : type === 'ok'    ? 'var(--positive)'
-                 :                    'var(--text-sub)';
-  el.style.display = 'block';
-  clearTimeout(el._tid);
-  if (type !== 'info') el._tid = setTimeout(() => { el.style.display = 'none'; }, 10000);
+  const color = type === 'warn' ? 'var(--negative)'
+              : type === 'ok'   ? 'var(--positive)'
+              :                   'var(--text-sub)';
+  ['fetch-result', 'fetch-result-settings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = color;
+    el.style.display = 'block';
+    clearTimeout(el._tid);
+    if (type !== 'info') el._tid = setTimeout(() => { el.style.display = 'none'; }, 10000);
+  });
 }
 
 // ── 백업 알림 토스트 ────────────────────────────────────
