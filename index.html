@@ -439,6 +439,7 @@
       <button class="tab-btn" data-tab="monitor">모니터링</button>
       <button class="tab-btn" data-tab="history">이력</button>
       <button class="tab-btn" data-tab="accounts">계좌설정</button>
+      <button class="tab-btn" data-tab="reset" style="color:var(--negative)">초기화</button>
     </nav>
     <div class="header-actions">
       <span class="account-label">계좌</span>
@@ -448,7 +449,6 @@
       <button class="btn" onclick="exportBackup()">백업 내보내기</button>
       <button class="btn" onclick="importBackupClick()">불러오기</button>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
-      <button class="btn btn-danger" onclick="resetApp()">초기화</button>
       <button class="btn btn-icon" id="theme-toggle" onclick="toggleTheme()" title="다크/라이트 전환">🌙</button>
     </div>
   </header>
@@ -508,8 +508,8 @@
         <div class="meta-field">
           <span class="meta-label">기준가격 모드</span>
           <div class="mode-toggle">
-            <button class="mode-toggle-btn" id="mode-btn-hist" onclick="setPriceMode('hist')">과거 종가</button>
             <button class="mode-toggle-btn" id="mode-btn-curr" onclick="setPriceMode('curr')">현재가</button>
+            <button class="mode-toggle-btn" id="mode-btn-hist" onclick="setPriceMode('hist')">과거 종가</button>
           </div>
         </div>
       </div>
@@ -596,6 +596,21 @@
     <section id="tab-accounts" class="tab-content">
       <!-- renderAccountsTab() 으로 채워짐 -->
     </section>
+
+    <!-- ══════════════ 초기화 탭 ══════════════ -->
+    <section id="tab-reset" class="tab-content">
+      <div style="max-width:520px;margin:40px auto;padding:0 16px">
+        <div style="border:2px solid var(--negative);border-radius:10px;padding:24px;background:color-mix(in srgb,var(--negative) 8%,var(--surface))">
+          <p style="font-size:15px;font-weight:700;color:var(--negative);margin:0 0 12px">⚠ 초기화 경고</p>
+          <p style="font-size:14px;line-height:1.7;margin:0 0 8px">이 계좌의 모든 데이터 (종목·보유·이력·설정)를 기본 시드 상태로 되돌립니다.</p>
+          <p style="font-size:14px;font-weight:700;color:var(--negative);margin:0 0 16px">되돌릴 수 없습니다.</p>
+          <p style="font-size:13px;color:var(--text-sub);margin:0">되돌리기 전에 상단의 <strong>[백업 내보내기]</strong> 버튼으로 파일을 저장해두세요.</p>
+        </div>
+        <div style="margin-top:24px;text-align:center">
+          <button class="btn btn-danger" onclick="resetApp()" style="padding:10px 32px;font-size:15px">초기화</button>
+        </div>
+      </div>
+    </section>
   </main>
 
 </div><!-- #app -->
@@ -642,7 +657,7 @@ const DEFAULT_STOCKS = [
 // 시드 합계 = 100 (현금 5)
 
 const DEFAULT_STATE = {
-  meta: { p0: 0, fx0: 0, fxN: 0, theme: 'dark', priceMode: 'hist' },
+  meta: { p0: 0, fx0: 0, fxN: 0, theme: 'dark', priceMode: 'curr' },
   stocks: DEFAULT_STOCKS.map(s => ({ ...s })),
   history: []
 };
@@ -676,7 +691,7 @@ function parseNum(str) {
 // p0 기준 unit 계산
 // 모드에 따른 기준가격 반환 (hist=종가, curr=종가+100 스텁)
 function getBasePrice(s) {
-  if ((state.meta.priceMode || 'hist') === 'curr') return (s.c0 || 0) + 100;
+  if ((state.meta.priceMode || 'curr') === 'curr') return (s.c0 || 0) + 100;
   return s.c0;
 }
 
@@ -1005,7 +1020,7 @@ function renderSettingsMeta() {
   document.getElementById('disp-rsum').textContent = fmtDec(rsum, 2);
   badge.classList.toggle('ok',  Math.abs(rsum - 100) < 0.001);
   badge.classList.toggle('err', Math.abs(rsum - 100) >= 0.001);
-  const mode = state.meta.priceMode || 'hist';
+  const mode = state.meta.priceMode || 'curr';
   document.getElementById('mode-btn-hist')?.classList.toggle('active', mode === 'hist');
   document.getElementById('mode-btn-curr')?.classList.toggle('active', mode === 'curr');
 }
@@ -1118,7 +1133,7 @@ function renderSettingsTable() {
     { label: '현금',       market: 'CASH' },
   ];
 
-  const mode = state.meta.priceMode || 'hist';
+  const mode = state.meta.priceMode || 'curr';
   const priceHdr = mode === 'curr' ? '현재가(임시)' : '종가';
 
   let html = `<table style="table-layout:fixed">
@@ -2609,6 +2624,7 @@ async function fetchPrices() {
   }));
 
   saveState();
+  renderSettingsTable();
   renderPortfolioTable();
   renderPortfolioSummary();
   _updatePortfolioRows();

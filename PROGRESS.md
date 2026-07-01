@@ -1,5 +1,11 @@
 # 구현 진행 상황
 
+## 수정 (시세반영·초기화탭·기준가격모드) — 2026-07-01
+- [x] 작업1: fetchPrices에 renderSettingsTable() 추가 → 기준설정 현재가(임시) 반영
+- [x] 작업2: 상단 초기화 버튼 제거 + "초기화" 탭 신설(설명박스+버튼, resetApp 재사용)
+- [x] 작업3: 기준가격모드 순서 교체(현재가 왼쪽) + 기본값·폴백 'curr'로 통일
+- [x] sw.js CACHE_NAME rebalance-v2 → rebalance-v3
+
 ## UI 수정 (버튼 배치) — 2026-07-01
 - [x] 작업1: 기준설정 가격서버 줄 오른쪽에 [시세 새로고침] 버튼 (btn-fetch-prices-settings, fetchPrices 재사용)
 - [x] 작업2: 포트폴리오 하단 — margin-top 14px + 좌(미리보기·시세새로고침 gray)/우(확정저장 blue) 배치 + 색상(좌2동일.btn/우1.btn-primary)
