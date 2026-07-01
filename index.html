@@ -1130,6 +1130,7 @@ function toggleAllocCurrency() {
   const cur = localStorage.getItem('allocCurrency') || 'KRW';
   localStorage.setItem('allocCurrency', cur === 'KRW' ? 'USD' : 'KRW');
   renderSettingsTable();
+  renderPortfolioTable();
 }
 
 function renderSettingsTable() {
@@ -1412,6 +1413,8 @@ function renderPortfolioTable() {
   const wrap = document.getElementById('pf-tbl-wrap');
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
+  const allocCur = localStorage.getItem('allocCurrency') || 'KRW';
+  const fxNv = state.meta.fxN;
 
   const groups = [
     { label: '미국 (USD)', market: 'US'   },
@@ -1443,7 +1446,7 @@ function renderPortfolioTable() {
       <th class="center">조정비율</th>
       <th class="num">현재비중</th>
       <th class="num">1%당주식수</th>
-      <th class="num">배정금액(원)</th>
+      <th class="num">배정금액 <button class="btn btn-sm" style="font-size:11px;padding:1px 6px;margin-left:4px;vertical-align:middle" onclick="toggleAllocCurrency()" title="원/달러 표시 전환">${allocCur === 'KRW' ? '원' : '$'}</button></th>
       <th class="num">필요매매</th>
       <th class="num">평가손익</th>
       <th class="num">실현손익</th>
@@ -1521,7 +1524,7 @@ function renderPortfolioTable() {
         </td>
         <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
         <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
-        <td class="num val-dim">${per1 ? fmtNum(alloc) : '—'}</td>
+        <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
         <td class="num" id="pf-need-${s.id}">${needStr}</td>
         <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
         <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
