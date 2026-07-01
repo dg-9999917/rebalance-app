@@ -1203,7 +1203,7 @@ function renderSettingsTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="8">${g.label}<span style="margin-left:10px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum, 2)}%</span></td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="8" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text)">설정 ${fmtDec(rSum, 2)}%</span></td></tr>`;
 
     stocks.forEach(s => {
       const unit  = calcUnit(s);
