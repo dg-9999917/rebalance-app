@@ -1,5 +1,10 @@
 # 구현 진행 상황
 
+## 수정 (원금+실현손익 지표) — 2026-07-01
+- [x] 작업1: 포트폴리오 상단 요약에 '원금+실현손익'(p0+totalReal) 추가, 평가금 유지
+- [x] 작업2: 이력 스냅샷 카드에 '원금+실현손익'(snap.p0+totalRealized) 추가, snap.p0 방어처리
+- [x] sw.js CACHE_NAME rebalance-v9 → rebalance-v10
+
 ## 수정 (합계행 열정렬) — 2026-07-01
 - [x] subAlloc·subUnreal·subReal 누적 추가
 - [x] 합계행 12열 재배치: 현재비중/배정금액/평가손익/실현손익 합을 각 열 아래
