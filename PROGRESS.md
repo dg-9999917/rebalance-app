@@ -1,5 +1,10 @@
 # 구현 진행 상황
 
+## 수정 (글자크기·시장별비중) — 2026-07-01
+- [x] 작업1: 계좌선택 왼쪽에 글자크기 3단계 컨트롤 + localStorage(fontScale) 저장/복원
+- [x] 작업2: 기준설정 그룹헤더에 설정비율합%, 포트폴리오 그룹헤더에 설정%+현재%
+- [x] sw.js CACHE_NAME rebalance-v5 → rebalance-v6
+
 ## 수정 (시세메시지·기준환율조건·포폴달러·스위치UI) — 2026-07-01
 - [x] 작업1: 기준설정 시세버튼 왼쪽에 fetch-result-settings 메시지(showFetchResult 양쪽 갱신)
 - [x] 작업2: 기준환율(field-fx0) 과거종가 모드일 때만 표시(초기 로드 포함)
