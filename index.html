@@ -1484,8 +1484,7 @@ function renderPortfolioTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    const wSum = stocks.reduce((a, s) => a + currWeight(s), 0);
-    html += `<tr class="group-hdr"><td colspan="12">${g.label}<span style="margin-left:10px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}% · 현재 ${fmtDec(wSum,2)}%</span></td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
 
     let subVal = 0, subWeight = 0;
 
@@ -1564,7 +1563,7 @@ function renderPortfolioTable() {
     const subWtCls = subWeight > 0 ? 'val-pos' : '';
     const showUsWarn = g.market === 'US' && !hasFxN;
     html += `<tr class="subtotal-row">
-      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span></td>
       <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
       <td colspan="5" class="num">${showUsWarn ? '<span style="color:var(--neg);font-size:11px">환율 미입력</span>' : fmtNum(subVal) + ' 원'}</td>
     </tr>`;
