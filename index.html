@@ -727,11 +727,19 @@ function calcUnit(s) {
   if (!p0) return 0;
   const per1 = p0 / 100;
   if (s.market === 'CASH') return per1; // unit = 1%당 금액
-  const fx0 = state.meta.fx0 || 1;
-  const base = getBasePrice(s);
-  const c0w = s.market === 'US' ? base * fx0 : base;
-  if (!c0w) return 0;
-  return per1 / c0w;
+
+  const mode = state.meta.priceMode || 'curr';
+  const base = getBasePrice(s);         // curr=s.price, hist=s.c0
+  let baseKRW;
+  if (s.market === 'US') {
+    // 현재가 모드는 fxN, 과거 종가 모드는 fx0 — ||1 폴백 금지(환율 없으면 0 반환)
+    const fx = (mode === 'curr') ? (state.meta.fxN || 0) : (state.meta.fx0 || 0);
+    baseKRW = base * fx;
+  } else {
+    baseKRW = base;
+  }
+  if (!baseKRW) return 0;
+  return per1 / baseKRW;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1202,7 +1210,8 @@ function renderSettingsTable() {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
-    html += `<tr class="group-hdr"><td colspan="8">${g.label}</td></tr>`;
+    const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
+    html += `<tr class="group-hdr"><td colspan="8" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text)">설정 ${fmtDec(rSum, 2)}%</span></td></tr>`;
 
     stocks.forEach(s => {
       const unit  = calcUnit(s);
@@ -1379,9 +1388,11 @@ function renderPortfolioSummary() {
   const pctChg      = p0 ? (totalVal - p0) / p0 * 100 : null;
   const hasUS       = state.stocks.some(s => s.market === 'US' && s.price > 0);
 
-  const pctStr  = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
-  const pctCls  = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
-  const realCls = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const pctStr       = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
+  const pctCls       = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
+  const realCls      = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const confirmedCls = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const confirmedVal = p0 ? fmtNum(p0 + totalReal) + ' 원' : '—';
   const rsumCls = Math.abs(rsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
   const adjRCls = Math.abs(adjRsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
 
@@ -1395,6 +1406,11 @@ function renderPortfolioSummary() {
       <span class="s-label">원금 → 현재 총자산</span>
       <span class="s-val">${p0 ? fmtNum(p0) : '—'} → ${fmtNum(totalVal)} 원</span>
       <span class="s-sub ${pctCls}">${pctStr}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">원금 + 실현손익</span>
+      <span class="s-val ${confirmedCls}">${confirmedVal}</span>
     </div>
     <div class="pf-summary-sep"></div>
     <div class="pf-summary-item">
@@ -1482,9 +1498,10 @@ function renderPortfolioTable() {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
+    const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
     html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
 
-    let subVal = 0, subWeight = 0;
+    let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
       const unit   = calcUnit(s);
@@ -1497,6 +1514,9 @@ function renderPortfolioTable() {
       const unreal = unrealizedPnL(s);
       subVal    += val;
       subWeight += wt;
+      subAlloc  += alloc;
+      subUnreal += unreal;
+      subReal   += (s.realized || 0);
 
       const badgeClass = g.market === 'US' ? 'badge-us' : g.market === 'KR' ? 'badge-kr' : 'badge-cash';
       const needStr  = !unit ? '—' : (Math.abs(need) < 0.005 ? '<span class="need-zero">—</span>'
@@ -1507,6 +1527,11 @@ function renderPortfolioTable() {
       const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
       const wtCls     = valOk && wt > s.r ? 'val-pos' : '';
       const isCash    = g.market === 'CASH';
+      const usUSD     = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
+      const unrealStr = s.q && s.avg && s.price && valOk
+        ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
+      const realStr   = s.realized
+        ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
 
       html += `<tr>
         <td>
@@ -1552,18 +1577,33 @@ function renderPortfolioTable() {
         <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
         <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
         <td class="num" id="pf-need-${s.id}">${needStr}</td>
-        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
-        <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
+        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${unrealStr}</td>
+        <td class="num ${realCls}">${realStr}</td>
       </tr>`;
     });
 
-    // 시장 종합행
-    const subWtCls = subWeight > 0 ? 'val-pos' : '';
-    const showUsWarn = g.market === 'US' && !hasFxN;
+    // 시장 종합행 (12열 = colspan6 + 현재비중 + 1%당 + 배정금액 + 필요매매 + 평가손익 + 실현손익)
+    const subWtCls     = subWeight > 0 ? 'val-pos' : '';
+    const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
+    const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
+    const showUsWarn   = g.market === 'US' && !hasFxN;
+    const grpUSD       = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
+
+    const subAllocStr  = !per1 ? '—'
+      : grpUSD ? '$' + fmtNum(subAlloc  / fxNv, 2) : fmtNum(subAlloc);
+    const subUnrealStr = showUsWarn || !per1 ? '—'
+      : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
+    const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
+    const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
+
     html += `<tr class="subtotal-row">
-      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
       <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td colspan="5" class="num">${showUsWarn ? '<span style="color:var(--neg);font-size:11px">환율 미입력</span>' : fmtNum(subVal) + ' 원'}</td>
+      <td class="num"></td>
+      <td class="num">${subAllocStr}</td>
+      <td class="num"></td>
+      <td class="num ${subUnrealCls}">${subUnrealStr}</td>
+      <td class="num ${subRealCls}">${subRealStr}</td>
     </tr>`;
   });
 
@@ -1745,7 +1785,7 @@ function renderConfirmBody() {
     </p>`;
 
   if (!_confirmRows.length) {
-    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.</div>`;
+    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.<br><span style="font-size:11px">현재 상태를 스냅샷으로 저장하려면 [확정 저장]을 누르세요.</span></div>`;
   } else {
     html += `<table style="width:100%;border-collapse:collapse">
       <thead><tr>
@@ -1815,8 +1855,12 @@ function commitTrades() {
     toProcess.push({ ...row, qty, price });
   });
 
-  if (!toProcess.length) { alert('체결된 항목이 없습니다.'); return; }
-  if (!confirm(`${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`)) return;
+  // 행은 있지만 전부 미체결 해제 → 차단. 행 자체가 없으면(변동 0) 현재 상태 그대로 저장 허용.
+  if (!toProcess.length && _confirmRows.length > 0) { alert('체결된 항목이 없습니다.'); return; }
+  const confirmMsg = toProcess.length
+    ? `${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`
+    : `리밸런싱 없이 현재 상태를 저장합니다.\n이력 스냅샷이 기록됩니다.\n계속하시겠습니까?`;
+  if (!confirm(confirmMsg)) return;
 
   // 최초 확정 시 거래 전 상태 보관 (되돌리기 기준점)
   if (!state.history.length) {
@@ -1966,7 +2010,9 @@ function renderHistoryTab() {
     const pct    = snap.p0 ? (snap.totals.totalVal - snap.p0) / snap.p0 * 100 : null;
     const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + fmtDec(pct, 2) + '%' : '';
     const pctCls = pct !== null ? (pct >= 0 ? 'val-pos' : 'val-neg') : '';
-    const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const realCls      = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const snapConfirmed    = (snap.p0 || 0) + (snap.totals.totalRealized || 0);
+    const snapConfirmedCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
@@ -1981,6 +2027,10 @@ function renderHistoryTab() {
               <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
               <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
                 ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-sub)">원금 + 실현손익</div>
+              <div class="${snapConfirmedCls}" style="font-weight:700">${fmtNum(snapConfirmed)} 원</div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
