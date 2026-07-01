@@ -1755,7 +1755,7 @@ function renderConfirmBody() {
     </p>`;
 
   if (!_confirmRows.length) {
-    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.</div>`;
+    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.<br><span style="font-size:11px">현재 상태를 스냅샷으로 저장하려면 [확정 저장]을 누르세요.</span></div>`;
   } else {
     html += `<table style="width:100%;border-collapse:collapse">
       <thead><tr>
@@ -1825,8 +1825,12 @@ function commitTrades() {
     toProcess.push({ ...row, qty, price });
   });
 
-  if (!toProcess.length) { alert('체결된 항목이 없습니다.'); return; }
-  if (!confirm(`${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`)) return;
+  // 행은 있지만 전부 미체결 해제 → 차단. 행 자체가 없으면(변동 0) 현재 상태 그대로 저장 허용.
+  if (!toProcess.length && _confirmRows.length > 0) { alert('체결된 항목이 없습니다.'); return; }
+  const confirmMsg = toProcess.length
+    ? `${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`
+    : `리밸런싱 없이 현재 상태를 저장합니다.\n이력 스냅샷이 기록됩니다.\n계속하시겠습니까?`;
+  if (!confirm(confirmMsg)) return;
 
   // 최초 확정 시 거래 전 상태 보관 (되돌리기 기준점)
   if (!state.history.length) {
