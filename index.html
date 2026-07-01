@@ -297,6 +297,32 @@
     .mode-toggle { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; gap: 2px; }
     .mode-toggle-btn { padding: 3px 10px; border-radius: 4px; border: none; background: transparent; color: var(--text-sub); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .12s, color .12s; white-space: nowrap; }
     .mode-toggle-btn.active { background: var(--accent); color: #fff; }
+
+    /* ── 원/$ 토글 스위치 ────────────────────────────────── */
+    .ccy-switch {
+      display: inline-flex; align-items: center; gap: 4px;
+      cursor: pointer; vertical-align: middle; user-select: none;
+      margin-left: 6px; line-height: 1;
+    }
+    .ccy-switch-track {
+      position: relative; width: 34px; height: 18px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; transition: background .18s, border-color .18s; flex-shrink: 0;
+    }
+    .ccy-switch.usd .ccy-switch-track { background: var(--accent); border-color: var(--accent); }
+    .ccy-switch-knob {
+      position: absolute; top: 2px; left: 2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--text-sub); transition: transform .18s, background .18s;
+    }
+    .ccy-switch.usd .ccy-switch-knob { transform: translateX(16px); background: #fff; }
+    .ccy-switch-lbl {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      transition: color .18s; min-width: 10px; text-align: center;
+    }
+    .ccy-switch:not(.usd) .ccy-switch-lbl-krw { color: var(--accent); }
+    .ccy-switch.usd      .ccy-switch-lbl-usd  { color: var(--accent); }
+
     .hist-row-buy  { background: rgba(26,115,232,0.08); }
     .hist-row-sell { background: rgba(211,47,47,0.08); }
 
@@ -1164,7 +1190,7 @@ function renderSettingsTable() {
       <th class="center">구분</th>
       <th class="center">설정비율</th>
       <th class="num">${priceHdr}</th>
-      <th class="num">배정금액 <button class="btn btn-sm" style="font-size:11px;padding:1px 6px;margin-left:4px;vertical-align:middle" onclick="toggleAllocCurrency()" title="원/달러 표시 전환">${allocCur === 'KRW' ? '원' : '$'}</button></th>
+      <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
       <th class="num">비중1당 주식수</th>
       <th class="num">기준 보유수량</th>
       <th class="center">삭제</th>
@@ -1446,7 +1472,7 @@ function renderPortfolioTable() {
       <th class="center">조정비율</th>
       <th class="num">현재비중</th>
       <th class="num">1%당주식수</th>
-      <th class="num">배정금액 <button class="btn btn-sm" style="font-size:11px;padding:1px 6px;margin-left:4px;vertical-align:middle" onclick="toggleAllocCurrency()" title="원/달러 표시 전환">${allocCur === 'KRW' ? '원' : '$'}</button></th>
+      <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
       <th class="num">필요매매</th>
       <th class="num">평가손익</th>
       <th class="num">실현손익</th>
