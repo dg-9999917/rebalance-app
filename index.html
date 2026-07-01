@@ -1388,9 +1388,11 @@ function renderPortfolioSummary() {
   const pctChg      = p0 ? (totalVal - p0) / p0 * 100 : null;
   const hasUS       = state.stocks.some(s => s.market === 'US' && s.price > 0);
 
-  const pctStr  = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
-  const pctCls  = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
-  const realCls = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const pctStr       = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
+  const pctCls       = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
+  const realCls      = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const confirmedCls = totalReal >= 0 ? 'val-pos' : 'val-neg';
+  const confirmedVal = p0 ? fmtNum(p0 + totalReal) + ' 원' : '—';
   const rsumCls = Math.abs(rsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
   const adjRCls = Math.abs(adjRsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
 
@@ -1404,6 +1406,11 @@ function renderPortfolioSummary() {
       <span class="s-label">원금 → 현재 총자산</span>
       <span class="s-val">${p0 ? fmtNum(p0) : '—'} → ${fmtNum(totalVal)} 원</span>
       <span class="s-sub ${pctCls}">${pctStr}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">원금 + 실현손익</span>
+      <span class="s-val ${confirmedCls}">${confirmedVal}</span>
     </div>
     <div class="pf-summary-sep"></div>
     <div class="pf-summary-item">
@@ -2003,7 +2010,9 @@ function renderHistoryTab() {
     const pct    = snap.p0 ? (snap.totals.totalVal - snap.p0) / snap.p0 * 100 : null;
     const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + fmtDec(pct, 2) + '%' : '';
     const pctCls = pct !== null ? (pct >= 0 ? 'val-pos' : 'val-neg') : '';
-    const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const realCls      = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const snapConfirmed    = (snap.p0 || 0) + (snap.totals.totalRealized || 0);
+    const snapConfirmedCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
@@ -2018,6 +2027,10 @@ function renderHistoryTab() {
               <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
               <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
                 ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-sub)">원금 + 실현손익</div>
+              <div class="${snapConfirmedCls}" style="font-weight:700">${fmtNum(snapConfirmed)} 원</div>
             </div>
             <div>
               <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
