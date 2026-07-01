@@ -1219,7 +1219,8 @@ function renderSettingsTable() {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
-    html += `<tr class="group-hdr"><td colspan="8">${g.label}</td></tr>`;
+    const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
+    html += `<tr class="group-hdr"><td colspan="8">${g.label}<span style="margin-left:10px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum, 2)}%</span></td></tr>`;
 
     stocks.forEach(s => {
       const unit  = calcUnit(s);
@@ -1499,7 +1500,9 @@ function renderPortfolioTable() {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
-    html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
+    const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
+    const wSum = stocks.reduce((a, s) => a + currWeight(s), 0);
+    html += `<tr class="group-hdr"><td colspan="12">${g.label}<span style="margin-left:10px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}% · 현재 ${fmtDec(wSum,2)}%</span></td></tr>`;
 
     let subVal = 0, subWeight = 0;
 
