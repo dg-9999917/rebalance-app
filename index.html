@@ -1791,7 +1791,7 @@ function renderConfirmBody() {
       <strong>실현손익 = 직전 스냅샷 대비 수량 감소분 × (현재가 − 평단)</strong> 기준으로 자동 계산됩니다.
     </p>`;
 
-  // 직전 스냅샷 대비 수량 변화 미리보기
+  // 직전 저장 대비 수량·현금 변화 미리보기
   if (prevSnap) {
     const changes = [];
     state.stocks.forEach(s => {
@@ -1803,35 +1803,46 @@ function renderConfirmBody() {
       const dir = diff > 0 ? 'BUY' : 'SELL';
       const pKRW = priceKRW(s);
       const realDelta = dir === 'SELL' ? (pKRW - avgKRW(s)) * Math.abs(diff) : null;
-      changes.push({ name: s.name, ticker: s.ticker, market: s.market, dir, diff, realDelta });
+      changes.push({ name: s.name, ticker: s.ticker, market: s.market, dir, diff, realDelta, isCash: false });
     });
+    // 현금 변동 (CASH)
+    const cashNow  = state.stocks.find(s => s.market === 'CASH')?.q || 0;
+    const cashPrev = prevSnap.stocks.find(s => s.market === 'CASH')?.q || 0;
+    const cashDiff = cashNow - cashPrev;
+    if (Math.abs(cashDiff) >= 1) {
+      changes.push({ name: '현금', ticker: 'CASH', market: 'CASH', dir: cashDiff > 0 ? 'BUY' : 'SELL', diff: cashDiff, realDelta: null, isCash: true });
+    }
+
     if (changes.length) {
       html += `<div style="margin-bottom:12px">
-        <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">직전 저장 대비 수량 변화</div>
+        <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">직전 저장 대비 변화 (장부 반영)</div>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr>
             <th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
             <th style="text-align:center;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
-            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량 변화</th>
+            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">변화량</th>
             <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">예상 실현손익</th>
           </tr></thead><tbody>`;
       changes.forEach(c => {
-        const dirC = c.dir === 'BUY' ? 'var(--buy)' : 'var(--sell)';
+        const dirC  = c.dir === 'BUY' ? 'var(--buy)' : 'var(--sell)';
         const qSign = c.diff > 0 ? '+' : '';
+        const qStr  = c.isCash
+          ? `${qSign}${fmtNum(Math.round(c.diff))} 원`
+          : `${qSign}${fmtDec(c.diff, 2)}`;
         const realStr = c.realDelta !== null
           ? `<span style="color:${c.realDelta>=0?'var(--positive)':'var(--negative)'}">${fmtNum(Math.round(c.realDelta))} 원</span>`
           : '<span style="color:var(--text-muted)">—</span>';
         html += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:4px 8px;font-weight:600">${esc(c.name)} <span style="color:var(--text-sub);font-size:10px">${esc(c.ticker)}</span></td>
-          <td style="text-align:center;padding:4px 8px;color:${dirC};font-weight:700">${c.dir==='BUY'?'▲ 매수':'▼ 매도'}</td>
-          <td style="text-align:right;padding:4px 8px;color:${dirC};font-weight:700">${qSign}${fmtDec(c.diff,2)}</td>
+          <td style="text-align:center;padding:4px 8px;color:${dirC};font-weight:700">${c.dir==='BUY'?'▲ 증가':'▼ 감소'}</td>
+          <td style="text-align:right;padding:4px 8px;color:${dirC};font-weight:700">${qStr}</td>
           <td style="text-align:right;padding:4px 8px">${realStr}</td>
         </tr>`;
       });
       html += '</tbody></table></div>';
     } else {
       html += `<div style="padding:14px;text-align:center;color:var(--text-sub);font-size:12px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
-        직전 저장 대비 수량 변화 없음 — 현재 상태를 그대로 저장합니다.
+        직전 저장 대비 변화 없음 — 현재 상태를 그대로 저장합니다.
       </div>`;
     }
   } else {
@@ -1840,13 +1851,13 @@ function renderConfirmBody() {
     </div>`;
   }
 
-  // 조정비율 기반 제안 거래 (참고용, 장부 미반영)
+  // 조정비율 기반 제안 거래 (참고용, 장부 미반영) — 항상 펼쳐진 상태로 표시
   if (_confirmRows.length) {
-    html += `<details style="margin-bottom:10px">
-      <summary style="font-size:11px;color:var(--text-sub);cursor:pointer;padding:3px 0;user-select:none">
-        ▸ 조정비율 기반 제안 거래 (참고용 — 장부에 영향 없음)
-      </summary>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;opacity:0.75">
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">
+        조정비율 기반 제안 거래 <span style="font-weight:400;color:var(--text-muted)">(참고용 — 장부에 영향 없음)</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;opacity:0.8">
         <thead><tr>
           <th style="text-align:left;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
           <th style="text-align:center;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
@@ -1863,7 +1874,7 @@ function renderConfirmBody() {
         <td style="text-align:center;padding:3px 8px;color:var(--text-muted)">${row.rFrom} → ${row.rTo}</td>
       </tr>`;
     });
-    html += '</tbody></table></details>';
+    html += '</tbody></table></div>';
   }
 
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--border)">
