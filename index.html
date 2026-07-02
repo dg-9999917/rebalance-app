@@ -328,7 +328,7 @@
 
     .snap-tag { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:8px; margin-left:4px; vertical-align:middle; white-space:nowrap; }
     .snap-tag-qty  { background:var(--accent); color:#fff; }
-    .snap-tag-adjr { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+    .snap-tag-adjr { background:var(--accent); color:#fff; }
 
     /* A-3: 표 전체 폭 — 좌우 패딩 제거 */
     .pf-tbl-wrap { padding: 0; }
@@ -1815,12 +1815,12 @@ function renderConfirmBody() {
 
     if (changes.length) {
       html += `<div style="margin-bottom:12px">
-        <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">직전 저장 대비 변화 (장부 반영)</div>
+        <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">직전 저장 대비 보유수량 변화 (장부 반영)</div>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr>
             <th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
             <th style="text-align:center;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
-            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">변화량</th>
+            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량 변화(주)</th>
             <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">예상 실현손익</th>
           </tr></thead><tbody>`;
       changes.forEach(c => {
@@ -1828,7 +1828,7 @@ function renderConfirmBody() {
         const qSign = c.diff > 0 ? '+' : '';
         const qStr  = c.isCash
           ? `${qSign}${fmtNum(Math.round(c.diff))} 원`
-          : `${qSign}${fmtDec(c.diff, 2)}`;
+          : `${qSign}${fmtDec(c.diff, 2)} 주`;
         const realStr = c.realDelta !== null
           ? `<span style="color:${c.realDelta>=0?'var(--positive)':'var(--negative)'}">${fmtNum(Math.round(c.realDelta))} 원</span>`
           : '<span style="color:var(--text-muted)">—</span>';
@@ -1861,7 +1861,6 @@ function renderConfirmBody() {
         <thead><tr>
           <th style="text-align:left;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
           <th style="text-align:center;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
-          <th style="text-align:right;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">제안 수량</th>
           <th style="text-align:center;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">비율이동</th>
         </tr></thead><tbody>`;
     _confirmRows.forEach(row => {
@@ -1870,7 +1869,6 @@ function renderConfirmBody() {
       html += `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:3px 8px">${s ? esc(s.name) : esc(row.id)} <span style="color:var(--text-muted);font-size:10px">${esc(row.id)}</span></td>
         <td style="text-align:center;padding:3px 8px;color:${dirC};font-weight:600">${row.dir==='SELL'?'▼ 매도':'▲ 매수'}</td>
-        <td style="text-align:right;padding:3px 8px">${fmtNum(row.initQty,2)}</td>
         <td style="text-align:center;padding:3px 8px;color:var(--text-muted)">${row.rFrom} → ${row.rTo}</td>
       </tr>`;
     });
@@ -1961,7 +1959,7 @@ function buildSnapshot(label, cashSettlement, tags) {
     fxN:   state.meta.fxN,
     stocks: state.stocks.map(s => ({
       id: s.id, name: s.name, ticker: s.ticker, market: s.market,
-      q: s.q, avg: s.avg, price: s.price, r: s.r, unit: s.unit, realized: s.realized,
+      q: s.q, avg: s.avg, price: s.price, r: s.r, adjR: s.adjR, unit: s.unit, realized: s.realized,
       val: evalVal(s), weight: currWeight(s)
     })),
     totals: {
@@ -2057,7 +2055,7 @@ function renderHistoryTab() {
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">보유</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평단</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재가</th>
-              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정비율</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정→조정</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">비중1당</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재비중</th>
@@ -2087,15 +2085,38 @@ function renderHistoryTab() {
           ? `${fmtDec(s.unit,4)}<span style="display:block;font-size:10px;color:${unitDelta>0?'var(--positive)':'var(--negative)'}">${unitDelta>0?'+':''}${fmtDec(unitDelta,4)}</span>`
           : fmtDec(s.unit,4);
 
+      // 설정→조정 비율 변화 (직전 스냅샷 r → 이번 스냅샷 r, 구 스냅샷은 adjR 없으면 r로 방어)
+      const prevR  = prevS ? (prevS.r ?? s.r) : s.r;
+      const curR   = s.r;
+      const rChanged = !isCashS && Math.abs(curR - prevR) > 0.0001 && prevS;
+      const rCell  = isCashS ? '—'
+        : rChanged
+          ? (() => {
+              const c = curR > prevR ? 'var(--positive)' : 'var(--negative)';
+              return `<span style="color:var(--text-sub)">${prevR}</span><span style="color:var(--text-muted)"> → </span><span style="color:${c};font-weight:700">${curR}</span>`;
+            })()
+          : String(curR);
+
+      // 현재비중 직전→현재 변화
+      const prevW   = prevS ? (prevS.weight ?? null) : null;
+      const curW    = s.weight || 0;
+      const wChanged = prevW !== null && Math.abs(curW - prevW) > 0.01;
+      const wCell   = wChanged
+        ? (() => {
+            const c = curW > prevW ? 'var(--positive)' : 'var(--negative)';
+            return `<span style="color:var(--text-sub)">${fmtDec(prevW,2)}</span><span style="color:var(--text-muted)"> → </span><span style="color:${c};font-weight:700">${fmtDec(curW,2)}</span>`;
+          })()
+        : fmtDec(curW, 2);
+
       html += `<tr class="${rowCls}" style="border-bottom:1px solid var(--border)">
         <td style="padding:4px 8px;font-weight:600">${esc(s.name)} <span style="color:var(--text-sub);font-size:10px">${esc(s.ticker)}</span>${dirBadge}</td>
         <td style="text-align:right;padding:4px 8px">${fmtDec(s.q,2)}${qDeltaStr}</td>
         <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.avg ? fmtNum(s.avg, s.avg%1?2:0) : '—')}</td>
         <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.price ? fmtNum(s.price, s.price%1?2:0) : '—')}</td>
-        <td style="text-align:right;padding:4px 8px">${s.r}</td>
+        <td style="text-align:right;padding:4px 8px;white-space:nowrap">${rCell}</td>
         <td style="text-align:right;padding:4px 8px">${unitCell}</td>
         <td style="text-align:right;padding:4px 8px">${fmtNum(s.val || 0)}</td>
-        <td style="text-align:right;padding:4px 8px">${fmtDec(s.weight || 0, 2)}</td>
+        <td style="text-align:right;padding:4px 8px;white-space:nowrap">${wCell}</td>
         <td style="text-align:right;padding:4px 8px;color:${rCl}">${fmtNum(s.realized || 0)}</td>
       </tr>`;
     });
