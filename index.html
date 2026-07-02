@@ -176,8 +176,8 @@
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
-    /* 포트폴리오 탭: summary 바 + 액션 버튼 높이 반영 */
-    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 175px); }
+    /* 포트폴리오 탭: summary 바 + 액션 버튼 영역 높이 반영 */
+    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 320px); }
 
     table {
       width: 100%; border-collapse: collapse;
@@ -330,9 +330,7 @@
     .snap-tag-qty  { background:var(--accent); color:#fff; }
     .snap-tag-adjr { background:var(--accent); color:#fff; }
 
-    /* A-3: 표 전체 폭 — 좌우 패딩 제거 */
-    .pf-tbl-wrap { padding: 0; }
-    .pf-tbl-wrap .tbl-wrap { margin-bottom: 0; }
+    /* 포트폴리오 액션: 표 아래 정렬 */
 
     /* 포트폴리오 표 입력칸 */
     .inp-price, .inp-avg, .inp-qty {
@@ -566,28 +564,26 @@
     <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
     <section id="tab-portfolio" class="tab-content">
       <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
-      <div class="pf-tbl-wrap">
-        <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
-        <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
-            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
-          </div>
-          <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
-          <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
-            <span id="adjr-warn" style="font-size:12px;color:var(--negative)"></span>
-            <span id="fetch-result" style="font-size:12px;display:none;white-space:pre-wrap"></span>
-            <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
-          </div>
+      <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
+      <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
+          <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
         </div>
-        <!-- 남는 돈 현금 채우기 -->
-        <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
-            <span style="font-size:12px;color:var(--text-sub)">현재 보유 입력 후, 남는 돈을 현금으로 채웁니다 — 기존 현금 값을 덮어씁니다</span>
-          </div>
-          <div id="fill-cash-result" style="display:none;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
+        <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
+        <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
+          <span id="adjr-warn" style="font-size:12px;color:var(--negative)"></span>
+          <span id="fetch-result" style="font-size:12px;display:none;white-space:pre-wrap"></span>
+          <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
         </div>
+      </div>
+      <!-- 남는 돈 현금 채우기 -->
+      <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
+          <span style="font-size:12px;color:var(--text-sub)">현재 보유 입력 후, 남는 돈을 현금으로 채웁니다 — 기존 현금 값을 덮어씁니다</span>
+        </div>
+        <div id="fill-cash-result" style="display:none;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
       </div>
     </section>
 
@@ -2027,21 +2023,22 @@ function renderHistoryTab() {
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
         <div style="display:flex;align-items:center;padding:12px 18px;cursor:pointer;gap:32px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
-          <div style="flex:0 0 auto">
-            <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}${qTag}${adjTag}</div>
-            <div style="font-size:13px;font-weight:700">${dtStr}</div>
+          <div style="flex:0 0 auto;min-width:110px">
+            <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}</div>
+            <div style="min-height:18px;margin-top:2px">${qTag}${adjTag}</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${dtStr}</div>
           </div>
-          <div style="display:flex;gap:56px;flex-wrap:wrap;flex:1">
-            <div>
+          <div style="display:flex;gap:40px;flex-wrap:wrap;flex:1">
+            <div style="min-width:110px">
               <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
               <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
                 ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
             </div>
-            <div>
+            <div style="min-width:130px">
               <div style="font-size:10px;color:var(--text-sub)">원금 + 실현손익</div>
               <div class="${snapConfirmedCls}" style="font-weight:700">${fmtNum(snapConfirmed)} 원</div>
             </div>
-            <div>
+            <div style="min-width:100px">
               <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
               <div class="${realCls}" style="font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
             </div>
@@ -2322,9 +2319,11 @@ function buildTradeLogHtml() {
     html += `<tr style="border-bottom:1px solid var(--border)">
       <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
       <td style="${tdStyle}left">
-        <span style="font-weight:600">${esc(r.name)}</span>
-        <span style="color:var(--text-sub);font-size:10px;margin-left:4px">${esc(r.ticker)}</span>
-        ${qTag}${adjTag}
+        <div style="display:flex;align-items:center;flex-wrap:wrap">
+          <span style="font-weight:600">${esc(r.name)}</span>
+          <span style="color:var(--text-sub);font-size:10px;margin-left:4px">${esc(r.ticker)}</span>
+          ${qTag}${adjTag}
+        </div>
       </td>
       <td style="${tdStyle}center;font-weight:700;color:${dirC}">${dirLabel}</td>
       <td style="${tdStyle}right;font-weight:700;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}</td>

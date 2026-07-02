@@ -1,5 +1,13 @@
 # 구현 진행 상황
 
+## v1 마무리 (이력 배치·포폴 스크롤) — 2026-07-02
+- [x] 작업1: 스냅샷 카드 헤더 — 스티커를 라벨 아래 전용 줄로 이동(min-height:18px 공간 확보), 수치 블록 min-width 지정
+- [x] 작업1: 거래로그 종목 셀 — 종목명·티커·스티커 flex 정렬로 통일
+- [x] 작업2: 포트폴리오 탭 pf-tbl-wrap 외부 래퍼 제거 → tbl-wrap 단일 스크롤 구조
+- [x] 작업2: #tab-portfolio .tbl-wrap max-height calc(100vh-175px) → calc(100vh-320px) (버튼 영역 고려)
+- [x] 작업2: .pf-tbl-wrap CSS 규칙 제거
+- [x] sw.js CACHE_NAME rebalance-v13 → rebalance-v14
+
 ## 수정 (스냅샷 비중변화·스티커색·모달정리) — 2026-07-02
 - [x] 작업1: buildSnapshot에 adjR 저장 + 스냅샷 상세 설정→조정(prevR→curR) & 현재비중(직전→현재) 변화 표시
   — 변화 있을 때만 화살표+색상, 없으면 단일값, 구 스냅샷/신규 종목 방어처리
