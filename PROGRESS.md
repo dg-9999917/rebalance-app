@@ -1,5 +1,12 @@
 # 구현 진행 상황
 
+## v1 마무리2 (포폴스크롤·스냅샷높이·거래로그수량) — 2026-07-02
+- [x] 작업1: 포트폴리오 #tab-portfolio .tbl-wrap max-height:none + overflow-y:visible → 페이지 흐름 스크롤
+- [x] 작업1: 포트폴리오 thead th top:46px (앱 헤더 아래 sticky)
+- [x] 작업2: 스냅샷 카드 padding 12px→6px, gap 32px→16px, 스티커 라벨 인라인 2줄 구조, 수치 폰트 축소
+- [x] 작업3: 거래로그 변동수량 prevQty→curQty 저장 + '이전 → 현재 (차이주)' 렌더
+- [x] sw.js CACHE_NAME rebalance-v14 → rebalance-v15
+
 ## v1 마무리 (이력 배치·포폴 스크롤) — 2026-07-02
 - [x] 작업1: 스냅샷 카드 헤더 — 스티커를 라벨 아래 전용 줄로 이동(min-height:18px 공간 확보), 수치 블록 min-width 지정
 - [x] 작업1: 거래로그 종목 셀 — 종목명·티커·스티커 flex 정렬로 통일

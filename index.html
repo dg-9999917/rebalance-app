@@ -176,8 +176,10 @@
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
-    /* 포트폴리오 탭: summary 바 + 액션 버튼 영역 높이 반영 */
-    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 320px); }
+    /* 포트폴리오 탭: 표 자체 스크롤 없이 페이지 흐름으로 (요약→표→버튼 순서대로 스크롤) */
+    #tab-portfolio .tbl-wrap { max-height: none; overflow-y: visible; }
+    /* 포트폴리오 thead: 페이지 스크롤 기준이므로 앱 헤더(46px) 아래에 sticky */
+    #tab-portfolio thead th { top: 46px; z-index: 15; }
 
     table {
       width: 100%; border-collapse: collapse;
@@ -2021,29 +2023,28 @@ function renderHistoryTab() {
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
-        <div style="display:flex;align-items:center;padding:12px 18px;cursor:pointer;gap:32px;flex-wrap:wrap"
+        <div style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;gap:16px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
-          <div style="flex:0 0 auto;min-width:110px">
-            <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}</div>
-            <div style="min-height:18px;margin-top:2px">${qTag}${adjTag}</div>
-            <div style="font-size:13px;font-weight:700;margin-top:2px">${dtStr}</div>
+          <div style="flex:0 0 auto;min-width:90px">
+            <div style="font-size:10px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}${qTag}${adjTag}</div>
+            <div style="font-size:12px;font-weight:700">${dtStr}</div>
           </div>
-          <div style="display:flex;gap:40px;flex-wrap:wrap;flex:1">
-            <div style="min-width:110px">
-              <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
-              <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
-                ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
-            </div>
-            <div style="min-width:130px">
-              <div style="font-size:10px;color:var(--text-sub)">원금 + 실현손익</div>
-              <div class="${snapConfirmedCls}" style="font-weight:700">${fmtNum(snapConfirmed)} 원</div>
-            </div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1">
             <div style="min-width:100px">
-              <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
-              <div class="${realCls}" style="font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
+              <div style="font-size:9px;color:var(--text-sub)">총 평가</div>
+              <div style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalVal)} 원
+                ${pctStr ? `<span class="${pctCls}" style="font-size:10px;margin-left:4px">${pctStr}</span>` : ''}</div>
+            </div>
+            <div style="min-width:120px">
+              <div style="font-size:9px;color:var(--text-sub)">원금 + 실현손익</div>
+              <div class="${snapConfirmedCls}" style="font-size:12px;font-weight:700">${fmtNum(snapConfirmed)} 원</div>
+            </div>
+            <div style="min-width:90px">
+              <div style="font-size:9px;color:var(--text-sub)">실현손익</div>
+              <div class="${realCls}" style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
             </div>
           </div>
-          <span style="color:var(--text-sub);font-size:13px" id="hsnap-arrow-${i}">▼</span>
+          <span style="color:var(--text-sub);font-size:12px" id="hsnap-arrow-${i}">▼</span>
         </div>
         <div id="hsnap-body-${i}" style="display:none;border-top:1px solid var(--border);padding:10px 14px;overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -2223,7 +2224,7 @@ function buildTradeLogHtml() {
       const realDelta = dir === 'SELL' ? ((ns.realized || 0) - (os.realized || 0)) : null;
       rows.push({
         ts: newer.ts, name: ns.name, ticker: ns.ticker, market: ns.market,
-        dir, qDelta: delta, price: ns.price,
+        dir, qDelta: delta, prevQty: os.q, curQty: ns.q, price: ns.price,
         unitFrom, unitTo, unitDelta, realDelta,
         ...snapTags,
       });
@@ -2326,7 +2327,12 @@ function buildTradeLogHtml() {
         </div>
       </td>
       <td style="${tdStyle}center;font-weight:700;color:${dirC}">${dirLabel}</td>
-      <td style="${tdStyle}right;font-weight:700;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}</td>
+      <td style="${tdStyle}right">
+        <span style="color:var(--text-sub)">${fmtDec(r.prevQty, 2)}</span>
+        <span style="color:var(--text-muted)"> → </span>
+        <span style="font-weight:700">${fmtDec(r.curQty, 2)}</span>
+        <span style="display:block;font-size:10px;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}주</span>
+      </td>
       <td style="${tdStyle}right">${r.price ? fmtNum(r.price, r.price%1?2:0) + ' ' + priceUnit : '—'}</td>
       <td style="${tdStyle}right">
         <span style="color:var(--text-sub)">${fmtDec(r.unitFrom, 4)}</span>
