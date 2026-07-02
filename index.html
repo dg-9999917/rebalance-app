@@ -178,18 +178,18 @@
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
     /* 포트폴리오 탭: 표 자체 스크롤 없이 페이지 흐름으로 (요약→표→버튼 순서대로 스크롤) */
     #tab-portfolio .tbl-wrap { max-height: none; overflow-y: visible; }
-    /* 포트폴리오 thead: 페이지 스크롤 기준이므로 앱 헤더(46px) 아래에 sticky */
-    #tab-portfolio thead th { top: 46px; z-index: 15; }
+    /* 기준설정 탭: tbl-wrap 내부 스크롤 기준이므로 top:0 유지 */
+    #tab-settings .tbl-wrap thead th { top: 0; }
 
     table {
       width: 100%; border-collapse: collapse;
       font-size: 13px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 0; z-index: 20; /* top:0 = .tbl-wrap 스크롤 컨테이너 기준 */
+      position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 8px 10px; font-size: 11.5px; font-weight: 700;
+      padding: 7px 10px; font-size: 11.5px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
@@ -2023,23 +2023,23 @@ function renderHistoryTab() {
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
-        <div style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;gap:16px;flex-wrap:wrap"
+        <div style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;gap:28px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
-          <div style="flex:0 0 auto;min-width:90px">
+          <div style="flex:0 0 auto;min-width:100px">
             <div style="font-size:10px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}${qTag}${adjTag}</div>
             <div style="font-size:12px;font-weight:700">${dtStr}</div>
           </div>
-          <div style="display:flex;gap:24px;flex-wrap:wrap;flex:1">
-            <div style="min-width:100px">
+          <div style="display:flex;gap:32px;flex-wrap:wrap;flex:1">
+            <div style="min-width:120px">
               <div style="font-size:9px;color:var(--text-sub)">총 평가</div>
               <div style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalVal)} 원
                 ${pctStr ? `<span class="${pctCls}" style="font-size:10px;margin-left:4px">${pctStr}</span>` : ''}</div>
             </div>
-            <div style="min-width:120px">
+            <div style="min-width:140px">
               <div style="font-size:9px;color:var(--text-sub)">원금 + 실현손익</div>
               <div class="${snapConfirmedCls}" style="font-size:12px;font-weight:700">${fmtNum(snapConfirmed)} 원</div>
             </div>
-            <div style="min-width:90px">
+            <div style="min-width:110px">
               <div style="font-size:9px;color:var(--text-sub)">실현손익</div>
               <div class="${realCls}" style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
             </div>

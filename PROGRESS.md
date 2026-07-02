@@ -1,5 +1,12 @@
 # 구현 진행 상황
 
+## v1 마무리3 (표헤더sticky·여백·스냅샷간격) — 2026-07-02
+- [x] 작업1: thead th top:0 → top:46px 전역 적용(페이지 스크롤 기준, 앱헤더 아래 고정)
+- [x] 작업1: #tab-settings .tbl-wrap thead th { top:0 } 재정의(tbl-wrap 내부 스크롤 기준 유지)
+- [x] 작업2: thead th padding 8px→7px(헤더-첫행 간격을 행-행 간격과 균일화)
+- [x] 작업3: 스냅샷 카드 gap 16px→28px, 수치 블록 gap 24px→32px, min-width 확대(가로 간격 시원하게)
+- [x] sw.js CACHE_NAME rebalance-v15 → rebalance-v16
+
 ## v1 마무리2 (포폴스크롤·스냅샷높이·거래로그수량) — 2026-07-02
 - [x] 작업1: 포트폴리오 #tab-portfolio .tbl-wrap max-height:none + overflow-y:visible → 페이지 흐름 스크롤
 - [x] 작업1: 포트폴리오 thead th top:46px (앱 헤더 아래 sticky)
