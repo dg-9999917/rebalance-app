@@ -176,10 +176,11 @@
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
-    /* 포트폴리오 탭: 표 자체 스크롤 없이 페이지 흐름으로 (요약→표→버튼 순서대로 스크롤) */
-    #tab-portfolio .tbl-wrap { max-height: none; overflow-y: visible; }
-    /* 기준설정 탭: tbl-wrap 내부 스크롤 기준이므로 top:0 유지 */
-    #tab-settings .tbl-wrap thead th { top: 0; }
+    /* 포트폴리오 탭: 기준설정과 동일한 표 자체 스크롤 (요약바+버튼 영역 반영) */
+    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 240px); overflow-y: auto; }
+    /* 표 자체 스크롤 탭: tbl-wrap 컨테이너 기준 top:0 (페이지 기준 46px 오버라이드) */
+    #tab-settings .tbl-wrap thead th,
+    #tab-portfolio .tbl-wrap thead th { top: 0; }
 
     table {
       width: 100%; border-collapse: collapse;
@@ -2007,6 +2008,7 @@ function renderHistoryTab() {
   }
 
   // ── 스냅샷 목록 ─────────────────────────────────────────────────
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 120px)">`;
   html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${state.history.length}건</div>`;
 
   state.history.forEach((snap, i) => {
@@ -2150,7 +2152,8 @@ function renderHistoryTab() {
       </div>`;
   });
 
-  html += '</div>';
+  html += '</div>'; // closes snap-list scroll wrapper
+  html += '</div>'; // closes outer padding:0 div
   tab.innerHTML = html;
 }
 
@@ -2252,7 +2255,7 @@ function buildTradeLogHtml() {
   const thStyle = `padding:7px 10px;font-size:11px;color:var(--text-sub);font-weight:700;text-align:`;
   const tdStyle = `padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);text-align:`;
 
-  let html = `<div style="overflow-x:auto">
+  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 120px)">
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead style="position:sticky;top:0;z-index:10;background:var(--th-bg)">
       <tr>

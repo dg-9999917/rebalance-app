@@ -1,5 +1,12 @@
 # 구현 진행 상황
 
+## 수정 (표 스크롤 방식 통일) — 2026-07-03
+- [x] 작업1: 포트폴리오 tbl-wrap을 기준설정처럼 max-height:calc(100vh-240px)+overflow-y:auto로 복원, thead top:0
+- [x] 작업2: 이력 거래로그 래퍼에 overflow-y:auto+max-height:calc(100vh-120px), thead top:0 유지
+- [x] 작업2: 이력 스냅샷목록 컨테이너에 overflow-y:auto+max-height:calc(100vh-120px) 래퍼 추가
+- [x] (태그 구조 변경 없음 — CSS+JS 인라인 스타일만)
+- [x] sw.js CACHE_NAME rebalance-v16 → rebalance-v17
+
 ## v1 마무리3 (표헤더sticky·여백·스냅샷간격) — 2026-07-02
 - [x] 작업1: thead th top:0 → top:46px 전역 적용(페이지 스크롤 기준, 앱헤더 아래 고정)
 - [x] 작업1: #tab-settings .tbl-wrap thead th { top:0 } 재정의(tbl-wrap 내부 스크롤 기준 유지)
