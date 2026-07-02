@@ -1,5 +1,11 @@
 # 구현 진행 상황
 
+## 수정 (이중 스크롤 제거) — 2026-07-03
+- [x] 포트폴리오 tbl-wrap max-height 240px → 320px (하단 버튼 영역 반영)
+- [x] 이력 스냅샷목록 max-height 120px → 160px (서브탭+여백 반영)
+- [x] 이력 거래로그 max-height 120px → 160px (서브탭+여백 반영)
+- [x] sw.js CACHE_NAME rebalance-v17 → rebalance-v18
+
 ## 수정 (표 스크롤 방식 통일) — 2026-07-03
 - [x] 작업1: 포트폴리오 tbl-wrap을 기준설정처럼 max-height:calc(100vh-240px)+overflow-y:auto로 복원, thead top:0
 - [x] 작업2: 이력 거래로그 래퍼에 overflow-y:auto+max-height:calc(100vh-120px), thead top:0 유지
