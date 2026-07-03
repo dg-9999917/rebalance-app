@@ -176,18 +176,23 @@
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
-    /* 포트폴리오 탭: summary 바 + 액션 버튼 높이 반영 */
-    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 175px); }
+    /* 포트폴리오 탭: 표+버튼을 pf-scroll 컨테이너로 묶어 함께 스크롤 */
+    .pf-scroll { max-height: calc(100vh - 130px); overflow-y: auto; }
+    #tab-portfolio .tbl-wrap { max-height: none; overflow: visible; }
+    /* 표 자체 스크롤 탭: tbl-wrap 컨테이너 기준 top:0 (페이지 기준 46px 오버라이드) */
+    #tab-settings .tbl-wrap thead th,
+    #tab-portfolio .tbl-wrap thead th,
+    #tab-history thead th { top: 0; }
 
     table {
       width: 100%; border-collapse: collapse;
       font-size: 13px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 0; z-index: 20; /* top:0 = .tbl-wrap 스크롤 컨테이너 기준 */
+      position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 8px 10px; font-size: 11.5px; font-weight: 700;
+      padding: 7px 10px; font-size: 11.5px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
@@ -326,9 +331,11 @@
     .hist-row-buy  { background: rgba(26,115,232,0.08); }
     .hist-row-sell { background: rgba(211,47,47,0.08); }
 
-    /* A-3: 표 전체 폭 — 좌우 패딩 제거 */
-    .pf-tbl-wrap { padding: 0; }
-    .pf-tbl-wrap .tbl-wrap { margin-bottom: 0; }
+    .snap-tag { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:8px; margin-left:4px; vertical-align:middle; white-space:nowrap; }
+    .snap-tag-qty  { background:var(--accent); color:#fff; }
+    .snap-tag-adjr { background:var(--accent); color:#fff; }
+
+    /* 포트폴리오 액션: 표 아래 정렬 */
 
     /* 포트폴리오 표 입력칸 */
     .inp-price, .inp-avg, .inp-qty {
@@ -562,7 +569,7 @@
     <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
     <section id="tab-portfolio" class="tab-content">
       <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
-      <div class="pf-tbl-wrap">
+      <div class="pf-scroll">
         <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
         <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
           <div style="display:flex;gap:8px;align-items:center">
@@ -1779,121 +1786,149 @@ function showConfirmModal() {
 
 function renderConfirmBody() {
   const body = document.getElementById('confirm-body');
+  const prevSnap = state.history.length ? state.history[0] : null;
+
   let html = `<div style="padding:14px 18px">
     <p style="color:var(--text-sub);font-size:12px;margin-bottom:12px">
-      시뮬레이션 기준 초기값이 채워집니다. 실제 체결 수량·단가를 수정하고, 미체결 항목은 체크 해제 후 확정하세요.
+      현재 화면의 전체 상태(수량·평단·조정비율·현금)를 스냅샷으로 저장합니다.<br>
+      <strong>실현손익 = 직전 스냅샷 대비 수량 감소분 × (현재가 − 평단)</strong> 기준으로 자동 계산됩니다.
     </p>`;
 
-  if (!_confirmRows.length) {
-    html += `<div style="padding:32px;text-align:center;color:var(--text-sub)">조정비율이 설정비율과 동일합니다. 리밸런싱 없음.<br><span style="font-size:11px">현재 상태를 스냅샷으로 저장하려면 [확정 저장]을 누르세요.</span></div>`;
-  } else {
-    html += `<table style="width:100%;border-collapse:collapse">
-      <thead><tr>
-        <th style="width:32px;padding:5px 4px;border-bottom:1px solid var(--border)"></th>
-        <th style="text-align:left;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">종목</th>
-        <th style="text-align:center;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">방향</th>
-        <th style="text-align:center;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">비율이동</th>
-        <th style="text-align:right;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">체결수량</th>
-        <th style="text-align:right;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">체결단가</th>
-        <th style="text-align:center;padding:5px 8px;font-size:11px;color:var(--text-sub);font-weight:700;border-bottom:1px solid var(--border)">단위</th>
-      </tr></thead><tbody>`;
-    _confirmRows.forEach((row, i) => {
-      const s = state.stocks.find(st => st.id === row.id);
-      const dirCls    = row.dir === 'SELL' ? 'color:var(--sell)' : 'color:var(--buy)';
-      const dirLabel  = row.dir === 'SELL' ? '매도 ▼' : '매수 ▲';
-      const priceUnit = !s ? '—' : s.market === 'US' ? 'USD' : s.market === 'KR' ? 'KRW' : '원';
-      html += `<tr id="crow-${i}" style="border-bottom:1px solid var(--border)">
-        <td style="text-align:center;padding:6px 4px">
-          <input type="checkbox" id="cchk-${i}" checked
-            onchange="document.getElementById('crow-${i}').style.opacity=this.checked?'1':'0.4';updateConfirmCashDelta()">
-        </td>
-        <td style="padding:6px 8px">
-          <span style="font-weight:600">${s ? esc(s.name) : esc(row.id)}</span>
-          <span style="color:var(--text-sub);font-size:11px;margin-left:4px">${esc(row.id)}</span>
-        </td>
-        <td style="text-align:center;padding:6px 8px">
-          <span style="${dirCls};font-weight:700;font-size:12px">${dirLabel}</span>
-        </td>
-        <td style="text-align:center;padding:6px 8px;font-size:11px;color:var(--text-sub);white-space:nowrap">${row.rFrom} → ${row.rTo}</td>
-        <td style="text-align:right;padding:6px 8px">
-          <input id="cqty-${i}" type="text" inputmode="decimal"
-            style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
-            value="${row.initQty ? fmtNum(row.initQty, 2) : ''}"
-            onfocus="commaFocus(this)" onblur="commaBlurQty(this)" oninput="updateConfirmCashDelta()">
-        </td>
-        <td style="text-align:right;padding:6px 8px">
-          <input id="cprice-${i}" type="text" inputmode="decimal"
-            style="width:80px;text-align:right;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:12px"
-            value="${fmtPriceVal(row.initPrice)}"
-            onfocus="commaFocus(this)" onblur="commaBlur(this)" oninput="updateConfirmCashDelta()">
-        </td>
-        <td style="text-align:center;padding:6px 8px;color:var(--text-sub);font-size:11px">${priceUnit}</td>
-      </tr>`;
+  // 직전 저장 대비 수량·현금 변화 미리보기
+  if (prevSnap) {
+    const changes = [];
+    state.stocks.forEach(s => {
+      if (s.market === 'CASH') return;
+      const prevS = prevSnap.stocks.find(ps => ps.id === s.id);
+      if (!prevS) return;
+      const diff = s.q - prevS.q;
+      if (Math.abs(diff) < 0.0001) return;
+      const dir = diff > 0 ? 'BUY' : 'SELL';
+      const pKRW = priceKRW(s);
+      const realDelta = dir === 'SELL' ? (pKRW - avgKRW(s)) * Math.abs(diff) : null;
+      changes.push({ name: s.name, ticker: s.ticker, market: s.market, dir, diff, realDelta, isCash: false });
     });
-    html += '</tbody></table>';
+    // 현금 변동 (CASH)
+    const cashNow  = state.stocks.find(s => s.market === 'CASH')?.q || 0;
+    const cashPrev = prevSnap.stocks.find(s => s.market === 'CASH')?.q || 0;
+    const cashDiff = cashNow - cashPrev;
+    if (Math.abs(cashDiff) >= 1) {
+      changes.push({ name: '현금', ticker: 'CASH', market: 'CASH', dir: cashDiff > 0 ? 'BUY' : 'SELL', diff: cashDiff, realDelta: null, isCash: true });
+    }
+
+    if (changes.length) {
+      html += `<div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">직전 저장 대비 보유수량 변화 (장부 반영)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+            <th style="text-align:center;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
+            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량 변화(주)</th>
+            <th style="text-align:right;padding:4px 8px;font-size:11px;color:var(--text-sub);border-bottom:1px solid var(--border)">예상 실현손익</th>
+          </tr></thead><tbody>`;
+      changes.forEach(c => {
+        const dirC  = c.dir === 'BUY' ? 'var(--buy)' : 'var(--sell)';
+        const qSign = c.diff > 0 ? '+' : '';
+        const qStr  = c.isCash
+          ? `${qSign}${fmtNum(Math.round(c.diff))} 원`
+          : `${qSign}${fmtDec(c.diff, 2)} 주`;
+        const realStr = c.realDelta !== null
+          ? `<span style="color:${c.realDelta>=0?'var(--positive)':'var(--negative)'}">${fmtNum(Math.round(c.realDelta))} 원</span>`
+          : '<span style="color:var(--text-muted)">—</span>';
+        html += `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:4px 8px;font-weight:600">${esc(c.name)} <span style="color:var(--text-sub);font-size:10px">${esc(c.ticker)}</span></td>
+          <td style="text-align:center;padding:4px 8px;color:${dirC};font-weight:700">${c.dir==='BUY'?'▲ 증가':'▼ 감소'}</td>
+          <td style="text-align:right;padding:4px 8px;color:${dirC};font-weight:700">${qStr}</td>
+          <td style="text-align:right;padding:4px 8px">${realStr}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += `<div style="padding:14px;text-align:center;color:var(--text-sub);font-size:12px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
+        직전 저장 대비 변화 없음 — 현재 상태를 그대로 저장합니다.
+      </div>`;
+    }
+  } else {
+    html += `<div style="padding:14px;text-align:center;color:var(--text-sub);font-size:12px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;margin-bottom:12px">
+      최초 저장 — 현재 상태를 초기 기준점으로 저장합니다.
+    </div>`;
   }
 
-  html += `<div id="confirm-cash-delta" style="margin:12px 0 4px;padding:9px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:5px;font-size:13px;text-align:center;color:var(--text-sub)">
-    현금 변동 계산 중…
-  </div>`;
+  // 조정비율 기반 제안 거래 (참고용, 장부 미반영) — 항상 펼쳐진 상태로 표시
+  if (_confirmRows.length) {
+    html += `<div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--text-sub);font-weight:700;margin-bottom:5px">
+        조정비율 기반 제안 거래 <span style="font-weight:400;color:var(--text-muted)">(참고용 — 장부에 영향 없음)</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;opacity:0.8">
+        <thead><tr>
+          <th style="text-align:left;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+          <th style="text-align:center;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">방향</th>
+          <th style="text-align:center;padding:3px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">비율이동</th>
+        </tr></thead><tbody>`;
+    _confirmRows.forEach(row => {
+      const s = state.stocks.find(st => st.id === row.id);
+      const dirC = row.dir === 'SELL' ? 'var(--sell)' : 'var(--buy)';
+      html += `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:3px 8px">${s ? esc(s.name) : esc(row.id)} <span style="color:var(--text-muted);font-size:10px">${esc(row.id)}</span></td>
+        <td style="text-align:center;padding:3px 8px;color:${dirC};font-weight:600">${row.dir==='SELL'?'▼ 매도':'▲ 매수'}</td>
+        <td style="text-align:center;padding:3px 8px;color:var(--text-muted)">${row.rFrom} → ${row.rTo}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--border)">
     <button class="btn" onclick="closeConfirmModal()">취소</button>
     <button class="btn btn-primary" onclick="commitTrades()">확정 저장</button>
   </div></div>`;
   body.innerHTML = html;
-  updateConfirmCashDelta();
 }
 
 function commitTrades() {
-  const toProcess = [];
-  _confirmRows.forEach((row, i) => {
-    const chk   = document.getElementById(`cchk-${i}`);
-    if (!chk || !chk.checked) return;
-    const qty   = parseNum(document.getElementById(`cqty-${i}`)?.value);
-    const price = parseNum(document.getElementById(`cprice-${i}`)?.value);
-    if (qty <= 0) return;
-    toProcess.push({ ...row, qty, price });
-  });
-
-  // 행은 있지만 전부 미체결 해제 → 차단. 행 자체가 없으면(변동 0) 현재 상태 그대로 저장 허용.
-  if (!toProcess.length && _confirmRows.length > 0) { alert('체결된 항목이 없습니다.'); return; }
-  const confirmMsg = toProcess.length
-    ? `${toProcess.length}개 항목을 확정 저장합니다.\n장부(보유수량·평단·실현손익)가 갱신되고 이력 스냅샷이 저장됩니다.\n계속하시겠습니까?`
-    : `리밸런싱 없이 현재 상태를 저장합니다.\n이력 스냅샷이 기록됩니다.\n계속하시겠습니까?`;
-  if (!confirm(confirmMsg)) return;
-
-  // 최초 확정 시 거래 전 상태 보관 (되돌리기 기준점)
+  // 최초 확정 시 초기 기준점 보관
   if (!state.history.length) {
     state.history.push(buildSnapshot('초기 상태'));
   }
 
+  const prevSnap = state.history[0];
   const fxN = state.meta.fxN || 1;
-  let _S = 0, _B = 0;  // 주식 종목 매도/매수 체결대금 합계 (원화, 현금 제외)
-  toProcess.forEach(row => {
-    const s = state.stocks.find(st => st.id === row.id);
-    if (!s) return;
-    if (s.market === 'CASH') return;  // 현금은 루프에서 완전 제외 — q/평단/실현손익 직접 변동 없음
-    const pKRW = s.market === 'US' ? row.price * fxN : row.price;
-    if (row.dir === 'SELL') {
-      _S += row.qty * pKRW;
-      s.realized = (s.realized || 0) + (pKRW - avgKRW(s)) * row.qty;
-      s.q = Math.max(0, s.q - row.qty);
+
+  // ── 실현손익·평단 계산: 직전 스냅샷 q vs 현재 q 차이 (단일 경로, 현재가 기준) ──
+  state.stocks.forEach(s => {
+    if (s.market === 'CASH') return;
+    const prevS = prevSnap ? prevSnap.stocks.find(ps => ps.id === s.id) : null;
+    if (!prevS) return;
+    const diff = s.q - prevS.q;
+    if (Math.abs(diff) < 0.0001) return;
+    const pKRW = priceKRW(s);
+    if (diff < 0) {
+      // 매도: 실현손익 += (현재가 − 평단) × 감소분
+      s.realized = (s.realized || 0) + (pKRW - avgKRW(s)) * Math.abs(diff);
     } else {
-      _B += row.qty * pKRW;
-      if (s.q > 0 && s.avg > 0) {
-        const newAvgKRW = (s.q * avgKRW(s) + row.qty * pKRW) / (s.q + row.qty);
-        s.avg = s.market === 'US' ? newAvgKRW / fxN : newAvgKRW;
-      } else {
-        s.avg = row.price;
-      }
-      s.q += row.qty;
+      // 매수: 평단 재계산 — 직전 스냅샷 q 기준 가중평균
+      const oldAvgKRW = avgKRW(s);
+      const newAvgKRW = (prevS.q > 0 && oldAvgKRW > 0)
+        ? (prevS.q * oldAvgKRW + diff * pKRW) / s.q
+        : pKRW;
+      s.avg = s.market === 'US' ? newAvgKRW / fxN : newAvgKRW;
     }
   });
 
-  // 차액(S − B)만 현금에 반영 — 이중계산 금지: 전체 매도/매수가 아닌 실제 체결 차액만
-  const _cashDelta = _S - _B;
-  const _cashStock = state.stocks.find(s => s.market === 'CASH');
-  if (_cashStock) _cashStock.q += _cashDelta;
+  // 변경 태그 계산 (r = adjR 적용 전)
+  const changedQty = prevSnap
+    ? state.stocks.some(s => {
+        if (s.market === 'CASH') return false;
+        const ps = prevSnap.stocks.find(p => p.id === s.id);
+        return ps && Math.abs(s.q - ps.q) > 0.0001;
+      })
+    : false;
+  const changedAdjR = prevSnap
+    ? state.stocks.some(s => {
+        const ps = prevSnap.stocks.find(p => p.id === s.id);
+        return ps && Math.abs(s.adjR - (ps.r || 0)) > 0.0001;
+      })
+    : false;
 
   // 설정비율 = 조정비율, unit 재계산
   state.stocks.forEach(s => {
@@ -1901,13 +1936,12 @@ function commitTrades() {
     s.unit = (s.r > 0 && s.q > 0) ? s.q / s.r : calcUnit(s);
   });
 
-  const _cashSettlement = {
-    S:         Math.round(_S),
-    B:         Math.round(_B),
-    delta:     Math.round(_cashDelta),
-    cashAfter: _cashStock ? Math.round(_cashStock.q) : 0
-  };
-  state.history.unshift(buildSnapshot('리밸런싱 확정', _cashSettlement));
+  // 현금 변동
+  const cashStock = state.stocks.find(s => s.market === 'CASH');
+  const prevCashQ = prevSnap ? (prevSnap.stocks.find(s => s.market === 'CASH')?.q || 0) : (cashStock?.q || 0);
+  const cashDelta = cashStock ? Math.round(cashStock.q - prevCashQ) : 0;
+
+  state.history.unshift(buildSnapshot('리밸런싱 확정', null, { changedQty, changedAdjR, cashDelta }));
   saveState();
   closeConfirmModal();
   render();
@@ -1915,17 +1949,20 @@ function commitTrades() {
   showBackupToast();
 }
 
-function buildSnapshot(label, cashSettlement) {
+function buildSnapshot(label, cashSettlement, tags) {
   return {
-    ts:              new Date().toISOString(),
-    label:           label || '',
-    cashSettlement:  cashSettlement || null,
+    ts:             new Date().toISOString(),
+    label:          label || '',
+    cashSettlement: cashSettlement || null,
+    changedQty:     tags?.changedQty  || false,
+    changedAdjR:    tags?.changedAdjR || false,
+    cashDelta:      tags?.cashDelta   ?? null,
     p0:    state.meta.p0,
     fx0:   state.meta.fx0,
     fxN:   state.meta.fxN,
     stocks: state.stocks.map(s => ({
       id: s.id, name: s.name, ticker: s.ticker, market: s.market,
-      q: s.q, avg: s.avg, price: s.price, r: s.r, unit: s.unit, realized: s.realized,
+      q: s.q, avg: s.avg, price: s.price, r: s.r, adjR: s.adjR, unit: s.unit, realized: s.realized,
       val: evalVal(s), weight: currWeight(s)
     })),
     totals: {
@@ -1939,33 +1976,6 @@ function closeConfirmModal() {
   document.getElementById('confirm-overlay').style.display = 'none';
 }
 
-function updateConfirmCashDelta() {
-  const fxN = state.meta.fxN || 1;
-  let S = 0, B = 0;
-  _confirmRows.forEach((row, i) => {
-    const chk   = document.getElementById(`cchk-${i}`);
-    if (!chk || !chk.checked) return;
-    const qty   = parseNum(document.getElementById(`cqty-${i}`)?.value);
-    const price = parseNum(document.getElementById(`cprice-${i}`)?.value);
-    if (qty <= 0 || price <= 0) return;
-    const s = state.stocks.find(st => st.id === row.id);
-    if (!s || s.market === 'CASH') return;  // 현금 제외 — commitTrades와 동일 규칙
-    const pKRW = s.market === 'US' ? price * fxN : price;
-    if (row.dir === 'SELL') S += qty * pKRW;
-    else                    B += qty * pKRW;
-  });
-  const delta = S - B;
-  const el = document.getElementById('confirm-cash-delta');
-  if (!el) return;
-  const sign   = delta > 0 ? '+' : '';
-  const color  = delta < 0 ? '#ef4444' : delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
-  const suffix = delta < 0
-    ? ' <span style="font-size:11px;color:#ef4444;font-weight:600">(추가 입금 필요)</span>'
-    : '';
-  el.innerHTML =
-    `현금 변동: <strong style="color:${color}">${sign}${fmtNum(Math.round(delta))} 원</strong>${suffix}` +
-    ` <span style="font-size:11px;color:var(--text-sub)">(매도 합 ${fmtNum(Math.round(S))} − 매수 합 ${fmtNum(Math.round(B))})</span>`;
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  이력 탭 (step ⑤)
@@ -2002,6 +2012,7 @@ function renderHistoryTab() {
   }
 
   // ── 스냅샷 목록 ─────────────────────────────────────────────────
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 210px)">`;
   html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${state.history.length}건</div>`;
 
   state.history.forEach((snap, i) => {
@@ -2013,31 +2024,33 @@ function renderHistoryTab() {
     const realCls      = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
     const snapConfirmed    = (snap.p0 || 0) + (snap.totals.totalRealized || 0);
     const snapConfirmedCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const qTag   = snap.changedQty  ? '<span class="snap-tag snap-tag-qty">보유수량 변경</span>'  : '';
+    const adjTag = snap.changedAdjR ? '<span class="snap-tag snap-tag-adjr">조정비율 변경</span>' : '';
 
     html += `
       <div style="background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden">
-        <div style="display:flex;align-items:center;padding:12px 18px;cursor:pointer;gap:32px;flex-wrap:wrap"
+        <div style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;gap:28px;flex-wrap:wrap"
           onclick="toggleHistorySnap(${i})">
-          <div style="flex:0 0 auto">
-            <div style="font-size:11px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}</div>
-            <div style="font-size:13px;font-weight:700">${dtStr}</div>
+          <div style="flex:0 0 auto;min-width:100px">
+            <div style="font-size:10px;color:var(--text-sub)">#${state.history.length - i} · ${esc(snap.label || '')}${qTag}${adjTag}</div>
+            <div style="font-size:12px;font-weight:700">${dtStr}</div>
           </div>
-          <div style="display:flex;gap:56px;flex-wrap:wrap;flex:1">
-            <div>
-              <div style="font-size:10px;color:var(--text-sub)">총 평가</div>
-              <div style="font-weight:700">${fmtNum(snap.totals.totalVal)} 원
-                ${pctStr ? `<span class="${pctCls}" style="font-size:11px;margin-left:4px">${pctStr}</span>` : ''}</div>
+          <div style="display:flex;gap:32px;flex-wrap:wrap;flex:1">
+            <div style="min-width:120px">
+              <div style="font-size:9px;color:var(--text-sub)">총 평가</div>
+              <div style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalVal)} 원
+                ${pctStr ? `<span class="${pctCls}" style="font-size:10px;margin-left:4px">${pctStr}</span>` : ''}</div>
             </div>
-            <div>
-              <div style="font-size:10px;color:var(--text-sub)">원금 + 실현손익</div>
-              <div class="${snapConfirmedCls}" style="font-weight:700">${fmtNum(snapConfirmed)} 원</div>
+            <div style="min-width:140px">
+              <div style="font-size:9px;color:var(--text-sub)">원금 + 실현손익</div>
+              <div class="${snapConfirmedCls}" style="font-size:12px;font-weight:700">${fmtNum(snapConfirmed)} 원</div>
             </div>
-            <div>
-              <div style="font-size:10px;color:var(--text-sub)">실현손익</div>
-              <div class="${realCls}" style="font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
+            <div style="min-width:110px">
+              <div style="font-size:9px;color:var(--text-sub)">실현손익</div>
+              <div class="${realCls}" style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
             </div>
           </div>
-          <span style="color:var(--text-sub);font-size:13px" id="hsnap-arrow-${i}">▼</span>
+          <span style="color:var(--text-sub);font-size:12px" id="hsnap-arrow-${i}">▼</span>
         </div>
         <div id="hsnap-body-${i}" style="display:none;border-top:1px solid var(--border);padding:10px 14px;overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -2046,7 +2059,7 @@ function renderHistoryTab() {
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">보유</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평단</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재가</th>
-              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정비율</th>
+              <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">설정→조정</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">비중1당</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
               <th style="text-align:right;padding:4px 8px;color:var(--text-sub);border-bottom:1px solid var(--border)">현재비중</th>
@@ -2076,21 +2089,44 @@ function renderHistoryTab() {
           ? `${fmtDec(s.unit,4)}<span style="display:block;font-size:10px;color:${unitDelta>0?'var(--positive)':'var(--negative)'}">${unitDelta>0?'+':''}${fmtDec(unitDelta,4)}</span>`
           : fmtDec(s.unit,4);
 
+      // 설정→조정 비율 변화 (직전 스냅샷 r → 이번 스냅샷 r, 구 스냅샷은 adjR 없으면 r로 방어)
+      const prevR  = prevS ? (prevS.r ?? s.r) : s.r;
+      const curR   = s.r;
+      const rChanged = !isCashS && Math.abs(curR - prevR) > 0.0001 && prevS;
+      const rCell  = isCashS ? '—'
+        : rChanged
+          ? (() => {
+              const c = curR > prevR ? 'var(--positive)' : 'var(--negative)';
+              return `<span style="color:var(--text-sub)">${prevR}</span><span style="color:var(--text-muted)"> → </span><span style="color:${c};font-weight:700">${curR}</span>`;
+            })()
+          : String(curR);
+
+      // 현재비중 직전→현재 변화
+      const prevW   = prevS ? (prevS.weight ?? null) : null;
+      const curW    = s.weight || 0;
+      const wChanged = prevW !== null && Math.abs(curW - prevW) > 0.01;
+      const wCell   = wChanged
+        ? (() => {
+            const c = curW > prevW ? 'var(--positive)' : 'var(--negative)';
+            return `<span style="color:var(--text-sub)">${fmtDec(prevW,2)}</span><span style="color:var(--text-muted)"> → </span><span style="color:${c};font-weight:700">${fmtDec(curW,2)}</span>`;
+          })()
+        : fmtDec(curW, 2);
+
       html += `<tr class="${rowCls}" style="border-bottom:1px solid var(--border)">
         <td style="padding:4px 8px;font-weight:600">${esc(s.name)} <span style="color:var(--text-sub);font-size:10px">${esc(s.ticker)}</span>${dirBadge}</td>
         <td style="text-align:right;padding:4px 8px">${fmtDec(s.q,2)}${qDeltaStr}</td>
         <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.avg ? fmtNum(s.avg, s.avg%1?2:0) : '—')}</td>
         <td style="text-align:right;padding:4px 8px">${isCashS ? '—' : (s.price ? fmtNum(s.price, s.price%1?2:0) : '—')}</td>
-        <td style="text-align:right;padding:4px 8px">${s.r}</td>
+        <td style="text-align:right;padding:4px 8px;white-space:nowrap">${rCell}</td>
         <td style="text-align:right;padding:4px 8px">${unitCell}</td>
         <td style="text-align:right;padding:4px 8px">${fmtNum(s.val || 0)}</td>
-        <td style="text-align:right;padding:4px 8px">${fmtDec(s.weight || 0, 2)}</td>
+        <td style="text-align:right;padding:4px 8px;white-space:nowrap">${wCell}</td>
         <td style="text-align:right;padding:4px 8px;color:${rCl}">${fmtNum(s.realized || 0)}</td>
       </tr>`;
     });
 
     html += `</tbody></table>`;
-    // 현금 정산 요약 (cashSettlement이 있는 스냅샷만)
+    // 현금 정산 요약 — 구형 스냅샷(cashSettlement) 호환 표시
     if (snap.cashSettlement) {
       const cs = snap.cashSettlement;
       const sign  = cs.delta > 0 ? '+' : '';
@@ -2102,6 +2138,17 @@ function renderHistoryTab() {
         ${cs.delta < 0 ? '<span style="color:#ef4444">(추가 입금 필요)</span>' : ''}
       </div>`;
     }
+    // 현금 변동 — 신규 스냅샷(cashDelta) 표시
+    if (snap.cashDelta !== null && snap.cashDelta !== undefined) {
+      const cashAfterQ = snap.stocks.find(s => s.market === 'CASH')?.q;
+      const sign  = snap.cashDelta > 0 ? '+' : '';
+      const color = snap.cashDelta < 0 ? '#ef4444' : snap.cashDelta > 0 ? 'var(--positive)' : 'var(--text-sub)';
+      html += `<div style="margin-top:8px;padding:7px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;font-size:12px;color:var(--text-sub)">
+        현금 변동: <strong style="color:${color}">${sign}${fmtNum(snap.cashDelta)} 원</strong>
+        ${cashAfterQ != null ? `&nbsp;→&nbsp; 현금 잔액 <strong>${fmtNum(Math.round(cashAfterQ))} 원</strong>` : ''}
+        ${snap.cashDelta < 0 ? '<span style="color:#ef4444;margin-left:4px">(추가 입금 필요)</span>' : ''}
+      </div>`;
+    }
     html += `<div style="display:flex;justify-content:flex-end;margin-top:10px">
             <button class="btn btn-sm" onclick="restoreSnapshot(${i})">이 시점으로 복원</button>
           </div>
@@ -2109,7 +2156,8 @@ function renderHistoryTab() {
       </div>`;
   });
 
-  html += '</div>';
+  html += '</div>'; // closes snap-list scroll wrapper
+  html += '</div>'; // closes outer padding:0 div
   tab.innerHTML = html;
 }
 
@@ -2168,6 +2216,8 @@ function buildTradeLogHtml() {
   for (let i = 0; i < state.history.length - 1; i++) {
     const newer = state.history[i];
     const older = state.history[i + 1];
+    const snapTags = { changedQty: newer.changedQty || false, changedAdjR: newer.changedAdjR || false };
+
     newer.stocks.forEach(ns => {
       if (ns.market === 'CASH') return;
       const os = older.stocks.find(s => s.id === ns.id);
@@ -2175,29 +2225,28 @@ function buildTradeLogHtml() {
       const delta = ns.q - os.q;
       if (Math.abs(delta) < 0.0001) return;
       const dir = delta > 0 ? 'BUY' : 'SELL';
-      const unitFrom = os.unit || 0;
-      const unitTo   = ns.unit || 0;
+      const unitFrom  = os.unit || 0;
+      const unitTo    = ns.unit || 0;
       const unitDelta = unitTo - unitFrom;
-      // 실현손익 변화 (매도 시)
       const realDelta = dir === 'SELL' ? ((ns.realized || 0) - (os.realized || 0)) : null;
       rows.push({
-        ts:        newer.ts,
-        name:      ns.name,
-        ticker:    ns.ticker,
-        market:    ns.market,
-        dir,
-        qDelta:    delta,
-        price:     ns.price,
-        unitFrom,
-        unitTo,
-        unitDelta,
-        realDelta,
+        ts: newer.ts, name: ns.name, ticker: ns.ticker, market: ns.market,
+        dir, qDelta: delta, prevQty: os.q, curQty: ns.q, price: ns.price,
+        unitFrom, unitTo, unitDelta, realDelta,
+        ...snapTags,
       });
     });
-    // 현금 정산 내역 (cashSettlement 기록이 있는 경우)
+
+    // 현금 정산 내역 — 구형 스냅샷(cashSettlement)
     const cs = newer.cashSettlement;
     if (cs && (cs.S || cs.B || cs.delta)) {
-      rows.push({ ts: newer.ts, type: 'CASH_SETTLEMENT', S: cs.S, B: cs.B, delta: cs.delta, cashAfter: cs.cashAfter });
+      rows.push({ ts: newer.ts, type: 'CASH_SETTLEMENT', S: cs.S, B: cs.B, delta: cs.delta, cashAfter: cs.cashAfter, ...snapTags });
+    }
+
+    // 현금 변동 — 신규 스냅샷(cashDelta)
+    if (newer.cashDelta !== null && newer.cashDelta !== undefined && Math.abs(newer.cashDelta) > 0.5) {
+      const cashAfterQ = newer.stocks.find(s => s.market === 'CASH')?.q || 0;
+      rows.push({ ts: newer.ts, type: 'CASH_DELTA', delta: newer.cashDelta, cashAfter: cashAfterQ, ...snapTags });
     }
   }
 
@@ -2210,7 +2259,7 @@ function buildTradeLogHtml() {
   const thStyle = `padding:7px 10px;font-size:11px;color:var(--text-sub);font-weight:700;text-align:`;
   const tdStyle = `padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);text-align:`;
 
-  let html = `<div style="overflow-x:auto">
+  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 210px)">
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead style="position:sticky;top:0;z-index:10;background:var(--th-bg)">
       <tr>
@@ -2218,7 +2267,7 @@ function buildTradeLogHtml() {
         <th style="${thStyle}left;white-space:nowrap;border-bottom:1px solid var(--border)">종목</th>
         <th style="${thStyle}center;white-space:nowrap;border-bottom:1px solid var(--border)">매수/매도</th>
         <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">변동 수량</th>
-        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">체결가</th>
+        <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">기준가</th>
         <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">비중1당 변화</th>
         <th style="${thStyle}right;white-space:nowrap;border-bottom:1px solid var(--border)">실현손익</th>
       </tr>
@@ -2227,15 +2276,17 @@ function buildTradeLogHtml() {
   rows.forEach(r => {
     const dt    = new Date(r.ts);
     const dtStr = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const qTag   = r.changedQty  ? '<span class="snap-tag snap-tag-qty">수량</span>'  : '';
+    const adjTag = r.changedAdjR ? '<span class="snap-tag snap-tag-adjr">비중</span>' : '';
 
-    // 현금 정산 행 (별도 렌더링)
+    // 현금 정산 행 — 구형(cashSettlement)
     if (r.type === 'CASH_SETTLEMENT') {
       const sign  = r.delta > 0 ? '+' : '';
       const color = r.delta < 0 ? '#ef4444' : r.delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
       const sfx   = r.delta < 0 ? ' <span style="font-size:10px;color:#ef4444">(추가 입금 필요)</span>' : '';
       html += `<tr style="border-bottom:1px solid var(--border);background:var(--input-bg)">
         <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
-        <td style="${tdStyle}left;font-weight:600;color:var(--text-sub)">현금 정산</td>
+        <td style="${tdStyle}left;font-weight:600;color:var(--text-sub)">현금 정산${qTag}${adjTag}</td>
         <td style="${tdStyle}center;font-size:11px;color:var(--text-sub)">S − B</td>
         <td style="${tdStyle}right;font-weight:700;color:${color}">${sign}${fmtNum(r.delta)} 원${sfx}</td>
         <td style="${tdStyle}right;font-size:11px;color:var(--text-sub)">매도 ${fmtNum(r.S)}<br>매수 ${fmtNum(r.B)}</td>
@@ -2245,8 +2296,25 @@ function buildTradeLogHtml() {
       return;
     }
 
+    // 현금 변동 행 — 신규(cashDelta)
+    if (r.type === 'CASH_DELTA') {
+      const sign  = r.delta > 0 ? '+' : '';
+      const color = r.delta < 0 ? '#ef4444' : r.delta > 0 ? 'var(--positive)' : 'var(--text-sub)';
+      const sfx   = r.delta < 0 ? ' <span style="font-size:10px;color:#ef4444">(추가 입금 필요)</span>' : '';
+      html += `<tr style="border-bottom:1px solid var(--border);background:var(--input-bg)">
+        <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
+        <td style="${tdStyle}left;font-weight:600;color:var(--text-sub)">현금 변동${qTag}${adjTag}</td>
+        <td style="${tdStyle}center;font-size:11px;color:var(--text-sub)">직접 입력</td>
+        <td style="${tdStyle}right;font-weight:700;color:${color}">${sign}${fmtNum(r.delta)} 원${sfx}</td>
+        <td style="${tdStyle}right;color:var(--text-muted)">—</td>
+        <td style="${tdStyle}right;color:var(--text-muted)">—</td>
+        <td style="${tdStyle}right;font-size:11px;color:var(--text-sub)">잔액 ${fmtNum(Math.round(r.cashAfter))} 원</td>
+      </tr>`;
+      return;
+    }
+
     const isBuy = r.dir === 'BUY';
-    const dirC  = isBuy ? 'var(--buy)' : 'var(--sell)';
+    const dirC     = isBuy ? 'var(--buy)' : 'var(--sell)';
     const dirLabel = isBuy ? '▲ 매수' : '▼ 매도';
     const qSign    = isBuy ? '+' : '';
     const unitSign = r.unitDelta >= 0 ? '+' : '';
@@ -2259,11 +2327,19 @@ function buildTradeLogHtml() {
     html += `<tr style="border-bottom:1px solid var(--border)">
       <td style="${tdStyle}left;white-space:nowrap;color:var(--text-sub)">${dtStr}</td>
       <td style="${tdStyle}left">
-        <span style="font-weight:600">${esc(r.name)}</span>
-        <span style="color:var(--text-sub);font-size:10px;margin-left:4px">${esc(r.ticker)}</span>
+        <div style="display:flex;align-items:center;flex-wrap:wrap">
+          <span style="font-weight:600">${esc(r.name)}</span>
+          <span style="color:var(--text-sub);font-size:10px;margin-left:4px">${esc(r.ticker)}</span>
+          ${qTag}${adjTag}
+        </div>
       </td>
       <td style="${tdStyle}center;font-weight:700;color:${dirC}">${dirLabel}</td>
-      <td style="${tdStyle}right;font-weight:700;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}</td>
+      <td style="${tdStyle}right">
+        <span style="color:var(--text-sub)">${fmtDec(r.prevQty, 2)}</span>
+        <span style="color:var(--text-muted)"> → </span>
+        <span style="font-weight:700">${fmtDec(r.curQty, 2)}</span>
+        <span style="display:block;font-size:10px;color:${dirC}">${qSign}${fmtDec(r.qDelta, 2)}주</span>
+      </td>
       <td style="${tdStyle}right">${r.price ? fmtNum(r.price, r.price%1?2:0) + ' ' + priceUnit : '—'}</td>
       <td style="${tdStyle}right">
         <span style="color:var(--text-sub)">${fmtDec(r.unitFrom, 4)}</span>
