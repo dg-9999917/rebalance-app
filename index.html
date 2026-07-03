@@ -176,8 +176,9 @@
     }
     /* 기준설정 탭: 상단 meta 영역 높이 반영 */
     #tab-settings .tbl-wrap { max-height: calc(100vh - 195px); }
-    /* 포트폴리오 탭: 기준설정과 동일한 표 자체 스크롤 (요약바+버튼 영역 반영) */
-    #tab-portfolio .tbl-wrap { max-height: calc(100vh - 320px); overflow-y: auto; }
+    /* 포트폴리오 탭: 표+버튼을 pf-scroll 컨테이너로 묶어 함께 스크롤 */
+    .pf-scroll { max-height: calc(100vh - 130px); overflow-y: auto; }
+    #tab-portfolio .tbl-wrap { max-height: none; overflow: visible; }
     /* 표 자체 스크롤 탭: tbl-wrap 컨테이너 기준 top:0 (페이지 기준 46px 오버라이드) */
     #tab-settings .tbl-wrap thead th,
     #tab-portfolio .tbl-wrap thead th { top: 0; }
@@ -567,26 +568,28 @@
     <!-- ══════════════ 포트폴리오 탭 ══════════════ -->
     <section id="tab-portfolio" class="tab-content">
       <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
-      <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
-      <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
-          <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
+      <div class="pf-scroll">
+        <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
+        <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
+            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
+          </div>
+          <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
+          <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
+            <span id="adjr-warn" style="font-size:12px;color:var(--negative)"></span>
+            <span id="fetch-result" style="font-size:12px;display:none;white-space:pre-wrap"></span>
+            <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
+          </div>
         </div>
-        <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
-        <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
-          <span id="adjr-warn" style="font-size:12px;color:var(--negative)"></span>
-          <span id="fetch-result" style="font-size:12px;display:none;white-space:pre-wrap"></span>
-          <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
+        <!-- 남는 돈 현금 채우기 -->
+        <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
+            <span style="font-size:12px;color:var(--text-sub)">현재 보유 입력 후, 남는 돈을 현금으로 채웁니다 — 기존 현금 값을 덮어씁니다</span>
+          </div>
+          <div id="fill-cash-result" style="display:none;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
         </div>
-      </div>
-      <!-- 남는 돈 현금 채우기 -->
-      <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
-          <span style="font-size:12px;color:var(--text-sub)">현재 보유 입력 후, 남는 돈을 현금으로 채웁니다 — 기존 현금 값을 덮어씁니다</span>
-        </div>
-        <div id="fill-cash-result" style="display:none;font-size:13px;padding:8px 12px;border-radius:6px;border:1px solid var(--border)"></div>
       </div>
     </section>
 
@@ -2008,7 +2011,7 @@ function renderHistoryTab() {
   }
 
   // ── 스냅샷 목록 ─────────────────────────────────────────────────
-  html += `<div style="overflow-y:auto;max-height:calc(100vh - 160px)">`;
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 210px)">`;
   html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${state.history.length}건</div>`;
 
   state.history.forEach((snap, i) => {
@@ -2255,7 +2258,7 @@ function buildTradeLogHtml() {
   const thStyle = `padding:7px 10px;font-size:11px;color:var(--text-sub);font-weight:700;text-align:`;
   const tdStyle = `padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);text-align:`;
 
-  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 160px)">
+  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 210px)">
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead style="position:sticky;top:0;z-index:10;background:var(--th-bg)">
       <tr>

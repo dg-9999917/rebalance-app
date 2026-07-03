@@ -1,5 +1,10 @@
 # 구현 진행 상황
 
+## 수정 (포폴 버튼 표끝 + 이력 거래로그 스크롤) — 2026-07-03
+- [x] 작업1: 표+버튼을 pf-scroll 컨테이너로 묶어 함께 스크롤 (tbl-wrap 자체스크롤 해제 → max-height:none; overflow:visible), thead top:0 pf-scroll 기준 고정, 버튼이 표 끝에 나옴
+- [x] 작업2: 거래로그 max-height 160px→210px, 스냅샷목록 동일 조정, 페이지 스크롤 제거·헤더 고정
+- [x] sw.js CACHE_NAME rebalance-v18 → rebalance-v19
+
 ## 수정 (이중 스크롤 제거) — 2026-07-03
 - [x] 포트폴리오 tbl-wrap max-height 240px → 320px (하단 버튼 영역 반영)
 - [x] 이력 스냅샷목록 max-height 120px → 160px (서브탭+여백 반영)
