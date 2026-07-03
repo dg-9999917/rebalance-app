@@ -1,5 +1,11 @@
 # 구현 진행 상황
 
+## 수정 (이력 탭 거래로그 헤더 고정 위치) — 2026-07-03
+- [x] #tab-history thead th { top: 0 } 오버라이드 추가 (글로벌 46px → 0px)
+- [x] 거래로그 헤더가 스크롤 컨테이너 최상단에 고정됨 (기존: 46px 아래)
+- [x] 기준설정·포트폴리오 탭 헤더 고정 영향 없음
+- [x] sw.js CACHE_NAME rebalance-v19 → rebalance-v20
+
 ## 수정 (포폴 버튼 표끝 + 이력 거래로그 스크롤) — 2026-07-03
 - [x] 작업1: 표+버튼을 pf-scroll 컨테이너로 묶어 함께 스크롤 (tbl-wrap 자체스크롤 해제 → max-height:none; overflow:visible), thead top:0 pf-scroll 기준 고정, 버튼이 표 끝에 나옴
 - [x] 작업2: 거래로그 max-height 160px→210px, 스냅샷목록 동일 조정, 페이지 스크롤 제거·헤더 고정
