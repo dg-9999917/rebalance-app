@@ -2012,7 +2012,7 @@ function renderHistoryTab() {
   }
 
   // ── 스냅샷 목록 ─────────────────────────────────────────────────
-  html += `<div style="overflow-y:auto;max-height:calc(100vh - 210px)">`;
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 110px)">`;
   html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${state.history.length}건</div>`;
 
   state.history.forEach((snap, i) => {
@@ -2259,7 +2259,7 @@ function buildTradeLogHtml() {
   const thStyle = `padding:7px 10px;font-size:11px;color:var(--text-sub);font-weight:700;text-align:`;
   const tdStyle = `padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);text-align:`;
 
-  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 210px)">
+  let html = `<div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 110px)">
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead style="position:sticky;top:0;z-index:10;background:var(--th-bg)">
       <tr>
