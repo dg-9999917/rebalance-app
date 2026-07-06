@@ -1579,16 +1579,16 @@ function renderPortfolioTable() {
   if (isSimple) {
     html = `<table class="view-simple" style="table-layout:fixed">
     <colgroup>
-      <col style="width:200px"><!-- 종목 -->
-      <col style="width:120px"><!-- 현재가 -->
-      <col style="width:110px"><!-- 보유수량 -->
-      <col style="width:80px"> <!-- 설정비율 -->
-      <col style="width:100px"><!-- 현재비중 -->
-      <col style="width:150px"><!-- 평가금액 -->
+      <col style="width:200px"><!-- 종목+현재가 -->
+      <col style="width:100px"><!-- 평단가 -->
+      <col style="width:100px"><!-- 보유수량 -->
+      <col style="width:90px"> <!-- 설정비율 -->
+      <col style="width:90px"> <!-- 현재비중 -->
+      <col style="width:130px"><!-- 평가금액 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
-      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
+      <th class="num" style="border-left:2px solid var(--border)">평단가</th>
       <th class="num">보유수량</th>
       <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="num">현재비중</th>
@@ -1674,10 +1674,17 @@ function renderPortfolioTable() {
 
       if (isSimple) {
         const evalStr = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
+        const priceDisplay = isCash ? '—'
+          : (s.price ? (s.market === 'US' ? '$' : '₩') + fmtNum(s.price, s.price % 1 ? 2 : 0) : '—');
         html += `<tr>
-          ${stockNameHtml}
-          ${priceHtml}
-          ${qtyHtml}
+          <td>
+            <span class="stock-name">${esc(s.name)}</span>
+            <span class="stock-ticker">${esc(s.ticker)}</span>
+            <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+            <div style="font-size:12px;color:var(--text-sub);margin-top:2px">${priceDisplay}</div>
+          </td>
+          <td class="num" style="border-left:2px solid var(--border)">${isCash ? '—' : (s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—')}</td>
+          <td class="num">${s.q ? fmtNum(s.q, 2) : '—'}</td>
           <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
           <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
           <td class="num" id="pf-eval-${s.id}" style="border-left:2px solid var(--border)">${evalStr}</td>
@@ -2805,16 +2812,14 @@ function renderAccountsTab() {
       </div>
     </div>
   </div>
-  </div>
-  </div>`; // 오른쪽 컬럼 + flex 래퍼 닫기
-
-  // ── 구글 드라이브 백업 영역 ──
-  html += `<div style="margin-top:24px;max-width:600px">
+  <div style="margin-top:20px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">☁️ 구글 드라이브 백업</div>
     <div class="acc-form-card" id="gdrive-section">
       ${buildGdriveUI()}
     </div>
-  </div>`;
+  </div>
+  </div>
+  </div>`; // 오른쪽 컬럼 + flex 래퍼 닫기
 
   tab.innerHTML = html;
 }
