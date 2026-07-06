@@ -206,6 +206,12 @@
     tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
 
+    /* 포트폴리오 간단/상세 보기 */
+    #pf-tbl-wrap table.view-simple { font-size: 15px; }
+    #pf-tbl-wrap table.view-simple thead th { font-size: 14px; }
+    #pf-tbl-wrap table.view-detail { font-size: 13px; }
+    #pf-tbl-wrap table.view-detail thead th { font-size: 11.5px; }
+
     /* A-2: 그룹 헤더 행 — 합계행과 동일한 크기 */
     tr.group-hdr td {
       background: var(--group-bg); color: var(--text-sub);
@@ -476,6 +482,7 @@
       <button class="tab-btn" data-tab="reset">초기화</button>
     </nav>
     <div class="header-actions">
+      <button class="btn btn-sm" id="view-mode-toggle" onclick="toggleViewMode()" title="상세 보기로 전환">📊 상세</button>
       <span class="account-label">계좌</span>
       <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
         <option>기본 계좌</option>
@@ -1375,6 +1382,33 @@ function onAdjRInput(id, raw) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  포트폴리오 탭 — 간단/상세 보기 토글
+// ═══════════════════════════════════════════════════════════════════
+
+function getViewMode() {
+  return localStorage.getItem('pf_view_mode') || 'simple';
+}
+function setViewMode(mode) {
+  localStorage.setItem('pf_view_mode', mode);
+}
+function toggleViewMode() {
+  const cur = getViewMode();
+  setViewMode(cur === 'simple' ? 'detail' : 'simple');
+  renderPortfolioTable();
+  renderPortfolioSummary();
+  updateViewModeButton();
+}
+function updateViewModeButton() {
+  const btn = document.getElementById('view-mode-toggle');
+  if (!btn) return;
+  const isConsolidated = !!appData.activeConsolidatedId;
+  btn.style.display = isConsolidated ? 'none' : '';
+  const mode = getViewMode();
+  btn.textContent = mode === 'simple' ? '📊 상세' : '📋 간단';
+  btn.title = mode === 'simple' ? '상세 보기로 전환' : '간단 보기로 전환';
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  포트폴리오 탭 — 렌더
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1393,6 +1427,7 @@ function renderPortfolioSummary() {
   const pctChg      = p0 ? (totalVal - p0) / p0 * 100 : null;
   const hasUS       = state.stocks.some(s => s.market === 'US' && s.price > 0);
 
+  const viewMode     = getViewMode();
   const pctStr       = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
   const pctCls       = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
   const realCls      = totalReal >= 0 ? 'val-pos' : 'val-neg';
@@ -1401,7 +1436,36 @@ function renderPortfolioSummary() {
   const rsumCls = Math.abs(rsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
   const adjRCls = Math.abs(adjRsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
 
-  document.getElementById('pf-summary-bar').innerHTML = `
+  const fxNInputHtml = `<div class="pf-summary-item">
+      <span class="s-label">현재 환율 (₩/$)</span>
+      <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
+        value="${fxN ? fmtNum(fxN, 2) : ''}" placeholder="미입력"
+        onfocus="commaFocus(this)"
+        oninput="onPortfolioFxNInput(this.value)"
+        onblur="onPortfolioFxNBlur(this)">
+    </div>`;
+
+  if (viewMode === 'simple') {
+    document.getElementById('pf-summary-bar').innerHTML = `
+    <div class="pf-summary-item">
+      <span class="s-label">총 평가금액${!hasFxN && hasUS ? '<span style="color:var(--neg);font-size:11px"> (미국 제외)</span>' : ''}</span>
+      <span class="s-val">${fmtNum(totalVal)} 원</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">원금 → 현재 총자산</span>
+      <span class="s-val">${p0 ? fmtNum(p0) : '—'} → ${fmtNum(totalVal)} 원</span>
+      <span class="s-sub ${pctCls}">${pctStr}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">현금</span>
+      <span class="s-val" style="${cashVal < 0 ? 'color:#ef4444' : ''}">${fmtNum(cashVal)} 원${cashVal < 0 ? ' <span style="font-size:11px">(추가 입금 필요)</span>' : ''}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    ${fxNInputHtml}`;
+  } else {
+    document.getElementById('pf-summary-bar').innerHTML = `
     <div class="pf-summary-item">
       <span class="s-label">총 평가금액${!hasFxN && hasUS ? '<span style="color:var(--neg);font-size:11px"> (미국 제외)</span>' : ''}</span>
       <span class="s-val">${fmtNum(totalVal)} 원</span>
@@ -1438,14 +1502,8 @@ function renderPortfolioSummary() {
       <span class="s-val" style="${cashVal < 0 ? 'color:#ef4444' : ''}">${fmtNum(cashVal)} 원${cashVal < 0 ? ' <span style="font-size:11px">(추가 입금 필요)</span>' : ''}</span>
     </div>
     <div class="pf-summary-sep"></div>
-    <div class="pf-summary-item">
-      <span class="s-label">현재 환율 (₩/$)</span>
-      <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
-        value="${fxN ? fmtNum(fxN, 2) : ''}" placeholder="미입력"
-        onfocus="commaFocus(this)"
-        oninput="onPortfolioFxNInput(this.value)"
-        onblur="onPortfolioFxNBlur(this)">
-    </div>`;
+    ${fxNInputHtml}`;
+  }
 
   // 확정 저장 버튼 활성화 제어 (adjR 합계 ≠ 100이면 비활성)
   const adjRok = Math.abs(adjRsum - 100) < 0.001;
@@ -1465,6 +1523,7 @@ function renderPortfolioTable() {
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
   const allocCur = localStorage.getItem('allocCurrency') || 'KRW';
   const fxNv = state.meta.fxN;
+  const isSimple = getViewMode() === 'simple';
 
   const groups = [
     { label: '미국 (USD)', market: 'US'   },
@@ -1472,36 +1531,65 @@ function renderPortfolioTable() {
     { label: '현금',       market: 'CASH' },
   ];
 
-  let html = `<table style="table-layout:fixed">
+  let html;
+  if (isSimple) {
+    html = `<table class="view-simple" style="table-layout:fixed">
     <colgroup>
-      <col style="width:180px"><!-- 종목 -->
-      <col style="width:100px"><!-- 현재가 -->
-      <col style="width:100px"><!-- 평단가 -->
-      <col style="width:90px"> <!-- 보유수량 -->
+      <col style="width:200px"><!-- 종목 -->
+      <col style="width:120px"><!-- 현재가 -->
+      <col style="width:110px"><!-- 보유수량 -->
+      <col style="width:100px"><!-- 현재비중 -->
+      <col style="width:130px"><!-- 평가손익 -->
+      <col style="width:120px"><!-- 실현손익 -->
+    </colgroup>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
+      <th class="num">보유수량</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재비중</th>
+      <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
+      <th class="num">실현손익</th>
+    </tr></thead><tbody>`;
+  } else {
+    html = `<table class="view-detail" style="table-layout:fixed">
+    <colgroup>
+      <col style="width:160px"><!-- 종목 -->
+      <col style="width:88px"> <!-- 현재가 -->
+      <col style="width:88px"> <!-- 평단가 -->
+      <col style="width:80px"> <!-- 보유수량 -->
+      <col style="width:60px"> <!-- 설정비율 -->
       <col style="width:110px"><!-- 조정비율 -->
-      <col style="width:80px"> <!-- 현재비중 -->
-      <col style="width:110px"><!-- 평가손익 -->
-      <col style="width:100px"><!-- 실현손익 -->
+      <col style="width:68px"> <!-- 현재비중 -->
+      <col style="width:76px"> <!-- 1%당주식수 -->
+      <col style="width:100px"><!-- 배정금액 -->
+      <col style="width:88px"> <!-- 필요매매 -->
+      <col style="width:90px"> <!-- 평가손익 -->
+      <col style="width:80px"> <!-- 실현손익 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
       <th class="num" style="border-left:2px solid var(--border)">현재가</th>
       <th class="num">평단가</th>
       <th class="num">보유수량</th>
-      <th class="center" style="border-left:2px solid var(--border)">조정비율</th>
+      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
+      <th class="center">조정비율</th>
       <th class="num">현재비중</th>
+      <th class="num" style="border-left:2px solid var(--border)">1%당주식수</th>
+      <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
+      <th class="num">필요매매</th>
       <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
       <th class="num">실현손익</th>
     </tr></thead><tbody>`;
+  }
 
   groups.forEach(g => {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="8">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="${isSimple ? 6 : 12}">${g.label}</td></tr>`;
 
-    let subVal = 0, subWeight = 0, subUnreal = 0, subReal = 0;
+    let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
       const val    = evalVal(s);
@@ -1518,70 +1606,119 @@ function renderPortfolioTable() {
       const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
       const wtCls     = valOk && wt > s.r ? 'val-pos' : '';
       const isCash    = g.market === 'CASH';
-      const unrealStr = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
-      const realStr   = s.realized ? fmtNum(s.realized) : '—';
 
-      html += `<tr>
-        <td>
+      const stockNameHtml = `<td>
           <span class="stock-name">${esc(s.name)}</span>
           <span class="stock-ticker">${esc(s.ticker)}</span>
           <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
-        </td>
-        <td class="num" style="border-left:2px solid var(--border)">
+        </td>`;
+      const priceHtml = `<td class="num" style="border-left:2px solid var(--border)">
           ${isCash ? '<span class="val-dim">—</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.price)}" placeholder="0"
                 onfocus="commaFocus(this)"
                 onchange="onPriceInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">`}
-        </td>
-        <td class="num">
-          ${isCash ? '<span class="val-dim">—</span>'
-            : `<input class="inp-avg" type="text" inputmode="decimal"
-                value="${fmtPriceVal(s.avg)}" placeholder="0"
-                onfocus="commaFocus(this)"
-                onchange="onAvgInput('${s.id}',this.value)"
-                onblur="commaBlur(this)">`}
-        </td>
-        <td class="num">
+        </td>`;
+      const qtyHtml = `<td class="num">
           <input class="inp-qty" type="text" inputmode="decimal"
             value="${s.q ? fmtNum(s.q, 2) : ''}" placeholder="0"
             onfocus="commaFocus(this)"
             onchange="onQtyInput('${s.id}',this.value)"
             onblur="commaBlurQty(this)">
-        </td>
-        <td class="center" style="border-left:2px solid var(--border)">
-          <div class="ratio-cell">
-            <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
-            <input class="inp-r" type="number" min="0" step="0.5"
-              value="${s.adjR}"
-              onchange="onAdjRInput('${s.id}',this.value)"
-              oninput="onAdjRInput('${s.id}',this.value)">
-            <button class="pm-btn" onclick="onAdjRChange('${s.id}',0.5)">+</button>
-          </div>
-        </td>
-        <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-        <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
-        <td class="num ${realCls}">${realStr}</td>
-      </tr>`;
+        </td>`;
+
+      if (isSimple) {
+        const unrealStr = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
+        const realStr   = s.realized ? fmtNum(s.realized) : '—';
+        html += `<tr>
+          ${stockNameHtml}
+          ${priceHtml}
+          ${qtyHtml}
+          <td class="num ${wtCls}" id="pf-wt-${s.id}" style="border-left:2px solid var(--border)">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
+          <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
+          <td class="num ${realCls}">${realStr}</td>
+        </tr>`;
+      } else {
+        const unit   = calcUnit(s);
+        const alloc  = s.r * per1;
+        const adjQty = s.adjR * unit;
+        const need   = adjQty - s.q;
+        const usUSD  = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
+        subAlloc += alloc;
+        const needStr = !unit ? '—' : (Math.abs(need) < 0.005
+          ? '<span class="need-zero">—</span>'
+          : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
+                     : `<span class="need-sell">${fmtNum(need,2)}</span>`);
+        const unrealStr = s.q && s.avg && s.price && valOk
+          ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
+        const realStr = s.realized
+          ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
+        html += `<tr>
+          ${stockNameHtml}
+          ${priceHtml}
+          <td class="num">
+            ${isCash ? '<span class="val-dim">—</span>'
+              : `<input class="inp-avg" type="text" inputmode="decimal"
+                  value="${fmtPriceVal(s.avg)}" placeholder="0"
+                  onfocus="commaFocus(this)"
+                  onchange="onAvgInput('${s.id}',this.value)"
+                  onblur="commaBlur(this)">`}
+          </td>
+          ${qtyHtml}
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
+          <td class="center">
+            <div class="ratio-cell">
+              <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
+              <input class="inp-r" type="number" min="0" step="0.5"
+                value="${s.adjR}"
+                onchange="onAdjRInput('${s.id}',this.value)"
+                oninput="onAdjRInput('${s.id}',this.value)">
+              <button class="pm-btn" onclick="onAdjRChange('${s.id}',0.5)">+</button>
+            </div>
+          </td>
+          <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
+          <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
+          <td class="num" id="pf-need-${s.id}">${needStr}</td>
+          <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
+          <td class="num ${realCls}">${realStr}</td>
+        </tr>`;
+      }
     });
 
-    // 시장 합계행 (8열 = colspan5 + 현재비중 + 평가손익 + 실현손익)
     const subWtCls     = subWeight > 0 ? 'val-pos' : '';
     const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
     const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
     const showUsWarn   = g.market === 'US' && !hasFxN;
-
-    const subUnrealStr = showUsWarn || !per1 ? '—' : fmtNum(subUnreal);
-    const subRealStr   = fmtNum(subReal);
     const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
 
-    html += `<tr class="subtotal-row">
-      <td colspan="5" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
-      <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td class="num ${subUnrealCls}" style="border-left:2px solid var(--border)">${subUnrealStr}</td>
-      <td class="num ${subRealCls}">${subRealStr}</td>
-    </tr>`;
+    if (isSimple) {
+      const subUnrealStr = showUsWarn || !per1 ? '—' : fmtNum(subUnreal);
+      const subRealStr   = fmtNum(subReal);
+      html += `<tr class="subtotal-row">
+        <td colspan="3" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
+        <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
+        <td class="num ${subUnrealCls}">${subUnrealStr}</td>
+        <td class="num ${subRealCls}">${subRealStr}</td>
+      </tr>`;
+    } else {
+      const grpUSD = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
+      const subAllocStr  = !per1 ? '—'
+        : grpUSD ? '$' + fmtNum(subAlloc / fxNv, 2) : fmtNum(subAlloc);
+      const subUnrealStr = showUsWarn || !per1 ? '—'
+        : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
+      const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
+      html += `<tr class="subtotal-row">
+        <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
+        <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
+        <td class="num" style="border-left:2px solid var(--border)"></td>
+        <td class="num">${subAllocStr}</td>
+        <td class="num"></td>
+        <td class="num ${subUnrealCls}" style="border-left:2px solid var(--border)">${subUnrealStr}</td>
+        <td class="num ${subRealCls}">${subRealStr}</td>
+      </tr>`;
+    }
   });
 
   html += '</tbody></table>';
@@ -1600,13 +1737,23 @@ function _updatePortfolioRows() {
 
     const wtEl     = document.getElementById(`pf-wt-${s.id}`);
     const unrealEl = document.getElementById(`pf-unreal-${s.id}`);
+    const needEl   = document.getElementById(`pf-need-${s.id}`);
     if (wtEl) {
       wtEl.textContent = per1 && valOk ? fmtDec(wt, 2) : '—';
       wtEl.className = 'num ' + (valOk && wt > s.r ? 'val-pos' : '');
     }
+    if (needEl) {
+      const adjQty = s.adjR * unit;
+      const need   = adjQty - s.q;
+      const needStr = !unit ? '—' : (Math.abs(need) < 0.005
+        ? '<span class="need-zero">—</span>'
+        : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
+                   : `<span class="need-sell">${fmtNum(need,2)}</span>`);
+      needEl.innerHTML = needStr;
+    }
     if (unrealEl) {
       const cls = unreal >= 0 ? 'val-pos' : 'val-neg';
-      unrealEl.className = `num ${cls} `;
+      unrealEl.className = `num ${cls}`;
       unrealEl.style.borderLeft = '2px solid var(--border)';
       unrealEl.textContent = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
     }
@@ -3017,6 +3164,7 @@ function onAccountChange(id) {
 
 function render() {
   renderAccountDropdown();
+  updateViewModeButton();
   renderAccountsTab();
 
   const isConsolidated = !!appData.activeConsolidatedId;

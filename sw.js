@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rebalance-v27';
+const CACHE_NAME = 'rebalance-v28';
 const SHELL = ['./', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
