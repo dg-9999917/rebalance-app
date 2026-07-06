@@ -548,6 +548,13 @@
         </div>
       </div>
 
+      <!-- 기준설정 탭: 시세 새로고침 바 -->
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+        <button class="btn" id="btn-fetch-prices-settings" onclick="fetchPrices()" style="white-space:nowrap">시세 새로고침</button>
+        <span id="fetch-result-settings" style="font-size:12px;white-space:pre-wrap;display:none"></span>
+        <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
+      </div>
+
       <!-- 종목 표 -->
       <div class="tbl-wrap" id="settings-tbl-wrap">
         <!-- renderSettingsTable() 로 채워짐 -->
@@ -2698,7 +2705,10 @@ document.addEventListener('click', e => {
   if (!tr) return;
   if (tr.classList.contains('group-hdr') || tr.classList.contains('subtotal-row')) return;
   if (e.target.closest('input, button, select')) return;
-  tr.classList.toggle('row-selected');
+  const wasSelected = tr.classList.contains('row-selected');
+  document.querySelectorAll('#pf-tbl-wrap .row-selected, #settings-tbl-wrap .row-selected')
+    .forEach(el => el.classList.remove('row-selected'));
+  if (!wasSelected) tr.classList.add('row-selected');
 });
 
 // ── 시세 서버 연동 ──────────────────────────────────────
