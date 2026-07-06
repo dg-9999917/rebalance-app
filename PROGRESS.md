@@ -1,5 +1,13 @@
 # 구현 진행 상황
 
+## v2 — 간단 보기 input 스타일 통일 — 2026-07-07
+- [x] CSS: .inp-pf를 .inp-price/.inp-avg/.inp-qty와 동일한 규칙에 추가
+- [x] SpaceX 현재가 input: inp-price → inp-pf, font-size:inherit 제거
+- [x] 평단가 input: font-size:inherit 제거, id="pf-in-avg-${s.id}" 추가
+- [x] 보유수량 input: font-size:inherit 제거, id="pf-in-q-${s.id}" 추가
+- [x] 핸들러: onAvgInput/onQtyInput (상세 보기와 동일) 유지
+- [x] sw.js CACHE_NAME rebalance-v37 → rebalance-v38
+
 ## v2 — 계좌설정 박스 크기 + 간단 보기 편집 — 2026-07-06
 - [x] 계좌설정: space-evenly 삭제, flex:0 1→flex:1, gap:24px→20px로 화면 채움
 - [x] 간단 보기: 평단가 input으로 변경 (onAvgInput, CASH는 텍스트 유지)

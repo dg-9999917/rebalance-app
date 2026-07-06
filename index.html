@@ -364,12 +364,12 @@
     /* 포트폴리오 액션: 표 아래 정렬 */
 
     /* 포트폴리오 표 입력칸 */
-    .inp-price, .inp-avg, .inp-qty {
+    .inp-price, .inp-avg, .inp-qty, .inp-pf {
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 3px 6px; font-size: 12.5px; text-align: right;
     }
-    .inp-price:focus, .inp-avg:focus, .inp-qty:focus { outline: none; border-color: var(--accent); }
+    .inp-price:focus, .inp-avg:focus, .inp-qty:focus, .inp-pf:focus { outline: none; border-color: var(--accent); }
     .inp-price { width: 80px; }
     .inp-avg   { width: 80px; }
     .inp-qty   { width: 72px; }
@@ -1690,9 +1690,9 @@ function renderPortfolioTable() {
         const priceDisplay = isCash ? '—'
           : (s.price > 0
             ? (s.market === 'US' ? '$' : '') + fmtNum(s.price, s.price % 1 ? 2 : 0)
-            : `<input class="inp-price" type="text" inputmode="decimal"
+            : `<input class="inp-pf" type="text" inputmode="decimal"
                 value="" placeholder="직접 입력"
-                style="width:70px;text-align:right;font-size:inherit"
+                style="width:70px"
                 onfocus="commaFocus(this)"
                 onchange="onPriceInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">`);
@@ -1704,14 +1704,16 @@ function renderPortfolioTable() {
           </td>
           <td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
           <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              id="pf-in-avg-${s.id}"
               value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
-              style="width:75px;text-align:right;font-size:inherit"
+              style="width:75px"
               onfocus="commaFocus(this)"
               onchange="onAvgInput('${s.id}',this.value)"
               onblur="commaBlur(this)">`}</td>
           <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              id="pf-in-q-${s.id}"
               value="${s.q ? fmtDec(s.q, 2) : ''}"
-              style="width:65px;text-align:right;font-size:inherit"
+              style="width:65px"
               onfocus="commaFocus(this)"
               onchange="onQtyInput('${s.id}',this.value)"
               onblur="commaBlur(this)">`}</td>
