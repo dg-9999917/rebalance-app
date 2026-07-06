@@ -1,5 +1,10 @@
 # 구현 진행 상황
 
+## v2 — 구글 드라이브 스크립트 로딩 수정 — 2026-07-06
+- [x] initGoogleDrive를 폴링 방식으로 변경 (500ms × 20회 = 최대 10초 대기)
+- [x] connectGoogleDrive에서 토큰 클라이언트 재시도 로직 추가
+- [x] sw.js CACHE_NAME rebalance-v31 → rebalance-v32
+
 ## v2 — 구글 드라이브 백업 연동 — 2026-07-06
 - [x] head에 GIS + gapi 스크립트 추가 (async defer)
 - [x] 클라이언트 ID 상수 선언 + 상태 변수 (gdriveTokenClient 등)

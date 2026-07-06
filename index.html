@@ -3534,25 +3534,49 @@ document.addEventListener('click', e => {
 // ═══════════════════════════════════════════════════════════════════
 
 function initGoogleDrive() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    console.log('Google Identity Services 미로드 — 드라이브 기능 비활성');
-    return;
+  // GIS 라이브러리 로드 대기 (최대 10초, 500ms 간격)
+  let attempts = 0;
+  const maxAttempts = 20;
+
+  function tryInit() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+      const saved = localStorage.getItem('gdrive_auto_backup');
+      gdriveAutoBackup = saved !== null ? saved === 'true' : true;
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      console.log('Google Drive 초기화 완료');
+      updateGdriveUI();
+      return;
+    }
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(tryInit, 500);
+    } else {
+      console.log('Google Identity Services 로드 시간 초과 — 드라이브 기능 비활성');
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      updateGdriveUI();
+    }
   }
-  gdriveTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GDRIVE_CLIENT_ID,
-    scope: GDRIVE_SCOPES,
-    callback: onGdriveTokenResponse,
-  });
-  const saved = localStorage.getItem('gdrive_auto_backup');
-  gdriveAutoBackup = saved !== null ? saved === 'true' : true;
-  gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
-  updateGdriveUI();
+
+  tryInit();
 }
 
 function connectGoogleDrive() {
   if (!gdriveTokenClient) {
-    alert('구글 로그인 서비스를 불러오지 못했습니다.\n인터넷 연결을 확인하거나 잠시 후 다시 시도해 주세요.');
-    return;
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+    } else {
+      alert('구글 로그인 서비스를 불러오는 중입니다.\n잠시 후 다시 시도해 주세요.');
+      return;
+    }
   }
   gdriveTokenClient.requestAccessToken();
 }
