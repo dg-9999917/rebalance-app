@@ -227,7 +227,7 @@
 
     /* 포트폴리오 간단/상세 보기 */
     #pf-tbl-wrap table.view-simple { font-size: 15px; }
-    #pf-tbl-wrap table.view-simple thead th { font-size: 14px; }
+    #pf-tbl-wrap table.view-simple thead th { font-size: 14px; font-weight: 800; letter-spacing: 0.03em; }
     #pf-tbl-wrap table.view-detail { font-size: 13px; }
     #pf-tbl-wrap table.view-detail thead th { font-size: 11.5px; }
 
@@ -1579,12 +1579,13 @@ function renderPortfolioTable() {
   if (isSimple) {
     html = `<table class="view-simple" style="table-layout:fixed">
     <colgroup>
-      <col style="width:200px"><!-- 종목+현재가 -->
-      <col style="width:100px"><!-- 평단가 -->
-      <col style="width:100px"><!-- 보유수량 -->
-      <col style="width:90px"> <!-- 설정비율 -->
-      <col style="width:90px"> <!-- 현재비중 -->
-      <col style="width:130px"><!-- 평가금액 -->
+      <col style="width:auto">  <!-- 종목+현재가 -->
+      <col style="width:90px">  <!-- 평단가 -->
+      <col style="width:80px">  <!-- 보유수량 -->
+      <col style="width:75px">  <!-- 설정비율 -->
+      <col style="width:75px">  <!-- 현재비중 -->
+      <col style="width:85px">  <!-- 필요매매 -->
+      <col style="width:120px"> <!-- 평가금액 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
@@ -1592,7 +1593,8 @@ function renderPortfolioTable() {
       <th class="num">보유수량</th>
       <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="num">현재비중</th>
-      <th class="num" style="border-left:2px solid var(--border)">평가금액</th>
+      <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
+      <th class="num">평가금액</th>
     </tr></thead><tbody>`;
   } else {
     html = `<table class="view-detail" style="table-layout:fixed">
@@ -1631,7 +1633,7 @@ function renderPortfolioTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="${isSimple ? 6 : 12}">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="${isSimple ? 7 : 12}">${g.label}</td></tr>`;
 
     let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
@@ -1674,20 +1676,41 @@ function renderPortfolioTable() {
 
       if (isSimple) {
         const evalStr = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
-        const priceDisplay = isCash ? '—'
-          : (s.price ? (s.market === 'US' ? '$' : '₩') + fmtNum(s.price, s.price % 1 ? 2 : 0) : '—');
+        const unit = calcUnit(s);
+        const adjQty = s.adjR * unit;
+        const need = adjQty - s.q;
+        let needStr = '—', needCls = '';
+        if (!isCash && unit > 0 && s.q > 0) {
+          if (Math.abs(need) < 0.0001) { needStr = '0'; }
+          else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
+          else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
+        }
+        const priceCell = isCash ? ''
+          : (s.price > 0
+            ? `<span style="font-size:13px;color:var(--text-sub);margin-left:8px;white-space:nowrap">${(s.market === 'US' ? '$' : '₩') + fmtNum(s.price, s.price % 1 ? 2 : 0)}</span>`
+            : `<input class="inp-price" type="text" inputmode="decimal"
+                value="" placeholder="직접 입력"
+                style="width:80px;text-align:right"
+                onfocus="commaFocus(this)"
+                onchange="onPriceInput('${s.id}',this.value)"
+                onblur="commaBlur(this)">`);
         html += `<tr>
           <td>
-            <span class="stock-name">${esc(s.name)}</span>
-            <span class="stock-ticker">${esc(s.ticker)}</span>
-            <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
-            <div style="font-size:12px;color:var(--text-sub);margin-top:2px">${priceDisplay}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <span class="stock-name">${esc(s.name)}</span>
+                <span class="stock-ticker">${esc(s.ticker)}</span>
+                <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+              </div>
+              ${priceCell}
+            </div>
           </td>
           <td class="num" style="border-left:2px solid var(--border)">${isCash ? '—' : (s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—')}</td>
           <td class="num">${s.q ? fmtNum(s.q, 2) : '—'}</td>
           <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
           <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-          <td class="num" id="pf-eval-${s.id}" style="border-left:2px solid var(--border)">${evalStr}</td>
+          <td class="num ${needCls}" style="border-left:2px solid var(--border)">${needStr}</td>
+          <td class="num" id="pf-eval-${s.id}">${evalStr}</td>
         </tr>`;
       } else {
         const unit   = calcUnit(s);
@@ -1749,6 +1772,7 @@ function renderPortfolioTable() {
         <td colspan="3" style="text-align:right;padding-right:10px">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
         <td class="num">${fmtDec(rSum, 2)}%</td>
         <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
+        <td class="num"></td>
         <td class="num">${subValStr}</td>
       </tr>`;
     } else {
@@ -2712,7 +2736,7 @@ function renderAccountsTab() {
 
   // ── 왼쪽: 개별 계좌 ────────────────────────────────────
   let html = `<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-  <div style="flex:1;min-width:320px;max-width:600px">
+  <div style="flex:1;min-width:300px;max-width:500px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">계좌 목록 (${appData.accounts.length}개)</div>`;
 
   appData.accounts.forEach(acc => {
@@ -2772,7 +2796,7 @@ function renderAccountsTab() {
     </label>`
   ).join('');
 
-  html += `<div style="flex:1;min-width:320px;max-width:600px">
+  html += `<div style="flex:1;min-width:280px;max-width:450px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">📁 종합계좌 (${cons.length}개)</div>`;
 
   cons.forEach(c => {
@@ -2812,14 +2836,14 @@ function renderAccountsTab() {
       </div>
     </div>
   </div>
-  <div style="margin-top:20px">
+  </div>
+  <div style="flex:1;min-width:280px;max-width:450px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">☁️ 구글 드라이브 백업</div>
     <div class="acc-form-card" id="gdrive-section">
       ${buildGdriveUI()}
     </div>
   </div>
-  </div>
-  </div>`; // 오른쪽 컬럼 + flex 래퍼 닫기
+  </div>`; // 3컬럼 flex 래퍼 닫기
 
   tab.innerHTML = html;
 }
