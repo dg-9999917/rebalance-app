@@ -1703,8 +1703,18 @@ function renderPortfolioTable() {
             <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
           </td>
           <td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
-          <td class="num">${isCash ? '—' : (s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—')}</td>
-          <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
+          <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
+              style="width:75px;text-align:right;font-size:inherit"
+              onfocus="commaFocus(this)"
+              onchange="onAvgInput('${s.id}',this.value)"
+              onblur="commaBlur(this)">`}</td>
+          <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              value="${s.q ? fmtDec(s.q, 2) : ''}"
+              style="width:65px;text-align:right;font-size:inherit"
+              onfocus="commaFocus(this)"
+              onchange="onQtyInput('${s.id}',this.value)"
+              onblur="commaBlur(this)">`}</td>
           <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
           <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
           <td class="num ${needCls}" style="border-left:2px solid var(--border)">${needStr}</td>
@@ -2733,8 +2743,8 @@ function renderAccountsTab() {
   if (!tab) return;
 
   // ── 왼쪽: 개별 계좌 ────────────────────────────────────
-  let html = `<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;justify-content:space-evenly">
-  <div style="flex:0 1 420px;min-width:300px">
+  let html = `<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+  <div style="flex:1;min-width:300px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">계좌 목록 (${appData.accounts.length}개)</div>`;
 
   appData.accounts.forEach(acc => {
@@ -2794,7 +2804,7 @@ function renderAccountsTab() {
     </label>`
   ).join('');
 
-  html += `<div style="flex:0 1 380px;min-width:280px">
+  html += `<div style="flex:1;min-width:280px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">📁 종합계좌 (${cons.length}개)</div>`;
 
   cons.forEach(c => {
@@ -2835,7 +2845,7 @@ function renderAccountsTab() {
     </div>
   </div>
   </div>
-  <div style="flex:0 1 380px;min-width:280px">
+  <div style="flex:1;min-width:280px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">☁️ 구글 드라이브 백업</div>
     <div class="acc-form-card" id="gdrive-section">
       ${buildGdriveUI()}
