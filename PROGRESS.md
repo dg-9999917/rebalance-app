@@ -1,5 +1,11 @@
 # 구현 진행 상황
 
+## v2 — 토글 스위치 UI 변경 — 2026-07-06
+- [x] 간단/상세 버튼 → 슬라이드 스위치로 교체 (.view-switch CSS + div HTML)
+- [x] 포트폴리오 탭에서만 스위치 표시 (다른 탭·종합계좌에서 숨김)
+- [x] 탭 클릭 이벤트에 updateViewModeButton() 추가
+- [x] sw.js CACHE_NAME rebalance-v28 → rebalance-v29
+
 ## v2 — 간단/상세 보기 토글 — 2026-07-06
 - [x] 상단 헤더에 토글 버튼 추가 (계좌 드롭다운 왼쪽)
 - [x] localStorage에 모드 저장 (pf_view_mode, 기본값: simple)

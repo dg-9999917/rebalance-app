@@ -108,6 +108,25 @@
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
 
+    /* 간단/상세 슬라이드 스위치 */
+    .view-switch {
+      display: inline-flex; align-items: center; gap: 6px;
+      cursor: pointer; user-select: none; margin-right: 8px;
+    }
+    .view-switch-label {
+      font-size: 11px; color: var(--text-sub); font-weight: 600;
+    }
+    .view-switch-track {
+      width: 36px; height: 20px; border-radius: 10px;
+      background: var(--border); position: relative; transition: background 0.2s;
+    }
+    .view-switch.active .view-switch-track { background: var(--accent); }
+    .view-switch-knob {
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      position: absolute; top: 2px; left: 2px; transition: left 0.2s;
+    }
+    .view-switch.active .view-switch-knob { left: 18px; }
+
     /* 계좌 선택 드롭다운 */
     #account-select {
       background: var(--surface2); color: var(--text);
@@ -482,7 +501,11 @@
       <button class="tab-btn" data-tab="reset">초기화</button>
     </nav>
     <div class="header-actions">
-      <button class="btn btn-sm" id="view-mode-toggle" onclick="toggleViewMode()" title="상세 보기로 전환">📊 상세</button>
+      <div class="view-switch" id="view-mode-switch" onclick="toggleViewMode()" title="간단/상세 보기 전환" style="display:none">
+        <span class="view-switch-label">간단</span>
+        <div class="view-switch-track"><div class="view-switch-knob"></div></div>
+        <span class="view-switch-label">상세</span>
+      </div>
       <span class="account-label">계좌</span>
       <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
         <option>기본 계좌</option>
@@ -959,6 +982,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     const s = document.getElementById('tab-' + tab); if (s) s.classList.add('active');
     localStorage.setItem('rebalance_active_tab', tab);
+    updateViewModeButton();
   });
 });
 
@@ -1399,13 +1423,18 @@ function toggleViewMode() {
   updateViewModeButton();
 }
 function updateViewModeButton() {
-  const btn = document.getElementById('view-mode-toggle');
-  if (!btn) return;
+  const sw = document.getElementById('view-mode-switch');
+  if (!sw) return;
+  const activeTab = document.querySelector('.tab-btn.active');
+  const isPortfolio = activeTab && activeTab.dataset.tab === 'portfolio';
   const isConsolidated = !!appData.activeConsolidatedId;
-  btn.style.display = isConsolidated ? 'none' : '';
+  sw.style.display = (isPortfolio && !isConsolidated) ? 'inline-flex' : 'none';
   const mode = getViewMode();
-  btn.textContent = mode === 'simple' ? '📊 상세' : '📋 간단';
-  btn.title = mode === 'simple' ? '상세 보기로 전환' : '간단 보기로 전환';
+  if (mode === 'detail') {
+    sw.classList.add('active');
+  } else {
+    sw.classList.remove('active');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
