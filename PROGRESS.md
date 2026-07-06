@@ -1,5 +1,11 @@
 # 구현 진행 상황
 
+## v2 지시문 2 보완 (계좌설정 탭 좌우 배치) — 2026-07-06
+- [x] 계좌 목록(왼쪽) + 종합계좌(오른쪽) 좌우 배치
+- [x] 점선 구분선 삭제
+- [x] 좁은 화면에서 자동 상하 전환 (flex-wrap:wrap)
+- [x] sw.js CACHE_NAME rebalance-v24 → rebalance-v25
+
 ## v2 지시문 2/3 (종합계좌 — 구조·생성·삭제) — 2026-07-06
 - [x] appData에 consolidated 배열 + activeConsolidatedId 추가
 - [x] loadState에서 기존 데이터 호환 (consolidated 없으면 기본값)

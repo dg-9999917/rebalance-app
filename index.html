@@ -2388,7 +2388,9 @@ function renderAccountsTab() {
   const tab = document.getElementById('tab-accounts');
   if (!tab) return;
 
-  let html = `<div style="max-width:700px">
+  // ── 왼쪽: 개별 계좌 ────────────────────────────────────
+  let html = `<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+  <div style="flex:1;min-width:320px;max-width:600px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">계좌 목록 (${appData.accounts.length}개)</div>`;
 
   appData.accounts.forEach(acc => {
@@ -2437,39 +2439,38 @@ function renderAccountsTab() {
         <button class="btn btn-primary btn-sm" onclick="addAccount()">+ 계좌 추가</button>
       </div>
     </div>
-  </div>`;
+  </div>
+  </div>`; // 왼쪽 컬럼 닫기
 
-  // ── 종합계좌 목록 ──────────────────────────────────────
+  // ── 오른쪽: 종합계좌 ────────────────────────────────────
   const cons = appData.consolidated || [];
-  if (cons.length) {
-    html += `<div style="border-top:2px dashed var(--border);margin:12px 0"></div>
-    <div style="font-size:15px;font-weight:700;margin-bottom:14px">📁 종합계좌 (${cons.length}개)</div>`;
-    cons.forEach(c => {
-      const memberNames = c.memberIds
-        .map(id => { const a = appData.accounts.find(a => a.id === id); return a ? esc(a.name) : '(삭제됨)'; })
-        .join(', ');
-      const isActive = appData.activeConsolidatedId === c.id;
-      html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:700">📁 ${esc(c.name)}</span>
-            ${isActive ? '<span class="acc-badge-active">현재</span>' : ''}
-          </div>
-          <div style="font-size:12px;color:var(--text-sub);margin-top:3px">${memberNames}</div>
-        </div>
-        ${!isActive ? `<button class="btn btn-sm" onclick="activateConsolidated('${c.id}')">전환</button>` : ''}
-        <button class="btn btn-sm" onclick="editConsolidated('${c.id}')">편집</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteConsolidated('${c.id}')">삭제</button>
-      </div>`;
-    });
-  }
-
-  // ── 종합계좌 만들기 폼 ──────────────────────────────────
   const memberCheckboxes = appData.accounts.map(a =>
     `<label style="font-size:13px;display:flex;align-items:center;gap:6px">
       <input type="checkbox" value="${esc(a.id)}"> ${esc(a.name)}
     </label>`
   ).join('');
+
+  html += `<div style="flex:1;min-width:320px;max-width:600px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">📁 종합계좌 (${cons.length}개)</div>`;
+
+  cons.forEach(c => {
+    const memberNames = c.memberIds
+      .map(id => { const a = appData.accounts.find(a => a.id === id); return a ? esc(a.name) : '(삭제됨)'; })
+      .join(', ');
+    const isActive = appData.activeConsolidatedId === c.id;
+    html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700">📁 ${esc(c.name)}</span>
+          ${isActive ? '<span class="acc-badge-active">현재</span>' : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:3px">${memberNames}</div>
+      </div>
+      ${!isActive ? `<button class="btn btn-sm" onclick="activateConsolidated('${c.id}')">전환</button>` : ''}
+      <button class="btn btn-sm" onclick="editConsolidated('${c.id}')">편집</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteConsolidated('${c.id}')">삭제</button>
+    </div>`;
+  });
 
   html += `<div class="acc-form-card">
     <div class="acc-form-title">📁 종합계좌 만들기</div>
@@ -2489,7 +2490,8 @@ function renderAccountsTab() {
       </div>
     </div>
   </div>
-  </div>`;
+  </div>
+  </div>`; // 오른쪽 컬럼 + flex 래퍼 닫기
 
   tab.innerHTML = html;
 }
