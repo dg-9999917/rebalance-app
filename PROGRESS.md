@@ -1,5 +1,13 @@
 # 구현 진행 상황
 
+## v2 — 드라이브 날짜별 백업 — 2026-07-06
+- [x] saveToDrive: 덮어쓰기 → 날짜별 새 파일 생성 (backup_YYYY-MM-DD_HH-MM-SS.json)
+- [x] loadFromDrive: 파일 목록 조회 → 선택 모달 표시
+- [x] showDriveFileList: 최신 뱃지·날짜·용량 표시 모달
+- [x] restoreFromDrive: 선택한 파일 복원
+- [x] 기존 rebalance_backup.json 호환 유지 (목록에 표시됨)
+- [x] sw.js CACHE_NAME rebalance-v32 → rebalance-v33
+
 ## v2 — 구글 드라이브 스크립트 로딩 수정 — 2026-07-06
 - [x] initGoogleDrive를 폴링 방식으로 변경 (500ms × 20회 = 최대 10초 대기)
 - [x] connectGoogleDrive에서 토큰 클라이언트 재시도 로직 추가
