@@ -1,5 +1,15 @@
 # 구현 진행 상황
 
+## v2 지시문 3 보완 (동시선택 + 시세버튼 + 열축소) — 2026-07-06
+- [x] 문제1: 종합계좌 활성 시 개별 계좌 "현재" 표시 안 되도록 isActive 조건 수정
+- [x] 문제2: 종합 포트폴리오에 시세 새로고침 버튼 표시 (별도 영역 cons-actions)
+- [x] 문제3: 종합 요약 바 gap 28px, padding 14px 20px으로 넓힘
+- [x] 문제4: 개별 포트폴리오 12열→8열 축소 (설정비율·1%당주식수·배정금액·필요매매 제거)
+- [x] 문제4: thead 13px, table 14px 유지
+- [x] 문제4: 열 그룹 구분선 8열 기준 (현재가·조정비율·평가손익에 border-left)
+- [x] 문제4: colspan·합계행·_updatePortfolioRows 동기화
+- [x] sw.js CACHE_NAME rebalance-v26 → rebalance-v27
+
 ## v2 지시문 3/3 (종합계좌 — 뷰·모니터링·이력) — 2026-07-06
 - [x] renderConsolidatedPortfolio: 합산 읽기전용 표 (7열), 요약 바, 하단 버튼 숨김
 - [x] renderPortfolioTable에서 개별 모드 복귀 시 pf-actions 재표시

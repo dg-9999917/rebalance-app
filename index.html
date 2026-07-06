@@ -192,7 +192,7 @@
       position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 7px 10px; font-size: 12.5px; font-weight: 700;
+      padding: 7px 10px; font-size: 13px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
@@ -1457,6 +1457,8 @@ function renderPortfolioSummary() {
 
 function renderPortfolioTable() {
   document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = '');
+  const consActions = document.getElementById('cons-actions');
+  if (consActions) consActions.remove();
   renderPortfolioSummary();
   const wrap = document.getElementById('pf-tbl-wrap');
   const per1 = state.meta.p0 / 100;
@@ -1472,30 +1474,22 @@ function renderPortfolioTable() {
 
   let html = `<table style="table-layout:fixed">
     <colgroup>
-      <col style="width:160px"><!-- 종목 -->
-      <col style="width:88px"> <!-- 현재가 -->
-      <col style="width:88px"> <!-- 평단가 -->
-      <col style="width:80px"> <!-- 보유수량 -->
-      <col style="width:60px"> <!-- 설정비율 -->
+      <col style="width:180px"><!-- 종목 -->
+      <col style="width:100px"><!-- 현재가 -->
+      <col style="width:100px"><!-- 평단가 -->
+      <col style="width:90px"> <!-- 보유수량 -->
       <col style="width:110px"><!-- 조정비율 -->
-      <col style="width:68px"> <!-- 현재비중 -->
-      <col style="width:76px"> <!-- 1%당주식수 -->
-      <col style="width:100px"><!-- 배정금액 -->
-      <col style="width:88px"> <!-- 필요매매 -->
-      <col style="width:90px"> <!-- 평가손익 -->
-      <col style="width:80px"> <!-- 실현손익 -->
+      <col style="width:80px"> <!-- 현재비중 -->
+      <col style="width:110px"><!-- 평가손익 -->
+      <col style="width:100px"><!-- 실현손익 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
       <th class="num" style="border-left:2px solid var(--border)">현재가</th>
       <th class="num">평단가</th>
       <th class="num">보유수량</th>
-      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
-      <th class="center">조정비율</th>
+      <th class="center" style="border-left:2px solid var(--border)">조정비율</th>
       <th class="num">현재비중</th>
-      <th class="num" style="border-left:2px solid var(--border)">1%당주식수</th>
-      <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
-      <th class="num">필요매매</th>
       <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
       <th class="num">실현손익</th>
     </tr></thead><tbody>`;
@@ -1505,39 +1499,27 @@ function renderPortfolioTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="8">${g.label}</td></tr>`;
 
-    let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
+    let subVal = 0, subWeight = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
-      const unit   = calcUnit(s);
-      const pKRW   = priceKRW(s);
       const val    = evalVal(s);
       const wt     = currWeight(s);
-      const alloc  = s.r * per1;
-      const adjQty = s.adjR * unit;           // 조정수량
-      const need   = adjQty - s.q;            // 필요매매
       const unreal = unrealizedPnL(s);
       subVal    += val;
       subWeight += wt;
-      subAlloc  += alloc;
       subUnreal += unreal;
       subReal   += (s.realized || 0);
 
       const badgeClass = g.market === 'US' ? 'badge-us' : g.market === 'KR' ? 'badge-kr' : 'badge-cash';
-      const needStr  = !unit ? '—' : (Math.abs(need) < 0.005 ? '<span class="need-zero">—</span>'
-                       : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
-                                  : `<span class="need-sell">${fmtNum(need,2)}</span>`);
       const valOk     = s.market !== 'US' || hasFxN;
       const unrealCls = unreal >= 0 ? 'val-pos' : 'val-neg';
       const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
       const wtCls     = valOk && wt > s.r ? 'val-pos' : '';
       const isCash    = g.market === 'CASH';
-      const usUSD     = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
-      const unrealStr = s.q && s.avg && s.price && valOk
-        ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
-      const realStr   = s.realized
-        ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
+      const unrealStr = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
+      const realStr   = s.realized ? fmtNum(s.realized) : '—';
 
       html += `<tr>
         <td>
@@ -1568,8 +1550,7 @@ function renderPortfolioTable() {
             onchange="onQtyInput('${s.id}',this.value)"
             onblur="commaBlurQty(this)">
         </td>
-        <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
-        <td class="center">
+        <td class="center" style="border-left:2px solid var(--border)">
           <div class="ratio-cell">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
             <input class="inp-r" type="number" min="0" step="0.5"
@@ -1580,34 +1561,24 @@ function renderPortfolioTable() {
           </div>
         </td>
         <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-        <td class="num val-dim" style="border-left:2px solid var(--border)">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
-        <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
-        <td class="num" id="pf-need-${s.id}">${needStr}</td>
         <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
         <td class="num ${realCls}">${realStr}</td>
       </tr>`;
     });
 
-    // 시장 종합행 (12열 = colspan6 + 현재비중 + 1%당 + 배정금액 + 필요매매 + 평가손익 + 실현손익)
+    // 시장 합계행 (8열 = colspan5 + 현재비중 + 평가손익 + 실현손익)
     const subWtCls     = subWeight > 0 ? 'val-pos' : '';
     const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
     const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
     const showUsWarn   = g.market === 'US' && !hasFxN;
-    const grpUSD       = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
 
-    const subAllocStr  = !per1 ? '—'
-      : grpUSD ? '$' + fmtNum(subAlloc  / fxNv, 2) : fmtNum(subAlloc);
-    const subUnrealStr = showUsWarn || !per1 ? '—'
-      : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
-    const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
+    const subUnrealStr = showUsWarn || !per1 ? '—' : fmtNum(subUnreal);
+    const subRealStr   = fmtNum(subReal);
     const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
 
     html += `<tr class="subtotal-row">
-      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
+      <td colspan="5" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
       <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td class="num" style="border-left:2px solid var(--border)"></td>
-      <td class="num">${subAllocStr}</td>
-      <td class="num"></td>
       <td class="num ${subUnrealCls}" style="border-left:2px solid var(--border)">${subUnrealStr}</td>
       <td class="num ${subRealCls}">${subRealStr}</td>
     </tr>`;
@@ -1624,27 +1595,19 @@ function _updatePortfolioRows() {
   state.stocks.forEach(s => {
     const unit   = calcUnit(s);
     const wt     = currWeight(s);
-    const adjQty = s.adjR * unit;
-    const need   = adjQty - s.q;
     const unreal = unrealizedPnL(s);
     const valOk  = s.market !== 'US' || hasFxN;
 
-    const needStr = !unit ? '—' : (Math.abs(need) < 0.005
-      ? '<span class="need-zero">—</span>'
-      : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
-                 : `<span class="need-sell">${fmtNum(need,2)}</span>`);
-
-    const wtEl = document.getElementById(`pf-wt-${s.id}`);
-    const needEl = document.getElementById(`pf-need-${s.id}`);
+    const wtEl     = document.getElementById(`pf-wt-${s.id}`);
     const unrealEl = document.getElementById(`pf-unreal-${s.id}`);
     if (wtEl) {
       wtEl.textContent = per1 && valOk ? fmtDec(wt, 2) : '—';
       wtEl.className = 'num ' + (valOk && wt > s.r ? 'val-pos' : '');
     }
-    if (needEl) needEl.innerHTML = needStr;
     if (unrealEl) {
       const cls = unreal >= 0 ? 'val-pos' : 'val-neg';
-      unrealEl.className = `num ${cls}`;
+      unrealEl.className = `num ${cls} `;
+      unrealEl.style.borderLeft = '2px solid var(--border)';
       unrealEl.textContent = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
     }
   });
@@ -2547,7 +2510,7 @@ function renderAccountsTab() {
 
   appData.accounts.forEach(acc => {
     const { totalVal, stockCount } = getAccountSummary(acc);
-    const isActive = acc.id === appData.activeAccountId;
+    const isActive = !appData.activeConsolidatedId && acc.id === appData.activeAccountId;
     const canDelete = appData.accounts.length > 1;
     html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
       <div style="flex:1;min-width:0">
@@ -3224,7 +3187,7 @@ function renderConsolidatedPortfolio() {
     .join(', ');
 
   if (summary) summary.innerHTML = `
-    <div class="pf-summary" style="flex-wrap:wrap;gap:16px;padding:12px 16px">
+    <div class="pf-summary" style="flex-wrap:wrap;gap:28px;padding:14px 20px">
       <div class="pf-summary-item"><div class="s-label">📁 ${esc(cons.name)}</div>
         <div style="font-size:11px;color:var(--text-sub)">${esc(memberNames)}</div></div>
       <div class="pf-summary-item"><div class="s-label">합산 원금</div>
@@ -3316,6 +3279,19 @@ function renderConsolidatedPortfolio() {
   if (wrap) wrap.innerHTML = html;
 
   document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = 'none');
+
+  // 종합 모드 전용 시세 버튼 영역
+  const existingConsActions = document.getElementById('cons-actions');
+  if (existingConsActions) existingConsActions.remove();
+  const consActions = document.createElement('div');
+  consActions.id = 'cons-actions';
+  consActions.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 16px;';
+  consActions.innerHTML = `
+    <button class="btn" onclick="fetchPrices()">시세 새로고침</button>
+    <span style="font-size:11px;color:var(--text-muted)">* 현재 선택된 개별 계좌의 시세를 가져옵니다</span>
+    <span id="fetch-result-cons" style="font-size:12px;display:none;white-space:pre-wrap"></span>
+  `;
+  if (wrap && wrap.parentNode) wrap.parentNode.insertBefore(consActions, wrap.nextSibling);
 }
 
 // ═══════════════════════════════════════════════════════════════════
