@@ -487,6 +487,10 @@
     }
     #backup-toast-badge.show { display: flex; }
   </style>
+  <!-- Google Identity Services (OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Google API Client (Drive API) -->
+  <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 <div id="app">
@@ -676,6 +680,17 @@
 </div><!-- #app -->
 
 <script>
+// ── 구글 드라이브 연동 상수·상태 ──────────────────────────────────
+const GDRIVE_CLIENT_ID       = '848368395563-kp5f6h7mceh25hsnuree1ljarbf5f90e.apps.googleusercontent.com';
+const GDRIVE_SCOPES          = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_FOLDER_NAME     = '리밸런싱앱_백업';
+const GDRIVE_BACKUP_FILENAME = 'rebalance_backup.json';
+
+let gdriveTokenClient  = null;   // google.accounts.oauth2.initTokenClient 결과
+let gdriveAccessToken  = null;   // 현재 access_token
+let gdriveUserEmail    = null;   // 연결된 계정 이메일
+let gdriveAutoBackup   = true;   // 확정 저장 시 자동 백업 여부
+
 // ═══════════════════════════════════════════════════════════════════
 //  상태 객체 / 기본 시드
 // ═══════════════════════════════════════════════════════════════════
@@ -2085,6 +2100,12 @@ function commitTrades() {
   state.history.unshift(buildSnapshot('리밸런싱 확정', null, { changedQty, changedAdjR, cashDelta }));
   saveConsolidatedSnapshots();
   saveState();
+
+  // ── 구글 드라이브 자동 백업 (비동기 — 실패해도 localStorage 저장 무관) ──
+  if (gdriveAccessToken && gdriveAutoBackup) {
+    saveToDrive().catch(e => console.error('자동 드라이브 백업 실패:', e));
+  }
+
   closeConfirmModal();
   render();
   alert('확정 저장 완료! 이력 탭에서 스냅샷을 확인하세요.');
@@ -2787,6 +2808,14 @@ function renderAccountsTab() {
   </div>
   </div>`; // 오른쪽 컬럼 + flex 래퍼 닫기
 
+  // ── 구글 드라이브 백업 영역 ──
+  html += `<div style="margin-top:24px;max-width:600px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">☁️ 구글 드라이브 백업</div>
+    <div class="acc-form-card" id="gdrive-section">
+      ${buildGdriveUI()}
+    </div>
+  </div>`;
+
   tab.innerHTML = html;
 }
 
@@ -3482,6 +3511,7 @@ loadState();
 restoreActiveTab();
 render();
 loadPriceServerUrl();
+initGoogleDrive();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -3498,6 +3528,247 @@ document.addEventListener('click', e => {
     .forEach(el => el.classList.remove('row-selected'));
   if (!wasSelected) tr.classList.add('row-selected');
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  구글 드라이브 백업 연동
+// ═══════════════════════════════════════════════════════════════════
+
+function initGoogleDrive() {
+  if (typeof google === 'undefined' || !google.accounts) {
+    console.log('Google Identity Services 미로드 — 드라이브 기능 비활성');
+    return;
+  }
+  gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: GDRIVE_SCOPES,
+    callback: onGdriveTokenResponse,
+  });
+  const saved = localStorage.getItem('gdrive_auto_backup');
+  gdriveAutoBackup = saved !== null ? saved === 'true' : true;
+  gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+  updateGdriveUI();
+}
+
+function connectGoogleDrive() {
+  if (!gdriveTokenClient) {
+    alert('구글 로그인 서비스를 불러오지 못했습니다.\n인터넷 연결을 확인하거나 잠시 후 다시 시도해 주세요.');
+    return;
+  }
+  gdriveTokenClient.requestAccessToken();
+}
+
+async function onGdriveTokenResponse(tokenResponse) {
+  if (tokenResponse.error) {
+    console.error('Google OAuth error:', tokenResponse.error);
+    alert('구글 로그인에 실패했습니다: ' + (tokenResponse.error_description || tokenResponse.error));
+    return;
+  }
+  gdriveAccessToken = tokenResponse.access_token;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${gdriveAccessToken}` }
+    });
+    const info = await res.json();
+    gdriveUserEmail = info.email || '연결됨';
+    localStorage.setItem('gdrive_user_email', gdriveUserEmail);
+  } catch (e) {
+    gdriveUserEmail = '연결됨';
+  }
+  updateGdriveUI();
+}
+
+function disconnectGoogleDrive() {
+  if (gdriveAccessToken && typeof google !== 'undefined') {
+    google.accounts.oauth2.revoke(gdriveAccessToken, () => {
+      console.log('Google token revoked');
+    });
+  }
+  gdriveAccessToken = null;
+  gdriveUserEmail = null;
+  localStorage.removeItem('gdrive_user_email');
+  updateGdriveUI();
+}
+
+async function ensureGdriveToken() {
+  if (!gdriveAccessToken) return false;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + gdriveAccessToken);
+    if (res.ok) return true;
+  } catch (e) {}
+  return new Promise(resolve => {
+    gdriveTokenClient.callback = (resp) => {
+      if (resp.error) { gdriveAccessToken = null; resolve(false); return; }
+      gdriveAccessToken = resp.access_token;
+      gdriveTokenClient.callback = onGdriveTokenResponse;
+      resolve(true);
+    };
+    gdriveTokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+async function getOrCreateDriveFolder() {
+  const token = gdriveAccessToken;
+  const q = encodeURIComponent(`name='${GDRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const searchData = await searchRes.json();
+  if (searchData.files && searchData.files.length > 0) return searchData.files[0].id;
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: GDRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+  });
+  const created = await createRes.json();
+  return created.id;
+}
+
+async function saveToDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) { console.log('드라이브 토큰 없음 — 백업 스킵'); return false; }
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+    const q = encodeURIComponent(`name='${GDRIVE_BACKUP_FILENAME}' and '${folderId}' in parents and trashed=false`);
+    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const searchData = await searchRes.json();
+    const existingFileId = searchData.files && searchData.files.length > 0 ? searchData.files[0].id : null;
+
+    const backupData = JSON.stringify(appData, null, 2);
+    const metadata = {
+      name: GDRIVE_BACKUP_FILENAME,
+      mimeType: 'application/json',
+      ...(existingFileId ? {} : { parents: [folderId] })
+    };
+    const boundary = '---rebalance_backup_boundary';
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${backupData}\r\n--${boundary}--`;
+    const url = existingFileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    const uploadRes = await fetch(url, {
+      method: existingFileId ? 'PATCH' : 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (uploadRes.ok) {
+      const now = new Date().toLocaleString('ko-KR');
+      localStorage.setItem('gdrive_last_backup', now);
+      updateGdriveUI();
+      console.log('드라이브 백업 완료:', now);
+      return true;
+    } else {
+      const err = await uploadRes.text();
+      console.error('드라이브 업로드 실패:', err);
+      return false;
+    }
+  } catch (e) {
+    console.error('드라이브 저장 오류:', e);
+    return false;
+  }
+}
+
+async function loadFromDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) { alert('구글 드라이브에 연결되어 있지 않습니다.\n먼저 연결해 주세요.'); return; }
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+    const q = encodeURIComponent(`name='${GDRIVE_BACKUP_FILENAME}' and '${folderId}' in parents and trashed=false`);
+    const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const searchData = await searchRes.json();
+    if (!searchData.files || !searchData.files.length) { alert('드라이브에 백업 파일이 없습니다.'); return; }
+
+    const fileId = searchData.files[0].id;
+    const modTime = searchData.files[0].modifiedTime
+      ? new Date(searchData.files[0].modifiedTime).toLocaleString('ko-KR') : '알 수 없음';
+
+    if (!confirm(`드라이브 백업을 불러옵니다.\n마지막 수정: ${modTime}\n\n현재 모든 데이터가 이 백업으로 교체됩니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fileText = await fileRes.text();
+    const loaded = JSON.parse(fileText);
+
+    if (!loaded.accounts || !Array.isArray(loaded.accounts) || !loaded.accounts.length) {
+      alert('백업 파일 형식이 올바르지 않습니다.'); return;
+    }
+    appData = loaded;
+    if (!appData.consolidated) appData.consolidated = [];
+    if (!appData.activeConsolidatedId) appData.activeConsolidatedId = null;
+    const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
+      ? appData.activeAccountId : appData.accounts[0].id;
+    activateAccount(validId);
+    saveState();
+    applyTheme(state.meta.theme || 'dark');
+    render();
+    alert(`드라이브 백업 복원 완료! (${loaded.accounts.length}개 계좌)`);
+  } catch (e) {
+    console.error('드라이브 불러오기 오류:', e);
+    alert('드라이브에서 불러오기 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+async function manualDriveBackup() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '백업 중...';
+  const ok = await saveToDrive();
+  btn.disabled = false;
+  btn.textContent = '지금 백업하기';
+  if (ok) { alert('구글 드라이브에 백업 완료!'); }
+  else { alert('백업에 실패했습니다. 연결 상태를 확인해 주세요.'); }
+}
+
+function buildGdriveUI() {
+  const isConnected = !!gdriveAccessToken;
+  const email = gdriveUserEmail || '';
+  const lastBackup = localStorage.getItem('gdrive_last_backup') || '없음';
+  const autoChecked = gdriveAutoBackup ? 'checked' : '';
+
+  if (!isConnected) {
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;color:var(--text-sub)">
+          구글 드라이브에 연결하면 확정 저장할 때마다 자동으로 백업됩니다.
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="connectGoogleDrive()">구글 드라이브 연결</button>
+        </div>
+        ${email ? `<div style="font-size:11px;color:var(--text-muted)">이전 연결: ${esc(email)} (재연결 필요)</div>` : ''}
+      </div>`;
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--positive);font-weight:700">✅ 연결됨</span>
+        <span style="font-size:13px;color:var(--text-sub)">${esc(email)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${autoChecked}
+            onchange="gdriveAutoBackup=this.checked; localStorage.setItem('gdrive_auto_backup', this.checked)">
+          확정 저장 시 자동 백업
+        </label>
+      </div>
+      <div style="font-size:12px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="manualDriveBackup()">지금 백업하기</button>
+        <button class="btn" onclick="loadFromDrive()">드라이브에서 불러오기</button>
+        <button class="btn btn-sm" style="color:var(--text-muted)" onclick="disconnectGoogleDrive()">연결 해제</button>
+      </div>
+    </div>`;
+}
+
+function updateGdriveUI() {
+  const section = document.getElementById('gdrive-section');
+  if (section) section.innerHTML = buildGdriveUI();
+}
 
 // ── 시세 서버 연동 ──────────────────────────────────────
 function loadPriceServerUrl() {

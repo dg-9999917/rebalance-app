@@ -1,5 +1,21 @@
 # 구현 진행 상황
 
+## v2 — 구글 드라이브 백업 연동 — 2026-07-06
+- [x] head에 GIS + gapi 스크립트 추가 (async defer)
+- [x] 클라이언트 ID 상수 선언 + 상태 변수 (gdriveTokenClient 등)
+- [x] initGoogleDrive() — GIS 라이브러리 로드 확인 후 TokenClient 초기화
+- [x] connectGoogleDrive() / onGdriveTokenResponse() / disconnectGoogleDrive()
+- [x] ensureGdriveToken() — 토큰 유효성 확인 + 자동 재인증
+- [x] getOrCreateDriveFolder() — 리밸런싱앱_백업 폴더 검색/생성
+- [x] saveToDrive() — rebalance_backup.json multipart 업로드 (신규/덮어쓰기)
+- [x] loadFromDrive() — 파일 다운로드 → appData 복원
+- [x] manualDriveBackup() — 수동 백업 버튼 핸들러
+- [x] buildGdriveUI() / updateGdriveUI() — 미연결/연결됨 상태 UI
+- [x] commitTrades에 자동 백업 훅 (비동기 fire-and-forget, localStorage 저장과 독립)
+- [x] renderAccountsTab에 ☁️ 구글 드라이브 백업 영역 추가
+- [x] sw.js 외부 도메인 캐시 제외 확인 (기존 origin 체크로 이미 적용됨)
+- [x] sw.js CACHE_NAME rebalance-v30 → rebalance-v31
+
 ## v2 — 간단 보기 열 변경 — 2026-07-06
 - [x] 실현손익 → 설정비율로 교체 (val-dim 읽기전용, border-left)
 - [x] 평가손익 → 평가금액으로 교체 (evalVal, pf-eval-${id}, border-left)
