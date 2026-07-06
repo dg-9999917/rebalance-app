@@ -1,5 +1,12 @@
 # 구현 진행 상황
 
+## v2 — 간단 보기 열 변경 — 2026-07-06
+- [x] 실현손익 → 설정비율로 교체 (val-dim 읽기전용, border-left)
+- [x] 평가손익 → 평가금액으로 교체 (evalVal, pf-eval-${id}, border-left)
+- [x] _updatePortfolioRows에 evalEl 실시간 갱신 추가
+- [x] 합계행: 설정비율% + 현재비중 + 평가금액 원 구조로 재구성
+- [x] sw.js CACHE_NAME rebalance-v29 → rebalance-v30
+
 ## v2 — 토글 스위치 UI 변경 — 2026-07-06
 - [x] 간단/상세 버튼 → 슬라이드 스위치로 교체 (.view-switch CSS + div HTML)
 - [x] 포트폴리오 탭에서만 스위치 표시 (다른 탭·종합계좌에서 숨김)

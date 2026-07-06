@@ -1567,17 +1567,17 @@ function renderPortfolioTable() {
       <col style="width:200px"><!-- 종목 -->
       <col style="width:120px"><!-- 현재가 -->
       <col style="width:110px"><!-- 보유수량 -->
+      <col style="width:80px"> <!-- 설정비율 -->
       <col style="width:100px"><!-- 현재비중 -->
-      <col style="width:130px"><!-- 평가손익 -->
-      <col style="width:120px"><!-- 실현손익 -->
+      <col style="width:150px"><!-- 평가금액 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
       <th class="num" style="border-left:2px solid var(--border)">현재가</th>
       <th class="num">보유수량</th>
-      <th class="num" style="border-left:2px solid var(--border)">현재비중</th>
-      <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
-      <th class="num">실현손익</th>
+      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
+      <th class="num">현재비중</th>
+      <th class="num" style="border-left:2px solid var(--border)">평가금액</th>
     </tr></thead><tbody>`;
   } else {
     html = `<table class="view-detail" style="table-layout:fixed">
@@ -1658,15 +1658,14 @@ function renderPortfolioTable() {
         </td>`;
 
       if (isSimple) {
-        const unrealStr = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
-        const realStr   = s.realized ? fmtNum(s.realized) : '—';
+        const evalStr = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
         html += `<tr>
           ${stockNameHtml}
           ${priceHtml}
           ${qtyHtml}
-          <td class="num ${wtCls}" id="pf-wt-${s.id}" style="border-left:2px solid var(--border)">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-          <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
-          <td class="num ${realCls}">${realStr}</td>
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
+          <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
+          <td class="num" id="pf-eval-${s.id}" style="border-left:2px solid var(--border)">${evalStr}</td>
         </tr>`;
       } else {
         const unit   = calcUnit(s);
@@ -1723,13 +1722,12 @@ function renderPortfolioTable() {
     const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
 
     if (isSimple) {
-      const subUnrealStr = showUsWarn || !per1 ? '—' : fmtNum(subUnreal);
-      const subRealStr   = fmtNum(subReal);
+      const subValStr = showUsWarn ? '—' : fmtNum(subVal) + ' 원';
       html += `<tr class="subtotal-row">
-        <td colspan="3" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
+        <td colspan="3" style="text-align:right;padding-right:10px">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
+        <td class="num">${fmtDec(rSum, 2)}%</td>
         <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-        <td class="num ${subUnrealCls}">${subUnrealStr}</td>
-        <td class="num ${subRealCls}">${subRealStr}</td>
+        <td class="num">${subValStr}</td>
       </tr>`;
     } else {
       const grpUSD = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
@@ -1767,6 +1765,7 @@ function _updatePortfolioRows() {
     const wtEl     = document.getElementById(`pf-wt-${s.id}`);
     const unrealEl = document.getElementById(`pf-unreal-${s.id}`);
     const needEl   = document.getElementById(`pf-need-${s.id}`);
+    const evalEl   = document.getElementById(`pf-eval-${s.id}`);
     if (wtEl) {
       wtEl.textContent = per1 && valOk ? fmtDec(wt, 2) : '—';
       wtEl.className = 'num ' + (valOk && wt > s.r ? 'val-pos' : '');
@@ -1785,6 +1784,10 @@ function _updatePortfolioRows() {
       unrealEl.className = `num ${cls}`;
       unrealEl.style.borderLeft = '2px solid var(--border)';
       unrealEl.textContent = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
+    }
+    if (evalEl) {
+      const val = evalVal(s);
+      evalEl.textContent = (s.market === 'CASH' || valOk) ? fmtNum(val) + ' 원' : '—';
     }
   });
 }
