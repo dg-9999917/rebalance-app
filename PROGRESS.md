@@ -1,5 +1,15 @@
 # 구현 진행 상황
 
+## v2 — 간단 보기 8열 재정리 + 계좌설정 균등배치 — 2026-07-06
+- [x] 간단 보기: 현재가 독립 열로 분리 (종목 셀 합치기 완전 제거)
+- [x] 간단 보기: 8열 모두 고정 너비 (width:auto 제거, 160/95/95/80/70/70/80/110px)
+- [x] 간단 보기: 현재가 price>0 텍스트, price=0 input, CASH —
+- [x] 간단 보기: 필요매매 포함 8열 +/- 색상
+- [x] 간단 보기: thead font-weight:800 유지
+- [x] 간단 보기: colgroup/group-hdr colspan 8/합계행 colspan 4 동기화
+- [x] 계좌설정: justify-content:space-evenly + flex:0 1로 3컬럼 균등배치
+- [x] sw.js CACHE_NAME rebalance-v35 → rebalance-v36
+
 ## v2 — 간단 보기 재수정 + 계좌설정 배치 — 2026-07-06
 - [x] 간단 보기: 현재가를 종목 셀 같은 줄 오른쪽에 배치 (아래줄 → 우측 inline)
 - [x] 간단 보기: price=0 종목만 현재가 input, 나머지 읽기 전용 텍스트
