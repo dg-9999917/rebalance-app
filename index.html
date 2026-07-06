@@ -186,13 +186,13 @@
 
     table {
       width: 100%; border-collapse: collapse;
-      font-size: 13px; table-layout: auto;
+      font-size: 14px; table-layout: auto;
     }
     thead th {
       position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 7px 10px; font-size: 11.5px; font-weight: 700;
+      padding: 7px 10px; font-size: 12.5px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
@@ -201,6 +201,7 @@
     tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--row-hover); }
+    tbody tr.row-selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important; }
     tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
     tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
@@ -547,18 +548,6 @@
         </div>
       </div>
 
-      <!-- 가격 서버 설정 -->
-      <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
-        <span class="meta-label" style="white-space:nowrap">가격 서버</span>
-        <input type="url" id="price-server-url" placeholder="https://xxxx.onrender.com"
-          style="width:300px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--input-bg);color:var(--text);font-size:13px"
-          oninput="savePriceServerUrl(this.value)">
-        <span style="font-size:12px;color:var(--text-sub)">https 주소 입력 시 시세 자동입력 활성화</span>
-        <span id="fetch-result-settings" style="font-size:12px;margin-left:auto;white-space:pre-wrap;display:none"></span>
-        <button class="btn" id="btn-fetch-prices-settings" onclick="fetchPrices()" disabled
-          title="서버 주소를 먼저 입력하세요" style="margin-left:8px;white-space:nowrap">시세 새로고침</button>
-      </div>
-
       <!-- 종목 표 -->
       <div class="tbl-wrap" id="settings-tbl-wrap">
         <!-- renderSettingsTable() 로 채워짐 -->
@@ -574,7 +563,7 @@
         <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
-            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
+            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">시세 새로고침</button>
           </div>
           <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
           <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
@@ -1488,16 +1477,16 @@ function renderPortfolioTable() {
     </colgroup>
     <thead><tr>
       <th>종목</th>
-      <th class="num">현재가</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
       <th class="num">평단가</th>
       <th class="num">보유수량</th>
-      <th class="num">설정비율</th>
+      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="center">조정비율</th>
       <th class="num">현재비중</th>
-      <th class="num">1%당주식수</th>
+      <th class="num" style="border-left:2px solid var(--border)">1%당주식수</th>
       <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
       <th class="num">필요매매</th>
-      <th class="num">평가손익</th>
+      <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
       <th class="num">실현손익</th>
     </tr></thead><tbody>`;
 
@@ -1546,7 +1535,7 @@ function renderPortfolioTable() {
           <span class="stock-ticker">${esc(s.ticker)}</span>
           <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
         </td>
-        <td class="num">
+        <td class="num" style="border-left:2px solid var(--border)">
           ${isCash ? '<span class="val-dim">—</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.price)}" placeholder="0"
@@ -1569,7 +1558,7 @@ function renderPortfolioTable() {
             onchange="onQtyInput('${s.id}',this.value)"
             onblur="commaBlurQty(this)">
         </td>
-        <td class="num val-dim">${s.r}</td>
+        <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
         <td class="center">
           <div class="ratio-cell">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
@@ -1581,10 +1570,10 @@ function renderPortfolioTable() {
           </div>
         </td>
         <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-        <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
+        <td class="num val-dim" style="border-left:2px solid var(--border)">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
         <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
         <td class="num" id="pf-need-${s.id}">${needStr}</td>
-        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${unrealStr}</td>
+        <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
         <td class="num ${realCls}">${realStr}</td>
       </tr>`;
     });
@@ -1606,10 +1595,10 @@ function renderPortfolioTable() {
     html += `<tr class="subtotal-row">
       <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
       <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td class="num"></td>
+      <td class="num" style="border-left:2px solid var(--border)"></td>
       <td class="num">${subAllocStr}</td>
       <td class="num"></td>
-      <td class="num ${subUnrealCls}">${subUnrealStr}</td>
+      <td class="num ${subUnrealCls}" style="border-left:2px solid var(--border)">${subUnrealStr}</td>
       <td class="num ${subRealCls}">${subRealStr}</td>
     </tr>`;
   });
@@ -2703,31 +2692,27 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
+// ── 행 클릭 선택 토글 ──────────────────────────────────
+document.addEventListener('click', e => {
+  const tr = e.target.closest('#pf-tbl-wrap tbody tr, #settings-tbl-wrap tbody tr');
+  if (!tr) return;
+  if (tr.classList.contains('group-hdr') || tr.classList.contains('subtotal-row')) return;
+  if (e.target.closest('input, button, select')) return;
+  tr.classList.toggle('row-selected');
+});
+
 // ── 시세 서버 연동 ──────────────────────────────────────
 function loadPriceServerUrl() {
-  const url = localStorage.getItem('price_server_url') || '';
-  const el = document.getElementById('price-server-url');
-  if (el) el.value = url;
-  updateFetchButtonState();
-}
-
-function savePriceServerUrl(val) {
-  localStorage.setItem('price_server_url', val.trim());
   updateFetchButtonState();
 }
 
 function getPriceServerUrl() {
-  return (localStorage.getItem('price_server_url') || '').trim().replace(/\/$/, '');
+  return 'https://rebalance-price-server.onrender.com';
 }
 
 function updateFetchButtonState() {
-  const hasUrl = !!getPriceServerUrl();
-  ['btn-fetch-prices', 'btn-fetch-prices-settings'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = !hasUrl;
-    btn.title = hasUrl ? '' : '기준설정 탭에서 가격 서버 주소를 먼저 입력하세요';
-  });
+  const btn = document.getElementById('btn-fetch-prices');
+  if (btn) { btn.disabled = false; btn.title = ''; }
 }
 
 async function fetchPrices() {
