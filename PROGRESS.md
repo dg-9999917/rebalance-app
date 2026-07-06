@@ -1,5 +1,17 @@
 # 구현 진행 상황
 
+## v2 지시문 2/3 (종합계좌 — 구조·생성·삭제) — 2026-07-06
+- [x] appData에 consolidated 배열 + activeConsolidatedId 추가
+- [x] loadState에서 기존 데이터 호환 (consolidated 없으면 기본값)
+- [x] buildConsolidatedData 합산 로직 (수량, 가중평균 평단, 실현손익)
+- [x] 계좌설정 탭에 종합계좌 만들기 박스 (이름 + 체크박스)
+- [x] 계좌 목록에 종합계좌 표시 (📁, 구분선, 전환/편집/삭제)
+- [x] 드롭다운에 종합계좌 표시 (📁, 구분선)
+- [x] onAccountChange에서 종합계좌 전환 분기
+- [x] render()에서 종합 모드 시 탭 숨김/placeholder
+- [x] 기존 개별 계좌 기능 정상 동작 확인
+- [x] sw.js CACHE_NAME rebalance-v23 → rebalance-v24
+
 ## v2 지시문 1 보완 (시세버튼 복원 + 단일 선택) — 2026-07-06
 - [x] 기준설정 탭에 시세 새로고침 버튼 복원 (URL 입력칸 없이)
 - [x] 행 선택을 단일 선택으로 변경 (기존 다중 → 하나만)
