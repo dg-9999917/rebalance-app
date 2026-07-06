@@ -108,6 +108,25 @@
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
 
+    /* 간단/상세 슬라이드 스위치 */
+    .view-switch {
+      display: inline-flex; align-items: center; gap: 6px;
+      cursor: pointer; user-select: none; margin-right: 8px;
+    }
+    .view-switch-label {
+      font-size: 11px; color: var(--text-sub); font-weight: 600;
+    }
+    .view-switch-track {
+      width: 36px; height: 20px; border-radius: 10px;
+      background: var(--border); position: relative; transition: background 0.2s;
+    }
+    .view-switch.active .view-switch-track { background: var(--accent); }
+    .view-switch-knob {
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      position: absolute; top: 2px; left: 2px; transition: left 0.2s;
+    }
+    .view-switch.active .view-switch-knob { left: 18px; }
+
     /* 계좌 선택 드롭다운 */
     #account-select {
       background: var(--surface2); color: var(--text);
@@ -186,13 +205,13 @@
 
     table {
       width: 100%; border-collapse: collapse;
-      font-size: 13px; table-layout: auto;
+      font-size: 14px; table-layout: auto;
     }
     thead th {
       position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 7px 10px; font-size: 11.5px; font-weight: 700;
+      padding: 7px 10px; font-size: 13px; font-weight: 700;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
@@ -201,9 +220,16 @@
     tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--row-hover); }
+    tbody tr.row-selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important; }
     tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
     tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
+
+    /* 포트폴리오 간단/상세 보기 */
+    #pf-tbl-wrap table.view-simple { font-size: 15px; }
+    #pf-tbl-wrap table.view-simple thead th { font-size: 14px; font-weight: 800; letter-spacing: 0.03em; }
+    #pf-tbl-wrap table.view-detail { font-size: 13px; }
+    #pf-tbl-wrap table.view-detail thead th { font-size: 11.5px; }
 
     /* A-2: 그룹 헤더 행 — 합계행과 동일한 크기 */
     tr.group-hdr td {
@@ -338,12 +364,12 @@
     /* 포트폴리오 액션: 표 아래 정렬 */
 
     /* 포트폴리오 표 입력칸 */
-    .inp-price, .inp-avg, .inp-qty {
+    .inp-price, .inp-avg, .inp-qty, .inp-pf {
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 3px 6px; font-size: 12.5px; text-align: right;
     }
-    .inp-price:focus, .inp-avg:focus, .inp-qty:focus { outline: none; border-color: var(--accent); }
+    .inp-price:focus, .inp-avg:focus, .inp-qty:focus, .inp-pf:focus { outline: none; border-color: var(--accent); }
     .inp-price { width: 80px; }
     .inp-avg   { width: 80px; }
     .inp-qty   { width: 72px; }
@@ -461,6 +487,10 @@
     }
     #backup-toast-badge.show { display: flex; }
   </style>
+  <!-- Google Identity Services (OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Google API Client (Drive API) -->
+  <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 <div id="app">
@@ -475,6 +505,11 @@
       <button class="tab-btn" data-tab="reset">초기화</button>
     </nav>
     <div class="header-actions">
+      <div class="view-switch" id="view-mode-switch" onclick="toggleViewMode()" title="간단/상세 보기 전환" style="display:none">
+        <span class="view-switch-label">간단</span>
+        <div class="view-switch-track"><div class="view-switch-knob"></div></div>
+        <span class="view-switch-label">상세</span>
+      </div>
       <span class="account-label">계좌</span>
       <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
         <option>기본 계좌</option>
@@ -547,16 +582,11 @@
         </div>
       </div>
 
-      <!-- 가격 서버 설정 -->
+      <!-- 기준설정 탭: 시세 새로고침 바 -->
       <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
-        <span class="meta-label" style="white-space:nowrap">가격 서버</span>
-        <input type="url" id="price-server-url" placeholder="https://xxxx.onrender.com"
-          style="width:300px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--input-bg);color:var(--text);font-size:13px"
-          oninput="savePriceServerUrl(this.value)">
-        <span style="font-size:12px;color:var(--text-sub)">https 주소 입력 시 시세 자동입력 활성화</span>
-        <span id="fetch-result-settings" style="font-size:12px;margin-left:auto;white-space:pre-wrap;display:none"></span>
-        <button class="btn" id="btn-fetch-prices-settings" onclick="fetchPrices()" disabled
-          title="서버 주소를 먼저 입력하세요" style="margin-left:8px;white-space:nowrap">시세 새로고침</button>
+        <button class="btn" id="btn-fetch-prices-settings" onclick="fetchPrices()" style="white-space:nowrap">시세 새로고침</button>
+        <span id="fetch-result-settings" style="font-size:12px;white-space:pre-wrap;display:none"></span>
+        <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
       </div>
 
       <!-- 종목 표 -->
@@ -571,10 +601,10 @@
       <div class="pf-summary" id="pf-summary-bar"><!-- renderPortfolioSummary() --></div>
       <div class="pf-scroll">
         <div class="tbl-wrap" id="pf-tbl-wrap"><!-- renderPortfolioTable() --></div>
-        <div class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
+        <div id="pf-actions-main" class="pf-actions" style="margin-top:14px;justify-content:space-between;flex-wrap:wrap;row-gap:6px">
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn" onclick="showPreview()">미리보기 (Beta)</button>
-            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()" disabled title="기준설정 탭에서 가격 서버 주소를 먼저 입력하세요">시세 새로고침</button>
+            <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">시세 새로고침</button>
           </div>
           <button class="btn btn-primary" id="btn-confirm" onclick="showConfirmModal()">확정 저장</button>
           <div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:2px">
@@ -584,7 +614,7 @@
           </div>
         </div>
         <!-- 남는 돈 현금 채우기 -->
-        <div class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div id="pf-actions-cash" class="pf-actions" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn" onclick="fillCashFromRemainder()">남는 돈 현금으로 채우기</button>
             <span style="font-size:12px;color:var(--text-sub)">현재 보유 입력 후, 남는 돈을 현금으로 채웁니다 — 기존 현금 값을 덮어씁니다</span>
@@ -650,6 +680,17 @@
 </div><!-- #app -->
 
 <script>
+// ── 구글 드라이브 연동 상수·상태 ──────────────────────────────────
+const GDRIVE_CLIENT_ID       = '848368395563-kp5f6h7mceh25hsnuree1ljarbf5f90e.apps.googleusercontent.com';
+const GDRIVE_SCOPES          = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_FOLDER_NAME     = '리밸런싱앱_백업';
+const GDRIVE_BACKUP_FILENAME = 'rebalance_backup.json';
+
+let gdriveTokenClient  = null;   // google.accounts.oauth2.initTokenClient 결과
+let gdriveAccessToken  = null;   // 현재 access_token
+let gdriveUserEmail    = null;   // 연결된 계정 이메일
+let gdriveAutoBackup   = true;   // 확정 저장 시 자동 백업 여부
+
 // ═══════════════════════════════════════════════════════════════════
 //  상태 객체 / 기본 시드
 // ═══════════════════════════════════════════════════════════════════
@@ -778,6 +819,8 @@ function loadState() {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.accounts) && parsed.accounts.length) {
         appData = parsed;
+        if (!Array.isArray(appData.consolidated)) appData.consolidated = [];
+        if (!('activeConsolidatedId' in appData)) appData.activeConsolidatedId = null;
         const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
           ? appData.activeAccountId : appData.accounts[0].id;
         activateAccount(validId);
@@ -792,7 +835,7 @@ function loadState() {
       if (oldState && oldState.meta && Array.isArray(oldState.stocks)) {
         console.log('[migration] 기존 데이터 → "기본 계좌" 이전');
         const acc = { id: 'acc_1', name: '기본 계좌', state: oldState };
-        appData = { activeAccountId: 'acc_1', accounts: [acc] };
+        appData = { activeAccountId: 'acc_1', accounts: [acc], consolidated: [], activeConsolidatedId: null };
         saveState(); // 신형으로 즉시 저장
         activateAccount('acc_1');
         applyTheme(state.meta.theme || 'dark');
@@ -801,7 +844,7 @@ function loadState() {
     }
     // ③ 완전 초기 (처음 사용)
     const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE) };
-    appData = { activeAccountId: 'acc_1', accounts: [fresh] };
+    appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null };
     saveState();
     activateAccount('acc_1');
     applyTheme('dark');
@@ -810,7 +853,7 @@ function loadState() {
     // 데이터 손실 방지 — 실패 시 임의 초기화 금지, 비상 초기화만
     if (!appData || !state) {
       const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE) };
-      appData = { activeAccountId: 'acc_1', accounts: [fresh] };
+      appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null };
       activateAccount('acc_1');
     }
   }
@@ -954,6 +997,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     const s = document.getElementById('tab-' + tab); if (s) s.classList.add('active');
     localStorage.setItem('rebalance_active_tab', tab);
+    updateViewModeButton();
   });
 });
 
@@ -1377,6 +1421,38 @@ function onAdjRInput(id, raw) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  포트폴리오 탭 — 간단/상세 보기 토글
+// ═══════════════════════════════════════════════════════════════════
+
+function getViewMode() {
+  return localStorage.getItem('pf_view_mode') || 'simple';
+}
+function setViewMode(mode) {
+  localStorage.setItem('pf_view_mode', mode);
+}
+function toggleViewMode() {
+  const cur = getViewMode();
+  setViewMode(cur === 'simple' ? 'detail' : 'simple');
+  renderPortfolioTable();
+  renderPortfolioSummary();
+  updateViewModeButton();
+}
+function updateViewModeButton() {
+  const sw = document.getElementById('view-mode-switch');
+  if (!sw) return;
+  const activeTab = document.querySelector('.tab-btn.active');
+  const isPortfolio = activeTab && activeTab.dataset.tab === 'portfolio';
+  const isConsolidated = !!appData.activeConsolidatedId;
+  sw.style.display = (isPortfolio && !isConsolidated) ? 'inline-flex' : 'none';
+  const mode = getViewMode();
+  if (mode === 'detail') {
+    sw.classList.add('active');
+  } else {
+    sw.classList.remove('active');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  포트폴리오 탭 — 렌더
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1395,6 +1471,7 @@ function renderPortfolioSummary() {
   const pctChg      = p0 ? (totalVal - p0) / p0 * 100 : null;
   const hasUS       = state.stocks.some(s => s.market === 'US' && s.price > 0);
 
+  const viewMode     = getViewMode();
   const pctStr       = pctChg !== null ? (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%' : '—';
   const pctCls       = pctChg === null ? '' : pctChg >= 0 ? 'val-pos' : 'val-neg';
   const realCls      = totalReal >= 0 ? 'val-pos' : 'val-neg';
@@ -1403,7 +1480,36 @@ function renderPortfolioSummary() {
   const rsumCls = Math.abs(rsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
   const adjRCls = Math.abs(adjRsum - 100) < 0.001 ? 'val-pos' : 'val-neg';
 
-  document.getElementById('pf-summary-bar').innerHTML = `
+  const fxNInputHtml = `<div class="pf-summary-item">
+      <span class="s-label">현재 환율 (₩/$)</span>
+      <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
+        value="${fxN ? fmtNum(fxN, 2) : ''}" placeholder="미입력"
+        onfocus="commaFocus(this)"
+        oninput="onPortfolioFxNInput(this.value)"
+        onblur="onPortfolioFxNBlur(this)">
+    </div>`;
+
+  if (viewMode === 'simple') {
+    document.getElementById('pf-summary-bar').innerHTML = `
+    <div class="pf-summary-item">
+      <span class="s-label">총 평가금액${!hasFxN && hasUS ? '<span style="color:var(--neg);font-size:11px"> (미국 제외)</span>' : ''}</span>
+      <span class="s-val">${fmtNum(totalVal)} 원</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">원금 → 현재 총자산</span>
+      <span class="s-val">${p0 ? fmtNum(p0) : '—'} → ${fmtNum(totalVal)} 원</span>
+      <span class="s-sub ${pctCls}">${pctStr}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    <div class="pf-summary-item">
+      <span class="s-label">현금</span>
+      <span class="s-val" style="${cashVal < 0 ? 'color:#ef4444' : ''}">${fmtNum(cashVal)} 원${cashVal < 0 ? ' <span style="font-size:11px">(추가 입금 필요)</span>' : ''}</span>
+    </div>
+    <div class="pf-summary-sep"></div>
+    ${fxNInputHtml}`;
+  } else {
+    document.getElementById('pf-summary-bar').innerHTML = `
     <div class="pf-summary-item">
       <span class="s-label">총 평가금액${!hasFxN && hasUS ? '<span style="color:var(--neg);font-size:11px"> (미국 제외)</span>' : ''}</span>
       <span class="s-val">${fmtNum(totalVal)} 원</span>
@@ -1440,14 +1546,8 @@ function renderPortfolioSummary() {
       <span class="s-val" style="${cashVal < 0 ? 'color:#ef4444' : ''}">${fmtNum(cashVal)} 원${cashVal < 0 ? ' <span style="font-size:11px">(추가 입금 필요)</span>' : ''}</span>
     </div>
     <div class="pf-summary-sep"></div>
-    <div class="pf-summary-item">
-      <span class="s-label">현재 환율 (₩/$)</span>
-      <input class="inp-pf-fxn" id="pf-in-fxN" type="text" inputmode="decimal"
-        value="${fxN ? fmtNum(fxN, 2) : ''}" placeholder="미입력"
-        onfocus="commaFocus(this)"
-        oninput="onPortfolioFxNInput(this.value)"
-        onblur="onPortfolioFxNBlur(this)">
-    </div>`;
+    ${fxNInputHtml}`;
+  }
 
   // 확정 저장 버튼 활성화 제어 (adjR 합계 ≠ 100이면 비활성)
   const adjRok = Math.abs(adjRsum - 100) < 0.001;
@@ -1458,12 +1558,16 @@ function renderPortfolioSummary() {
 }
 
 function renderPortfolioTable() {
+  document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = '');
+  const consActions = document.getElementById('cons-actions');
+  if (consActions) consActions.remove();
   renderPortfolioSummary();
   const wrap = document.getElementById('pf-tbl-wrap');
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
   const allocCur = localStorage.getItem('allocCurrency') || 'KRW';
   const fxNv = state.meta.fxN;
+  const isSimple = getViewMode() === 'simple';
 
   const groups = [
     { label: '미국 (USD)', market: 'US'   },
@@ -1471,7 +1575,31 @@ function renderPortfolioTable() {
     { label: '현금',       market: 'CASH' },
   ];
 
-  let html = `<table style="table-layout:fixed">
+  let html;
+  if (isSimple) {
+    html = `<table class="view-simple" style="table-layout:fixed">
+    <colgroup>
+      <col style="width:160px"> <!-- 종목 -->
+      <col style="width:95px">  <!-- 현재가 -->
+      <col style="width:95px">  <!-- 평단가 -->
+      <col style="width:80px">  <!-- 보유수량 -->
+      <col style="width:70px">  <!-- 설정비율 -->
+      <col style="width:70px">  <!-- 현재비중 -->
+      <col style="width:80px">  <!-- 필요매매 -->
+      <col style="width:110px"> <!-- 평가금액 -->
+    </colgroup>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
+      <th class="num">평단가</th>
+      <th class="num">보유수량</th>
+      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
+      <th class="num">현재비중</th>
+      <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
+      <th class="num">평가금액</th>
+    </tr></thead><tbody>`;
+  } else {
+    html = `<table class="view-detail" style="table-layout:fixed">
     <colgroup>
       <col style="width:160px"><!-- 종목 -->
       <col style="width:88px"> <!-- 현재가 -->
@@ -1488,130 +1616,192 @@ function renderPortfolioTable() {
     </colgroup>
     <thead><tr>
       <th>종목</th>
-      <th class="num">현재가</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
       <th class="num">평단가</th>
       <th class="num">보유수량</th>
-      <th class="num">설정비율</th>
+      <th class="num" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="center">조정비율</th>
       <th class="num">현재비중</th>
-      <th class="num">1%당주식수</th>
+      <th class="num" style="border-left:2px solid var(--border)">1%당주식수</th>
       <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
       <th class="num">필요매매</th>
-      <th class="num">평가손익</th>
+      <th class="num" style="border-left:2px solid var(--border)">평가손익</th>
       <th class="num">실현손익</th>
     </tr></thead><tbody>`;
+  }
 
   groups.forEach(g => {
     const stocks = state.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="12">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="${isSimple ? 8 : 12}">${g.label}</td></tr>`;
 
     let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
-      const unit   = calcUnit(s);
-      const pKRW   = priceKRW(s);
       const val    = evalVal(s);
       const wt     = currWeight(s);
-      const alloc  = s.r * per1;
-      const adjQty = s.adjR * unit;           // 조정수량
-      const need   = adjQty - s.q;            // 필요매매
       const unreal = unrealizedPnL(s);
       subVal    += val;
       subWeight += wt;
-      subAlloc  += alloc;
       subUnreal += unreal;
       subReal   += (s.realized || 0);
 
       const badgeClass = g.market === 'US' ? 'badge-us' : g.market === 'KR' ? 'badge-kr' : 'badge-cash';
-      const needStr  = !unit ? '—' : (Math.abs(need) < 0.005 ? '<span class="need-zero">—</span>'
-                       : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
-                                  : `<span class="need-sell">${fmtNum(need,2)}</span>`);
       const valOk     = s.market !== 'US' || hasFxN;
       const unrealCls = unreal >= 0 ? 'val-pos' : 'val-neg';
       const realCls   = (s.realized||0) >= 0 ? 'val-pos' : 'val-neg';
       const wtCls     = valOk && wt > s.r ? 'val-pos' : '';
       const isCash    = g.market === 'CASH';
-      const usUSD     = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
-      const unrealStr = s.q && s.avg && s.price && valOk
-        ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
-      const realStr   = s.realized
-        ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
 
-      html += `<tr>
-        <td>
+      const stockNameHtml = `<td>
           <span class="stock-name">${esc(s.name)}</span>
           <span class="stock-ticker">${esc(s.ticker)}</span>
           <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
-        </td>
-        <td class="num">
+        </td>`;
+      const priceHtml = `<td class="num" style="border-left:2px solid var(--border)">
           ${isCash ? '<span class="val-dim">—</span>'
             : `<input class="inp-price" type="text" inputmode="decimal"
                 value="${fmtPriceVal(s.price)}" placeholder="0"
                 onfocus="commaFocus(this)"
                 onchange="onPriceInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">`}
-        </td>
-        <td class="num">
-          ${isCash ? '<span class="val-dim">—</span>'
-            : `<input class="inp-avg" type="text" inputmode="decimal"
-                value="${fmtPriceVal(s.avg)}" placeholder="0"
-                onfocus="commaFocus(this)"
-                onchange="onAvgInput('${s.id}',this.value)"
-                onblur="commaBlur(this)">`}
-        </td>
-        <td class="num">
+        </td>`;
+      const qtyHtml = `<td class="num">
           <input class="inp-qty" type="text" inputmode="decimal"
             value="${s.q ? fmtNum(s.q, 2) : ''}" placeholder="0"
             onfocus="commaFocus(this)"
             onchange="onQtyInput('${s.id}',this.value)"
             onblur="commaBlurQty(this)">
-        </td>
-        <td class="num val-dim">${s.r}</td>
-        <td class="center">
-          <div class="ratio-cell">
-            <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
-            <input class="inp-r" type="number" min="0" step="0.5"
-              value="${s.adjR}"
-              onchange="onAdjRInput('${s.id}',this.value)"
-              oninput="onAdjRInput('${s.id}',this.value)">
-            <button class="pm-btn" onclick="onAdjRChange('${s.id}',0.5)">+</button>
-          </div>
-        </td>
-        <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
-        <td class="num val-dim">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
-        <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
-        <td class="num" id="pf-need-${s.id}">${needStr}</td>
-        <td class="num ${unrealCls}" id="pf-unreal-${s.id}">${unrealStr}</td>
-        <td class="num ${realCls}">${realStr}</td>
-      </tr>`;
+        </td>`;
+
+      if (isSimple) {
+        const evalStr = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
+        const unit = calcUnit(s);
+        const adjQty = s.adjR * unit;
+        const need = adjQty - s.q;
+        let needStr = '—', needCls = '';
+        if (!isCash && unit > 0 && s.q > 0) {
+          if (Math.abs(need) < 0.0001) { needStr = '0'; }
+          else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
+          else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
+        }
+        const priceDisplay = isCash ? '—'
+          : (s.price > 0
+            ? (s.market === 'US' ? '$' : '') + fmtNum(s.price, s.price % 1 ? 2 : 0)
+            : `<input class="inp-pf" type="text" inputmode="decimal"
+                value="" placeholder="직접 입력"
+                style="width:70px"
+                onfocus="commaFocus(this)"
+                onchange="onPriceInput('${s.id}',this.value)"
+                onblur="commaBlur(this)">`);
+        html += `<tr>
+          <td>
+            <span class="stock-name">${esc(s.name)}</span>
+            <span class="stock-ticker">${esc(s.ticker)}</span>
+            <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+          </td>
+          <td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
+          <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              id="pf-in-avg-${s.id}"
+              value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
+              style="width:75px"
+              onfocus="commaFocus(this)"
+              onchange="onAvgInput('${s.id}',this.value)"
+              onblur="commaBlur(this)">`}</td>
+          <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+              id="pf-in-q-${s.id}"
+              value="${s.q ? fmtDec(s.q, 2) : ''}"
+              style="width:65px"
+              onfocus="commaFocus(this)"
+              onchange="onQtyInput('${s.id}',this.value)"
+              onblur="commaBlur(this)">`}</td>
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
+          <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
+          <td class="num ${needCls}" style="border-left:2px solid var(--border)">${needStr}</td>
+          <td class="num" id="pf-eval-${s.id}">${evalStr}</td>
+        </tr>`;
+      } else {
+        const unit   = calcUnit(s);
+        const alloc  = s.r * per1;
+        const adjQty = s.adjR * unit;
+        const need   = adjQty - s.q;
+        const usUSD  = allocCur === 'USD' && s.market === 'US' && fxNv > 0;
+        subAlloc += alloc;
+        const needStr = !unit ? '—' : (Math.abs(need) < 0.005
+          ? '<span class="need-zero">—</span>'
+          : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
+                     : `<span class="need-sell">${fmtNum(need,2)}</span>`);
+        const unrealStr = s.q && s.avg && s.price && valOk
+          ? (usUSD ? '$' + fmtNum(unreal / fxNv, 2) : fmtNum(unreal)) : '—';
+        const realStr = s.realized
+          ? (usUSD ? '$' + fmtNum(s.realized / fxNv, 2) : fmtNum(s.realized)) : '—';
+        html += `<tr>
+          ${stockNameHtml}
+          ${priceHtml}
+          <td class="num">
+            ${isCash ? '<span class="val-dim">—</span>'
+              : `<input class="inp-avg" type="text" inputmode="decimal"
+                  value="${fmtPriceVal(s.avg)}" placeholder="0"
+                  onfocus="commaFocus(this)"
+                  onchange="onAvgInput('${s.id}',this.value)"
+                  onblur="commaBlur(this)">`}
+          </td>
+          ${qtyHtml}
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${s.r}</td>
+          <td class="center">
+            <div class="ratio-cell">
+              <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
+              <input class="inp-r" type="number" min="0" step="0.5"
+                value="${s.adjR}"
+                onchange="onAdjRInput('${s.id}',this.value)"
+                oninput="onAdjRInput('${s.id}',this.value)">
+              <button class="pm-btn" onclick="onAdjRChange('${s.id}',0.5)">+</button>
+            </div>
+          </td>
+          <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt,2) : '—'}</td>
+          <td class="num val-dim" style="border-left:2px solid var(--border)">${isCash || !unit ? '—' : fmtDec(unit,4)}</td>
+          <td class="num val-dim">${allocCur === 'USD' && s.market === 'US' ? (per1 && fxNv > 0 ? '$' + fmtNum(alloc / fxNv, 2) : '—') : (per1 ? fmtNum(alloc) : '—')}</td>
+          <td class="num" id="pf-need-${s.id}">${needStr}</td>
+          <td class="num ${unrealCls}" id="pf-unreal-${s.id}" style="border-left:2px solid var(--border)">${unrealStr}</td>
+          <td class="num ${realCls}">${realStr}</td>
+        </tr>`;
+      }
     });
 
-    // 시장 종합행 (12열 = colspan6 + 현재비중 + 1%당 + 배정금액 + 필요매매 + 평가손익 + 실현손익)
     const subWtCls     = subWeight > 0 ? 'val-pos' : '';
     const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
     const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
     const showUsWarn   = g.market === 'US' && !hasFxN;
-    const grpUSD       = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
-
-    const subAllocStr  = !per1 ? '—'
-      : grpUSD ? '$' + fmtNum(subAlloc  / fxNv, 2) : fmtNum(subAlloc);
-    const subUnrealStr = showUsWarn || !per1 ? '—'
-      : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
-    const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
     const subValNote   = showUsWarn ? '환율 미입력' : fmtNum(subVal) + ' 원';
 
-    html += `<tr class="subtotal-row">
-      <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
-      <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
-      <td class="num"></td>
-      <td class="num">${subAllocStr}</td>
-      <td class="num"></td>
-      <td class="num ${subUnrealCls}">${subUnrealStr}</td>
-      <td class="num ${subRealCls}">${subRealStr}</td>
-    </tr>`;
+    if (isSimple) {
+      const subValStr = showUsWarn ? '—' : fmtNum(subVal) + ' 원';
+      html += `<tr class="subtotal-row">
+        <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
+        <td class="num">${fmtDec(rSum, 2)}%</td>
+        <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
+        <td class="num"></td>
+        <td class="num">${subValStr}</td>
+      </tr>`;
+    } else {
+      const grpUSD = allocCur === 'USD' && g.market === 'US' && fxNv > 0;
+      const subAllocStr  = !per1 ? '—'
+        : grpUSD ? '$' + fmtNum(subAlloc / fxNv, 2) : fmtNum(subAlloc);
+      const subUnrealStr = showUsWarn || !per1 ? '—'
+        : grpUSD ? '$' + fmtNum(subUnreal / fxNv, 2) : fmtNum(subUnreal);
+      const subRealStr   = grpUSD ? '$' + fmtNum(subReal / fxNv, 2) : fmtNum(subReal);
+      html += `<tr class="subtotal-row">
+        <td colspan="6" style="text-align:right;padding-right:10px">${g.label} 합계<span style="margin-left:8px;font-weight:600;color:var(--text-sub)">설정 ${fmtDec(rSum,2)}%</span><span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">${subValNote}</span></td>
+        <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight,2)}</td>
+        <td class="num" style="border-left:2px solid var(--border)"></td>
+        <td class="num">${subAllocStr}</td>
+        <td class="num"></td>
+        <td class="num ${subUnrealCls}" style="border-left:2px solid var(--border)">${subUnrealStr}</td>
+        <td class="num ${subRealCls}">${subRealStr}</td>
+      </tr>`;
+    }
   });
 
   html += '</tbody></table>';
@@ -1625,28 +1815,35 @@ function _updatePortfolioRows() {
   state.stocks.forEach(s => {
     const unit   = calcUnit(s);
     const wt     = currWeight(s);
-    const adjQty = s.adjR * unit;
-    const need   = adjQty - s.q;
     const unreal = unrealizedPnL(s);
     const valOk  = s.market !== 'US' || hasFxN;
 
-    const needStr = !unit ? '—' : (Math.abs(need) < 0.005
-      ? '<span class="need-zero">—</span>'
-      : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
-                 : `<span class="need-sell">${fmtNum(need,2)}</span>`);
-
-    const wtEl = document.getElementById(`pf-wt-${s.id}`);
-    const needEl = document.getElementById(`pf-need-${s.id}`);
+    const wtEl     = document.getElementById(`pf-wt-${s.id}`);
     const unrealEl = document.getElementById(`pf-unreal-${s.id}`);
+    const needEl   = document.getElementById(`pf-need-${s.id}`);
+    const evalEl   = document.getElementById(`pf-eval-${s.id}`);
     if (wtEl) {
       wtEl.textContent = per1 && valOk ? fmtDec(wt, 2) : '—';
       wtEl.className = 'num ' + (valOk && wt > s.r ? 'val-pos' : '');
     }
-    if (needEl) needEl.innerHTML = needStr;
+    if (needEl) {
+      const adjQty = s.adjR * unit;
+      const need   = adjQty - s.q;
+      const needStr = !unit ? '—' : (Math.abs(need) < 0.005
+        ? '<span class="need-zero">—</span>'
+        : need > 0 ? `<span class="need-buy">+${fmtNum(need,2)}</span>`
+                   : `<span class="need-sell">${fmtNum(need,2)}</span>`);
+      needEl.innerHTML = needStr;
+    }
     if (unrealEl) {
       const cls = unreal >= 0 ? 'val-pos' : 'val-neg';
       unrealEl.className = `num ${cls}`;
+      unrealEl.style.borderLeft = '2px solid var(--border)';
       unrealEl.textContent = s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—';
+    }
+    if (evalEl) {
+      const val = evalVal(s);
+      evalEl.textContent = (s.market === 'CASH' || valOk) ? fmtNum(val) + ' 원' : '—';
     }
   });
 }
@@ -1942,7 +2139,14 @@ function commitTrades() {
   const cashDelta = cashStock ? Math.round(cashStock.q - prevCashQ) : 0;
 
   state.history.unshift(buildSnapshot('리밸런싱 확정', null, { changedQty, changedAdjR, cashDelta }));
+  saveConsolidatedSnapshots();
   saveState();
+
+  // ── 구글 드라이브 자동 백업 (비동기 — 실패해도 localStorage 저장 무관) ──
+  if (gdriveAccessToken && gdriveAutoBackup) {
+    saveToDrive().catch(e => console.error('자동 드라이브 백업 실패:', e));
+  }
+
   closeConfirmModal();
   render();
   alert('확정 저장 완료! 이력 탭에서 스냅샷을 확인하세요.');
@@ -1972,6 +2176,37 @@ function buildSnapshot(label, cashSettlement, tags) {
   };
 }
 
+function saveConsolidatedSnapshots() {
+  if (!appData.consolidated || !appData.consolidated.length) return;
+  const currentAccId = appData.activeAccountId;
+  appData.consolidated.forEach(cons => {
+    if (!cons.memberIds.includes(currentAccId)) return;
+    const data = buildConsolidatedData(cons);
+    if (!data) return;
+    const fxN = data.fxN || 1;
+    let totalVal = 0, totalRealized = 0;
+    data.stocks.forEach(s => {
+      const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+      totalVal      += s.q * pKRW;
+      totalRealized += s.realized || 0;
+    });
+    const snapshot = {
+      ts:          new Date().toISOString(),
+      label:       '종합 자동 저장',
+      triggeredBy: currentAccId,
+      p0:          data.p0,
+      fxN:         data.fxN,
+      stocks:      data.stocks.map(s => {
+        const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+        return { id: s.id, name: s.name, ticker: s.ticker, market: s.market,
+                 q: s.q, avg: s.avg, price: s.price, realized: s.realized, val: s.q * pKRW };
+      }),
+      totals: { totalVal, totalRealized }
+    };
+    cons.history.unshift(snapshot);
+  });
+}
+
 function closeConfirmModal() {
   document.getElementById('confirm-overlay').style.display = 'none';
 }
@@ -1981,9 +2216,128 @@ function closeConfirmModal() {
 //  이력 탭 (step ⑤)
 // ═══════════════════════════════════════════════════════════════════
 
-let _histSubTab = 'snapshots'; // 'snapshots' | 'tradelog'
+let _histSubTab = 'snapshots';     // 'snapshots' | 'tradelog'
+let _consHistSubTab = 'snapshots'; // 종합계좌 이력 서브탭
+
+function renderConsolidatedHistory() {
+  const tab  = document.getElementById('tab-history');
+  if (!tab) return;
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  if (!cons) return;
+
+  const history = cons.history || [];
+  if (!history.length) {
+    tab.innerHTML = `<div class="placeholder">
+      <strong>이력 없음</strong>
+      개별 계좌에서 확정 저장 시 자동으로 쌓입니다.
+    </div>`;
+    return;
+  }
+
+  const subBtnStyle = key => `padding:5px 14px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:${_consHistSubTab===key?'var(--accent)':'var(--btn-bg)'};color:${_consHistSubTab===key?'#fff':'var(--text)'};cursor:pointer`;
+
+  let html = `<div style="padding:0">
+    <div style="display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:6px">
+      <button style="${subBtnStyle('snapshots')}" onclick="_consHistSubTab='snapshots';renderConsolidatedHistory()">스냅샷 목록</button>
+      <button style="${subBtnStyle('tradelog')}"  onclick="_consHistSubTab='tradelog';renderConsolidatedHistory()">거래 로그</button>
+    </div>`;
+
+  if (_consHistSubTab === 'tradelog') {
+    // 거래로그: 연속 스냅샷 비교
+    html += `<div style="overflow-y:auto;max-height:calc(100vh - 110px)">`;
+    html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">종합 거래 로그 (${history.length - 1}건 비교)</div>`;
+    if (history.length < 2) {
+      html += `<div class="placeholder">스냅샷이 2개 이상 쌓이면 거래 로그가 표시됩니다.</div>`;
+    } else {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">날짜</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">트리거 계좌</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량 변동</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
+        </tr></thead><tbody>`;
+
+      for (let i = 0; i < history.length - 1; i++) {
+        const cur  = history[i];
+        const prev = history[i + 1];
+        const dt   = new Date(cur.ts);
+        const dtStr = dt.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        const triggerName = appData.accounts.find(a => a.id === cur.triggeredBy)?.name || cur.triggeredBy || '—';
+
+        // 수량 변동이 있는 종목 추출
+        const changed = [];
+        cur.stocks.forEach(s => {
+          const prevS = prev.stocks.find(ps => ps.id === s.id);
+          const prevQ = prevS ? prevS.q : 0;
+          const diff  = s.q - prevQ;
+          if (Math.abs(diff) >= 0.001) changed.push({ s, diff });
+        });
+
+        if (!changed.length) {
+          html += `<tr><td colspan="5" style="padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">${dtStr} · ${esc(triggerName)} — 수량 변동 없음</td></tr>`;
+        } else {
+          changed.forEach((item, j) => {
+            const { s, diff } = item;
+            const diffCls = diff > 0 ? 'need-buy' : 'need-sell';
+            const diffStr = diff > 0 ? `+${fmtDec(diff, 2)}` : fmtDec(diff, 2);
+            html += `<tr style="border-bottom:1px solid var(--border)">
+              ${j === 0 ? `<td style="padding:6px 10px" rowspan="${changed.length}">${dtStr}</td>
+                           <td style="padding:6px 10px;color:var(--text-sub)" rowspan="${changed.length}">${esc(triggerName)}</td>` : ''}
+              <td style="padding:6px 10px">${esc(s.name)} <span style="font-size:11px;color:var(--text-sub)">${esc(s.ticker)}</span></td>
+              <td style="text-align:right;padding:6px 10px"><span class="${diffCls}">${diffStr}주</span></td>
+              <td style="text-align:right;padding:6px 10px">${fmtNum(s.val)} 원</td>
+            </tr>`;
+          });
+        }
+      }
+      html += `</tbody></table>`;
+    }
+    html += `</div></div>`;
+    tab.innerHTML = html;
+    return;
+  }
+
+  // 스냅샷 목록
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 110px)">`;
+  html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${history.length}건</div>`;
+
+  history.forEach((snap, i) => {
+    const dt     = new Date(snap.ts);
+    const dtStr  = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const pct    = snap.p0 ? (snap.totals.totalVal - snap.p0) / snap.p0 * 100 : null;
+    const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + fmtDec(pct, 2) + '%' : '';
+    const pctCls = pct !== null ? (pct >= 0 ? 'val-pos' : 'val-neg') : '';
+    const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const triggerName = appData.accounts.find(a => a.id === snap.triggeredBy)?.name || snap.triggeredBy || '—';
+
+    html += `<div style="background:var(--surface);border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;padding:8px 14px;gap:24px;flex-wrap:wrap">
+        <div style="flex:0 0 auto;min-width:120px">
+          <div style="font-size:10px;color:var(--text-sub)">#${history.length - i} · ${esc(triggerName)} 확정</div>
+          <div style="font-size:12px;font-weight:700">${dtStr}</div>
+        </div>
+        <div style="display:flex;gap:28px;flex-wrap:wrap;flex:1">
+          <div style="min-width:120px">
+            <div style="font-size:9px;color:var(--text-sub)">총 평가</div>
+            <div style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalVal)} 원
+              ${pctStr ? `<span class="${pctCls}" style="font-size:10px;margin-left:4px">${pctStr}</span>` : ''}</div>
+          </div>
+          <div style="min-width:110px">
+            <div style="font-size:9px;color:var(--text-sub)">실현손익</div>
+            <div class="${realCls}" style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += `</div></div>`;
+  tab.innerHTML = html;
+}
 
 function renderHistoryTab() {
+  if (appData.activeConsolidatedId) { renderConsolidatedHistory(); return; }
   const tab = document.getElementById('tab-history');
   if (!state.history || !state.history.length) {
     tab.innerHTML = `<div class="placeholder">
@@ -2390,12 +2744,14 @@ function renderAccountsTab() {
   const tab = document.getElementById('tab-accounts');
   if (!tab) return;
 
-  let html = `<div style="max-width:700px">
+  // ── 왼쪽: 개별 계좌 ────────────────────────────────────
+  let html = `<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+  <div style="flex:1;min-width:300px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">계좌 목록 (${appData.accounts.length}개)</div>`;
 
   appData.accounts.forEach(acc => {
     const { totalVal, stockCount } = getAccountSummary(acc);
-    const isActive = acc.id === appData.activeAccountId;
+    const isActive = !appData.activeConsolidatedId && acc.id === appData.activeAccountId;
     const canDelete = appData.accounts.length > 1;
     html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
       <div style="flex:1;min-width:0">
@@ -2440,7 +2796,64 @@ function renderAccountsTab() {
       </div>
     </div>
   </div>
-  </div>`;
+  </div>`; // 왼쪽 컬럼 닫기
+
+  // ── 오른쪽: 종합계좌 ────────────────────────────────────
+  const cons = appData.consolidated || [];
+  const memberCheckboxes = appData.accounts.map(a =>
+    `<label style="font-size:13px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" value="${esc(a.id)}"> ${esc(a.name)}
+    </label>`
+  ).join('');
+
+  html += `<div style="flex:1;min-width:280px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">📁 종합계좌 (${cons.length}개)</div>`;
+
+  cons.forEach(c => {
+    const memberNames = c.memberIds
+      .map(id => { const a = appData.accounts.find(a => a.id === id); return a ? esc(a.name) : '(삭제됨)'; })
+      .join(', ');
+    const isActive = appData.activeConsolidatedId === c.id;
+    html += `<div class="acc-list-card${isActive ? ' active-acc' : ''}">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700">📁 ${esc(c.name)}</span>
+          ${isActive ? '<span class="acc-badge-active">현재</span>' : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:3px">${memberNames}</div>
+      </div>
+      ${!isActive ? `<button class="btn btn-sm" onclick="activateConsolidated('${c.id}')">전환</button>` : ''}
+      <button class="btn btn-sm" onclick="editConsolidated('${c.id}')">편집</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteConsolidated('${c.id}')">삭제</button>
+    </div>`;
+  });
+
+  html += `<div class="acc-form-card">
+    <div class="acc-form-title">📁 종합계좌 만들기</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="meta-label" style="margin-bottom:4px">종합계좌 이름</div>
+        <input class="inp" id="new-cons-name" placeholder="예: 전체 종합, 국내만" style="width:240px">
+      </div>
+      <div>
+        <div class="meta-label" style="margin-bottom:8px">포함할 계좌 선택</div>
+        <div id="cons-member-checkboxes" style="display:flex;flex-direction:column;gap:6px">
+          ${memberCheckboxes}
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" onclick="addConsolidated()">📁 종합계좌 만들기</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div style="flex:1;min-width:280px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">☁️ 구글 드라이브 백업</div>
+    <div class="acc-form-card" id="gdrive-section">
+      ${buildGdriveUI()}
+    </div>
+  </div>
+  </div>`; // 3컬럼 flex 래퍼 닫기
 
   tab.innerHTML = html;
 }
@@ -2505,6 +2918,7 @@ function deleteAccount(id) {
 // ═══════════════════════════════════════════════════════════════════
 
 function renderMonitorTab() {
+  if (appData.activeConsolidatedId) { renderConsolidatedMonitor(); return; }
   const tab = document.getElementById('tab-monitor');
   if (!tab) return;
 
@@ -2661,6 +3075,157 @@ function renderMonitorTab() {
   </div>`;
 }
 
+function renderConsolidatedMonitor() {
+  const tab = document.getElementById('tab-monitor');
+  if (!tab) return;
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  if (!cons) return;
+
+  const isDark = (state.meta.theme || 'dark') === 'dark';
+  const textSub   = isDark ? '#7a8090' : '#6b7280';
+  const textColor = isDark ? '#dde1ea' : '#1a1d24';
+  const gridColor = isDark ? '#2e323c' : '#d8dce4';
+  const p0Line    = isDark ? '#4a5060' : '#9ca3af';
+
+  // ── 라인차트: 종합 history 기준 ──────────────────────────────────
+  const snapshots = [...(cons.history || [])].reverse();
+  let lineChart = '';
+  if (snapshots.length < 2) {
+    lineChart = `<div class="chart-empty">스냅샷이 2개 이상 쌓이면 그래프가 표시됩니다.<br>현재 ${snapshots.length}개</div>`;
+  } else {
+    const W = 600, H = 160, PAD = { t: 16, r: 20, b: 48, l: 64 };
+    const vals   = snapshots.map(s => s.totals.totalVal);
+    const p0     = snapshots[0].p0 || 0;
+    const allVals = p0 > 0 ? [...vals, p0] : vals;
+    const minV   = Math.min(...allVals) * 0.98;
+    const maxV   = Math.max(...allVals) * 1.02;
+    const range  = maxV - minV || 1;
+    const cW     = W - PAD.l - PAD.r;
+    const cH     = H - PAD.t - PAD.b;
+    const xOf    = i => PAD.l + (i / (snapshots.length - 1)) * cW;
+    const yOf    = v => PAD.t + cH - ((v - minV) / range) * cH;
+
+    let gridLines = '';
+    for (let k = 0; k <= 4; k++) {
+      const v = minV + (range * k / 4);
+      const y = yOf(v);
+      gridLines += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${gridColor}" stroke-dasharray="3,3" stroke-width="1"/>`;
+      gridLines += `<text x="${PAD.l - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="${textSub}">${fmtNum(v / 10000)}만</text>`;
+    }
+
+    let xLabels = '';
+    const labelIdx = [0, snapshots.length - 1];
+    if (snapshots.length > 2) labelIdx.splice(1, 0, Math.floor(snapshots.length / 2));
+    labelIdx.forEach(idx => {
+      const dt = new Date(snapshots[idx].ts);
+      const dateL = `${dt.getMonth()+1}/${dt.getDate()}`;
+      const timeL = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const x = xOf(idx);
+      xLabels += `<text x="${x}" y="${H - PAD.b + 14}" text-anchor="middle" font-size="10" fill="${textSub}">${dateL}</text>`;
+      xLabels += `<text x="${x}" y="${H - PAD.b + 26}" text-anchor="middle" font-size="10" fill="${textSub}">${timeL}</text>`;
+    });
+
+    let p0LineEl = '';
+    if (p0 > 0) {
+      const y = yOf(p0);
+      p0LineEl = `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${p0Line}" stroke-dasharray="5,4" stroke-width="1.5"/>
+        <text x="${W - PAD.r + 2}" y="${y + 4}" font-size="9" fill="${p0Line}">P0</text>`;
+    }
+
+    const points   = snapshots.map((s, i) => `${xOf(i)},${yOf(s.totals.totalVal)}`).join(' ');
+    const accentC  = isDark ? '#4d9eff' : '#1a73e8';
+    const posC     = isDark ? '#3ecf8e' : '#0f9d58';
+    const lastVal  = vals[vals.length - 1];
+    const lineColor = p0 > 0 && lastVal >= p0 ? posC : accentC;
+    const dotsHtml = snapshots.map((s, i) => {
+      const dt = new Date(s.ts);
+      const label = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')} — ${fmtNum(s.totals.totalVal)}원`;
+      return `<circle cx="${xOf(i)}" cy="${yOf(s.totals.totalVal)}" r="4" fill="${lineColor}" stroke="var(--surface)" stroke-width="1.5"><title>${label}</title></circle>`;
+    }).join('');
+
+    lineChart = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+      ${gridLines}${xLabels}${p0LineEl}
+      <polyline points="${points}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>
+      ${dotsHtml}
+    </svg>`;
+  }
+
+  // ── 도넛차트: 현재 합산 종목별 평가액 ───────────────────────────
+  const data = buildConsolidatedData(cons);
+  const fxN  = (data && data.fxN) || 0;
+  let donutChart = '';
+
+  if (!data || !data.stocks.length) {
+    donutChart = `<div class="chart-empty">포트폴리오 평가금액을 입력하면 차트가 표시됩니다.</div>`;
+  } else {
+    const usVal  = data.stocks.filter(s => s.market === 'US').reduce((a, s) => a + s.q * s.price * (fxN || 1), 0);
+    const krVal  = data.stocks.filter(s => s.market === 'KR').reduce((a, s) => a + s.q * s.price, 0);
+    const total  = usVal + krVal;
+    const colors = isDark ? { US: '#4d9eff', KR: '#ff6b6b' } : { US: '#1a73e8', KR: '#d32f2f' };
+
+    if (total <= 0) {
+      donutChart = `<div class="chart-empty">포트폴리오 평가금액을 입력하면 차트가 표시됩니다.</div>`;
+    } else {
+      const segments = [
+        { label: '미국(USD)', key: 'US', val: usVal },
+        { label: '한국(KRW)', key: 'KR', val: krVal },
+      ].filter(s => s.val > 0);
+
+      const CX = 100, CY = 100, R = 80, r = 48;
+      let startAngle = -Math.PI / 2;
+      let paths = '';
+      const arcPath = (cx, cy, R, r, s, e) => {
+        const x1 = cx + R * Math.cos(s), y1 = cy + R * Math.sin(s);
+        const x2 = cx + R * Math.cos(e), y2 = cy + R * Math.sin(e);
+        const x3 = cx + r * Math.cos(e), y3 = cy + r * Math.sin(e);
+        const x4 = cx + r * Math.cos(s), y4 = cy + r * Math.sin(s);
+        const large = (e - s) > Math.PI ? 1 : 0;
+        return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z`;
+      };
+      segments.forEach(seg => {
+        const sweep = (seg.val / total) * 2 * Math.PI;
+        const endAngle = startAngle + sweep;
+        const pct = (seg.val / total * 100).toFixed(1);
+        const mid = startAngle + sweep / 2;
+        const lx = CX + (R + 14) * Math.cos(mid);
+        const ly = CY + (R + 14) * Math.sin(mid);
+        paths += `<path d="${arcPath(CX, CY, R, r, startAngle, endAngle)}" fill="${colors[seg.key]}" opacity="0.9">
+          <title>${seg.label}: ${fmtNum(seg.val)}원 (${pct}%)</title></path>`;
+        if (sweep > 0.25) {
+          paths += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="${textColor}" font-weight="600">${pct}%</text>`;
+        }
+        startAngle = endAngle;
+      });
+
+      const donutSvg = `<svg viewBox="0 0 220 220" style="width:200px;height:200px;flex-shrink:0">
+        ${paths}
+        <text x="${CX}" y="${CY - 8}" text-anchor="middle" font-size="9" fill="${textSub}">총 평가</text>
+        <text x="${CX}" y="${CY + 9}" text-anchor="middle" font-size="11" fill="${textColor}" font-weight="700">${fmtNum(total/10000)}만</text>
+      </svg>`;
+      donutChart = `<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        ${donutSvg}
+        <div class="chart-legend" style="flex-direction:column;gap:10px">
+          ${segments.map(s => `<div class="legend-item">
+            <div class="legend-dot" style="background:${colors[s.key]}"></div>
+            <span><strong>${s.label}</strong> — ${fmtNum(s.val)}원 (${(s.val/total*100).toFixed(1)}%)</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  tab.innerHTML = `<div class="monitor-grid">
+    <div class="chart-card">
+      <div class="chart-title">📁 ${esc(cons.name)} — 자산 추이</div>
+      ${lineChart}
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📁 ${esc(cons.name)} — 자산 구성</div>
+      ${donutChart}
+    </div>
+  </div>`;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  렌더 진입점
 // ═══════════════════════════════════════════════════════════════════
@@ -2669,13 +3234,29 @@ function renderMonitorTab() {
 function renderAccountDropdown() {
   const sel = document.getElementById('account-select');
   if (!sel) return;
-  sel.innerHTML = appData.accounts.map(a =>
-    `<option value="${esc(a.id)}"${a.id === appData.activeAccountId ? ' selected' : ''}>${esc(a.name)}</option>`
-  ).join('');
+  let html = appData.accounts.map(a => {
+    const selected = !appData.activeConsolidatedId && a.id === appData.activeAccountId;
+    return `<option value="${esc(a.id)}"${selected ? ' selected' : ''}>${esc(a.name)}</option>`;
+  }).join('');
+  const cons = appData.consolidated || [];
+  if (cons.length) {
+    html += `<option disabled>──────────</option>`;
+    cons.forEach(c => {
+      const selected = appData.activeConsolidatedId === c.id;
+      html += `<option value="${esc(c.id)}"${selected ? ' selected' : ''}>📁 ${esc(c.name)}</option>`;
+    });
+  }
+  sel.innerHTML = html;
 }
 
 function onAccountChange(id) {
-  if (id === appData.activeAccountId) return;
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (cons) {
+    activateConsolidated(id);
+    return;
+  }
+  if (appData.activeConsolidatedId) appData.activeConsolidatedId = null;
+  if (id === appData.activeAccountId) { render(); return; }
   activateAccount(id);
   saveState();
   render();
@@ -2683,11 +3264,282 @@ function onAccountChange(id) {
 
 function render() {
   renderAccountDropdown();
+  updateViewModeButton();
   renderAccountsTab();
-  renderSettingsTable();
-  renderPortfolioTable();
-  renderMonitorTab();
-  renderHistoryTab();
+
+  const isConsolidated = !!appData.activeConsolidatedId;
+
+  // 탭 버튼 표시/숨김
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const tab = btn.dataset.tab;
+    btn.style.display = isConsolidated && (tab === 'settings' || tab === 'reset') ? 'none' : '';
+  });
+
+  // 포트폴리오 하단 버튼 숨김/표시
+  ['pf-actions-main', 'pf-actions-cash'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isConsolidated ? 'none' : '';
+  });
+
+  if (isConsolidated) {
+    // 종합 모드: 숨겨진 탭이 활성이면 포트폴리오로 이동
+    const activeBtn = document.querySelector('.tab-btn.active');
+    if (activeBtn && (activeBtn.dataset.tab === 'settings' || activeBtn.dataset.tab === 'reset')) {
+      const pfBtn = document.querySelector('.tab-btn[data-tab="portfolio"]');
+      if (pfBtn) { pfBtn.click(); return; }
+    }
+    renderConsolidatedPortfolio();
+    renderMonitorTab();
+    renderHistoryTab();
+  } else {
+    renderSettingsTable();
+    renderPortfolioTable();
+    renderMonitorTab();
+    renderHistoryTab();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  종합계좌 함수
+// ═══════════════════════════════════════════════════════════════════
+
+function buildConsolidatedData(cons) {
+  const members = appData.accounts.filter(a => cons.memberIds.includes(a.id));
+  if (!members.length) return null;
+
+  const p0 = members.reduce((sum, m) => sum + (m.state.meta.p0 || 0), 0);
+  const fxN = members[0].state.meta.fxN || 0;
+  const fx0 = members[0].state.meta.fx0 || 0;
+
+  const stockMap = {};
+  members.forEach(m => {
+    m.state.stocks.forEach(s => {
+      if (s.market === 'CASH') return;
+      if (!stockMap[s.id]) {
+        stockMap[s.id] = {
+          id: s.id, name: s.name, ticker: s.ticker, market: s.market,
+          q: 0, avgSum: 0, price: s.price, realized: 0, r: 0, adjR: 0
+        };
+      }
+      const t = stockMap[s.id];
+      t.avgSum += s.q * (s.avg || 0);
+      t.q += s.q;
+      t.realized += (s.realized || 0);
+      if (s.price) t.price = s.price;
+    });
+  });
+
+  const stocks = Object.values(stockMap).map(t => ({
+    ...t,
+    avg: t.q > 0 ? t.avgSum / t.q : 0,
+  }));
+
+  return { p0, fxN, fx0, stocks };
+}
+
+function addConsolidated() {
+  const nameEl = document.getElementById('new-cons-name');
+  const name = (nameEl ? nameEl.value : '').trim();
+  if (!name) { alert('종합계좌 이름을 입력해 주세요.'); return; }
+  const checkboxes = document.querySelectorAll('#cons-member-checkboxes input[type="checkbox"]:checked');
+  const memberIds = Array.from(checkboxes).map(cb => cb.value);
+  if (memberIds.length < 2) { alert('2개 이상의 계좌를 선택해 주세요.'); return; }
+  if (!appData.consolidated) appData.consolidated = [];
+  appData.consolidated.push({ id: 'cons_' + Date.now(), name, memberIds, history: [] });
+  saveState();
+  render();
+}
+
+function deleteConsolidated(id) {
+  if (!confirm('이 종합계좌를 삭제하시겠습니까? (포함된 개별 계좌는 영향 없음)')) return;
+  appData.consolidated = (appData.consolidated || []).filter(c => c.id !== id);
+  if (appData.activeConsolidatedId === id) appData.activeConsolidatedId = null;
+  saveState();
+  render();
+}
+
+function editConsolidated(id) {
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (!cons) return;
+  // 현재 포함된 계좌 id 목록을 쉼표로 보여주고, 계좌 이름으로 선택하도록 안내
+  const accList = appData.accounts.map(a => `${a.name} (${a.id})`).join('\n');
+  const currentNames = cons.memberIds.map(mid => {
+    const a = appData.accounts.find(a => a.id === mid); return a ? a.name : mid;
+  }).join(', ');
+  const newName = prompt(
+    `종합계좌 이름:\n계좌 목록:\n${accList}\n\n현재 포함 계좌: ${currentNames}\n\n새 이름 (변경 없으면 그대로):`,
+    cons.name
+  );
+  if (newName === null) return;
+  if (newName.trim()) cons.name = newName.trim();
+
+  // 포함 계좌 재선택: 계좌 이름을 쉼표로 입력
+  const nameToId = {};
+  appData.accounts.forEach(a => { nameToId[a.name] = a.id; });
+  const input = prompt(
+    `포함할 계좌 이름을 쉼표로 입력하세요 (2개 이상):\n예: ${appData.accounts.map(a => a.name).join(', ')}\n\n현재: ${currentNames}`,
+    currentNames
+  );
+  if (input === null) { saveState(); render(); return; }
+  const newIds = input.split(',').map(s => s.trim()).map(name => nameToId[name]).filter(Boolean);
+  if (newIds.length < 2) { alert('유효한 계좌가 2개 이상이어야 합니다. 변경하지 않습니다.'); saveState(); render(); return; }
+  cons.memberIds = newIds;
+  saveState();
+  render();
+}
+
+function activateConsolidated(id) {
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (!cons) return;
+  appData.activeConsolidatedId = id;
+  saveState();
+  render();
+}
+
+function deactivateConsolidated() {
+  appData.activeConsolidatedId = null;
+  saveState();
+  render();
+}
+
+function renderConsolidatedPortfolio() {
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  const summary = document.getElementById('pf-summary-bar');
+  const wrap    = document.getElementById('pf-tbl-wrap');
+  if (!cons) return;
+
+  const data = buildConsolidatedData(cons);
+  if (!data || !data.stocks.length) {
+    if (summary) summary.innerHTML = '<div style="padding:16px;font-size:14px;color:var(--text-sub)">포함된 계좌에 종목이 없습니다.</div>';
+    if (wrap) wrap.innerHTML = '';
+    document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = 'none');
+    return;
+  }
+
+  const per1  = data.p0 / 100;
+  const fxN   = data.fxN || 0;
+  const hasFxN = fxN > 0;
+
+  // 요약 바
+  let totalVal = 0, totalRealized = 0;
+  data.stocks.forEach(s => {
+    const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+    totalVal      += s.q * pKRW;
+    totalRealized += s.realized || 0;
+  });
+  const pctChg = data.p0 ? (totalVal - data.p0) / data.p0 * 100 : 0;
+  const pctStr = (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%';
+  const pctCls = pctChg >= 0 ? 'val-pos' : 'val-neg';
+  const memberNames = cons.memberIds
+    .map(id => appData.accounts.find(a => a.id === id)?.name || '?')
+    .join(', ');
+
+  if (summary) summary.innerHTML = `
+    <div class="pf-summary" style="flex-wrap:wrap;gap:28px;padding:14px 20px">
+      <div class="pf-summary-item"><div class="s-label">📁 ${esc(cons.name)}</div>
+        <div style="font-size:11px;color:var(--text-sub)">${esc(memberNames)}</div></div>
+      <div class="pf-summary-item"><div class="s-label">합산 원금</div>
+        <div class="s-val">${fmtNum(data.p0)} 원</div></div>
+      <div class="pf-summary-item"><div class="s-label">총 평가금액</div>
+        <div class="s-val">${fmtNum(totalVal)} 원</div></div>
+      <div class="pf-summary-item"><div class="s-label">원금 대비</div>
+        <div class="s-val ${pctCls}">${pctStr}</div></div>
+      <div class="pf-summary-item"><div class="s-label">실현손익 누계</div>
+        <div class="s-val ${totalRealized >= 0 ? 'val-pos' : 'val-neg'}">${fmtNum(totalRealized)} 원</div></div>
+    </div>`;
+
+  // 표 (7열, 읽기 전용)
+  const groups = [
+    { label: '미국 (USD)', market: 'US' },
+    { label: '한국 (KRW)', market: 'KR' },
+  ];
+
+  let html = `<table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:180px">
+      <col style="width:100px">
+      <col style="width:100px">
+      <col style="width:90px">
+      <col style="width:80px">
+      <col style="width:110px">
+      <col style="width:100px">
+    </colgroup>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num">현재가</th>
+      <th class="num">평단가</th>
+      <th class="num">보유수량</th>
+      <th class="num">현재비중</th>
+      <th class="num">평가손익</th>
+      <th class="num">실현손익</th>
+    </tr></thead><tbody>`;
+
+  groups.forEach(g => {
+    const stocks = data.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+
+    html += `<tr class="group-hdr"><td colspan="7">${g.label}</td></tr>`;
+    let subVal = 0, subWeight = 0, subUnreal = 0, subReal = 0;
+
+    stocks.forEach(s => {
+      const pKRW   = s.market === 'US' ? s.price * fxN : s.price;
+      const val    = s.q * pKRW;
+      const wt     = per1 > 0 ? val / per1 : 0;
+      const avgKRW = s.market === 'US' ? s.avg * fxN : s.avg;
+      const unreal = s.q && s.avg && s.price ? (pKRW - avgKRW) * s.q : 0;
+      const valOk  = s.market !== 'US' || hasFxN;
+
+      subVal    += val;
+      subWeight += wt;
+      subUnreal += unreal;
+      subReal   += (s.realized || 0);
+
+      const badgeClass = s.market === 'US' ? 'badge-us' : 'badge-kr';
+      const unrealCls  = unreal >= 0 ? 'val-pos' : 'val-neg';
+      const realCls    = (s.realized || 0) >= 0 ? 'val-pos' : 'val-neg';
+
+      html += `<tr>
+        <td>
+          <span class="stock-name">${esc(s.name)}</span>
+          <span class="stock-ticker">${esc(s.ticker)}</span>
+          <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+        </td>
+        <td class="num">${s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.avg   ? fmtNum(s.avg,   s.avg   % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
+        <td class="num">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
+        <td class="num ${unrealCls}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
+        <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
+      </tr>`;
+    });
+
+    const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
+    const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
+    html += `<tr class="subtotal-row">
+      <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td class="num">${per1 ? fmtDec(subWeight, 2) : '—'}</td>
+      <td class="num ${subUnrealCls}">${fmtNum(subUnreal)}</td>
+      <td class="num ${subRealCls}">${fmtNum(subReal)}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  if (wrap) wrap.innerHTML = html;
+
+  document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = 'none');
+
+  // 종합 모드 전용 시세 버튼 영역
+  const existingConsActions = document.getElementById('cons-actions');
+  if (existingConsActions) existingConsActions.remove();
+  const consActions = document.createElement('div');
+  consActions.id = 'cons-actions';
+  consActions.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 16px;';
+  consActions.innerHTML = `
+    <button class="btn" onclick="fetchPrices()">시세 새로고침</button>
+    <span style="font-size:11px;color:var(--text-muted)">* 현재 선택된 개별 계좌의 시세를 가져옵니다</span>
+    <span id="fetch-result-cons" style="font-size:12px;display:none;white-space:pre-wrap"></span>
+  `;
+  if (wrap && wrap.parentNode) wrap.parentNode.insertBefore(consActions, wrap.nextSibling);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2698,36 +3550,364 @@ loadState();
 restoreActiveTab();
 render();
 loadPriceServerUrl();
+initGoogleDrive();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
-// ── 시세 서버 연동 ──────────────────────────────────────
-function loadPriceServerUrl() {
-  const url = localStorage.getItem('price_server_url') || '';
-  const el = document.getElementById('price-server-url');
-  if (el) el.value = url;
-  updateFetchButtonState();
+// ── 행 클릭 선택 토글 ──────────────────────────────────
+document.addEventListener('click', e => {
+  const tr = e.target.closest('#pf-tbl-wrap tbody tr, #settings-tbl-wrap tbody tr');
+  if (!tr) return;
+  if (tr.classList.contains('group-hdr') || tr.classList.contains('subtotal-row')) return;
+  if (e.target.closest('input, button, select')) return;
+  const wasSelected = tr.classList.contains('row-selected');
+  document.querySelectorAll('#pf-tbl-wrap .row-selected, #settings-tbl-wrap .row-selected')
+    .forEach(el => el.classList.remove('row-selected'));
+  if (!wasSelected) tr.classList.add('row-selected');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  구글 드라이브 백업 연동
+// ═══════════════════════════════════════════════════════════════════
+
+function initGoogleDrive() {
+  // GIS 라이브러리 로드 대기 (최대 10초, 500ms 간격)
+  let attempts = 0;
+  const maxAttempts = 20;
+
+  function tryInit() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+      const saved = localStorage.getItem('gdrive_auto_backup');
+      gdriveAutoBackup = saved !== null ? saved === 'true' : true;
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      console.log('Google Drive 초기화 완료');
+      updateGdriveUI();
+      return;
+    }
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(tryInit, 500);
+    } else {
+      console.log('Google Identity Services 로드 시간 초과 — 드라이브 기능 비활성');
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      updateGdriveUI();
+    }
+  }
+
+  tryInit();
 }
 
-function savePriceServerUrl(val) {
-  localStorage.setItem('price_server_url', val.trim());
+function connectGoogleDrive() {
+  if (!gdriveTokenClient) {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+    } else {
+      alert('구글 로그인 서비스를 불러오는 중입니다.\n잠시 후 다시 시도해 주세요.');
+      return;
+    }
+  }
+  gdriveTokenClient.requestAccessToken();
+}
+
+async function onGdriveTokenResponse(tokenResponse) {
+  if (tokenResponse.error) {
+    console.error('Google OAuth error:', tokenResponse.error);
+    alert('구글 로그인에 실패했습니다: ' + (tokenResponse.error_description || tokenResponse.error));
+    return;
+  }
+  gdriveAccessToken = tokenResponse.access_token;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${gdriveAccessToken}` }
+    });
+    const info = await res.json();
+    gdriveUserEmail = info.email || '연결됨';
+    localStorage.setItem('gdrive_user_email', gdriveUserEmail);
+  } catch (e) {
+    gdriveUserEmail = '연결됨';
+  }
+  updateGdriveUI();
+}
+
+function disconnectGoogleDrive() {
+  if (gdriveAccessToken && typeof google !== 'undefined') {
+    google.accounts.oauth2.revoke(gdriveAccessToken, () => {
+      console.log('Google token revoked');
+    });
+  }
+  gdriveAccessToken = null;
+  gdriveUserEmail = null;
+  localStorage.removeItem('gdrive_user_email');
+  updateGdriveUI();
+}
+
+async function ensureGdriveToken() {
+  if (!gdriveAccessToken) return false;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + gdriveAccessToken);
+    if (res.ok) return true;
+  } catch (e) {}
+  return new Promise(resolve => {
+    gdriveTokenClient.callback = (resp) => {
+      if (resp.error) { gdriveAccessToken = null; resolve(false); return; }
+      gdriveAccessToken = resp.access_token;
+      gdriveTokenClient.callback = onGdriveTokenResponse;
+      resolve(true);
+    };
+    gdriveTokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+async function getOrCreateDriveFolder() {
+  const token = gdriveAccessToken;
+  const q = encodeURIComponent(`name='${GDRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const searchData = await searchRes.json();
+  if (searchData.files && searchData.files.length > 0) return searchData.files[0].id;
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: GDRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+  });
+  const created = await createRes.json();
+  return created.id;
+}
+
+async function saveToDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) { console.log('드라이브 토큰 없음 — 백업 스킵'); return false; }
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+
+    // 날짜/시간 기반 파일명 (항상 새 파일 생성)
+    const now = new Date();
+    const ts = now.getFullYear()
+      + '-' + String(now.getMonth() + 1).padStart(2, '0')
+      + '-' + String(now.getDate()).padStart(2, '0')
+      + '_' + String(now.getHours()).padStart(2, '0')
+      + '-' + String(now.getMinutes()).padStart(2, '0')
+      + '-' + String(now.getSeconds()).padStart(2, '0');
+    const fileName = `backup_${ts}.json`;
+
+    const backupData = JSON.stringify(appData, null, 2);
+    const metadata = { name: fileName, mimeType: 'application/json', parents: [folderId] };
+    const boundary = '---rebalance_backup_boundary';
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${backupData}\r\n--${boundary}--`;
+
+    const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (uploadRes.ok) {
+      const nowStr = now.toLocaleString('ko-KR');
+      localStorage.setItem('gdrive_last_backup', nowStr);
+      updateGdriveUI();
+      console.log('드라이브 백업 완료:', fileName);
+      return true;
+    } else {
+      const err = await uploadRes.text();
+      console.error('드라이브 업로드 실패:', err);
+      return false;
+    }
+  } catch (e) {
+    console.error('드라이브 저장 오류:', e);
+    return false;
+  }
+}
+
+async function loadFromDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) { alert('구글 드라이브에 연결되어 있지 않습니다.\n먼저 연결해 주세요.'); return; }
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+
+    // 폴더 내 모든 JSON 파일 조회 (최신순, 최대 30개)
+    const q = encodeURIComponent(`'${folderId}' in parents and mimeType='application/json' and trashed=false`);
+    const searchRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&pageSize=30&fields=files(id,name,modifiedTime,size)`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const searchData = await searchRes.json();
+
+    if (!searchData.files || !searchData.files.length) {
+      alert('드라이브에 백업 파일이 없습니다.');
+      return;
+    }
+
+    showDriveFileList(searchData.files);
+  } catch (e) {
+    console.error('드라이브 불러오기 오류:', e);
+    alert('드라이브에서 파일 목록을 가져오는 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+function showDriveFileList(files) {
+  const existing = document.getElementById('gdrive-file-modal');
+  if (existing) existing.remove();
+
+  let listHtml = '';
+  files.forEach((f, i) => {
+    const date = f.modifiedTime
+      ? new Date(f.modifiedTime).toLocaleString('ko-KR')
+      : '알 수 없음';
+    const sizeKB = f.size ? (parseInt(f.size) / 1024).toFixed(1) + ' KB' : '';
+    const badge = i === 0 ? ' <span style="color:var(--positive);font-size:11px;font-weight:700">최신</span>' : '';
+    listHtml += `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer"
+           onclick="restoreFromDrive('${f.id}', '${esc(f.name)}')"
+           onmouseover="this.style.background='var(--surface2)'"
+           onmouseout="this.style.background='transparent'">
+        <div>
+          <div style="font-size:13px;font-weight:600">${esc(f.name)}${badge}</div>
+          <div style="font-size:11px;color:var(--text-sub)">${date}${sizeKB ? ' · ' + sizeKB : ''}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();restoreFromDrive('${f.id}', '${esc(f.name)}')">복원</button>
+      </div>`;
+  });
+
+  const modal = document.createElement('div');
+  modal.id = 'gdrive-file-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;display:flex;align-items:center;justify-content:center;';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:16px;font-weight:700">☁️ 드라이브 백업 목록</div>
+        <button style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text)" onclick="document.getElementById('gdrive-file-modal').remove()">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">
+        ${listHtml}
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-sub)">
+        총 ${files.length}개 백업 · 클릭하여 복원
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+async function restoreFromDrive(fileId, fileName) {
+  if (!confirm(`"${fileName}" 백업을 복원합니다.\n\n현재 모든 데이터가 이 백업으로 교체됩니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+  try {
+    const token = gdriveAccessToken;
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fileText = await fileRes.text();
+    const loaded = JSON.parse(fileText);
+
+    if (!loaded.accounts || !Array.isArray(loaded.accounts) || !loaded.accounts.length) {
+      alert('백업 파일 형식이 올바르지 않습니다.');
+      return;
+    }
+
+    appData = loaded;
+    if (!appData.consolidated) appData.consolidated = [];
+    if (!appData.activeConsolidatedId) appData.activeConsolidatedId = null;
+
+    const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
+      ? appData.activeAccountId : appData.accounts[0].id;
+    activateAccount(validId);
+    saveState();
+    applyTheme(state.meta.theme || 'dark');
+    render();
+
+    const modal = document.getElementById('gdrive-file-modal');
+    if (modal) modal.remove();
+
+    alert(`백업 복원 완료! (${loaded.accounts.length}개 계좌)\n파일: ${fileName}`);
+  } catch (e) {
+    console.error('드라이브 복원 오류:', e);
+    alert('복원 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+async function manualDriveBackup() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '백업 중...';
+  const ok = await saveToDrive();
+  btn.disabled = false;
+  btn.textContent = '지금 백업하기';
+  if (ok) { alert('구글 드라이브에 백업 완료!'); }
+  else { alert('백업에 실패했습니다. 연결 상태를 확인해 주세요.'); }
+}
+
+function buildGdriveUI() {
+  const isConnected = !!gdriveAccessToken;
+  const email = gdriveUserEmail || '';
+  const lastBackup = localStorage.getItem('gdrive_last_backup') || '없음';
+  const autoChecked = gdriveAutoBackup ? 'checked' : '';
+
+  if (!isConnected) {
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;color:var(--text-sub)">
+          구글 드라이브에 연결하면 확정 저장할 때마다 자동으로 백업됩니다.
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="connectGoogleDrive()">구글 드라이브 연결</button>
+        </div>
+        ${email ? `<div style="font-size:11px;color:var(--text-muted)">이전 연결: ${esc(email)} (재연결 필요)</div>` : ''}
+      </div>`;
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--positive);font-weight:700">✅ 연결됨</span>
+        <span style="font-size:13px;color:var(--text-sub)">${esc(email)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${autoChecked}
+            onchange="gdriveAutoBackup=this.checked; localStorage.setItem('gdrive_auto_backup', this.checked)">
+          확정 저장 시 자동 백업
+        </label>
+      </div>
+      <div style="font-size:12px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="manualDriveBackup()">지금 백업하기</button>
+        <button class="btn" onclick="loadFromDrive()">드라이브에서 불러오기</button>
+        <button class="btn btn-sm" style="color:var(--text-muted)" onclick="disconnectGoogleDrive()">연결 해제</button>
+      </div>
+    </div>`;
+}
+
+function updateGdriveUI() {
+  const section = document.getElementById('gdrive-section');
+  if (section) section.innerHTML = buildGdriveUI();
+}
+
+// ── 시세 서버 연동 ──────────────────────────────────────
+function loadPriceServerUrl() {
   updateFetchButtonState();
 }
 
 function getPriceServerUrl() {
-  return (localStorage.getItem('price_server_url') || '').trim().replace(/\/$/, '');
+  return 'https://rebalance-price-server.onrender.com';
 }
 
 function updateFetchButtonState() {
-  const hasUrl = !!getPriceServerUrl();
-  ['btn-fetch-prices', 'btn-fetch-prices-settings'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = !hasUrl;
-    btn.title = hasUrl ? '' : '기준설정 탭에서 가격 서버 주소를 먼저 입력하세요';
-  });
+  const btn = document.getElementById('btn-fetch-prices');
+  if (btn) { btn.disabled = false; btn.title = ''; }
 }
 
 async function fetchPrices() {
