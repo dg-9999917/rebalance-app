@@ -1,5 +1,16 @@
 # 구현 진행 상황
 
+## v2 지시문 3/3 (종합계좌 — 뷰·모니터링·이력) — 2026-07-06
+- [x] renderConsolidatedPortfolio: 합산 읽기전용 표 (7열), 요약 바, 하단 버튼 숨김
+- [x] renderPortfolioTable에서 개별 모드 복귀 시 pf-actions 재표시
+- [x] renderConsolidatedMonitor: 종합 history 기준 라인차트·도넛차트
+- [x] commitTrades에 saveConsolidatedSnapshots 훅 추가
+- [x] saveConsolidatedSnapshots: 멤버 계좌 확정 시 종합 스냅샷 자동 저장
+- [x] renderConsolidatedHistory: 종합 스냅샷 목록 + 거래로그 서브탭
+- [x] 종합 모드에서 시세새로고침·미리보기·확정저장·되돌리기 숨김
+- [x] 개별↔종합 전환 시 탭·버튼 표시 정상
+- [x] sw.js CACHE_NAME rebalance-v25 → rebalance-v26
+
 ## v2 지시문 2 보완 (계좌설정 탭 좌우 배치) — 2026-07-06
 - [x] 계좌 목록(왼쪽) + 종합계좌(오른쪽) 좌우 배치
 - [x] 점선 구분선 삭제

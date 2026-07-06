@@ -1456,6 +1456,7 @@ function renderPortfolioSummary() {
 }
 
 function renderPortfolioTable() {
+  document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = '');
   renderPortfolioSummary();
   const wrap = document.getElementById('pf-tbl-wrap');
   const per1 = state.meta.p0 / 100;
@@ -1940,6 +1941,7 @@ function commitTrades() {
   const cashDelta = cashStock ? Math.round(cashStock.q - prevCashQ) : 0;
 
   state.history.unshift(buildSnapshot('리밸런싱 확정', null, { changedQty, changedAdjR, cashDelta }));
+  saveConsolidatedSnapshots();
   saveState();
   closeConfirmModal();
   render();
@@ -1970,6 +1972,37 @@ function buildSnapshot(label, cashSettlement, tags) {
   };
 }
 
+function saveConsolidatedSnapshots() {
+  if (!appData.consolidated || !appData.consolidated.length) return;
+  const currentAccId = appData.activeAccountId;
+  appData.consolidated.forEach(cons => {
+    if (!cons.memberIds.includes(currentAccId)) return;
+    const data = buildConsolidatedData(cons);
+    if (!data) return;
+    const fxN = data.fxN || 1;
+    let totalVal = 0, totalRealized = 0;
+    data.stocks.forEach(s => {
+      const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+      totalVal      += s.q * pKRW;
+      totalRealized += s.realized || 0;
+    });
+    const snapshot = {
+      ts:          new Date().toISOString(),
+      label:       '종합 자동 저장',
+      triggeredBy: currentAccId,
+      p0:          data.p0,
+      fxN:         data.fxN,
+      stocks:      data.stocks.map(s => {
+        const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+        return { id: s.id, name: s.name, ticker: s.ticker, market: s.market,
+                 q: s.q, avg: s.avg, price: s.price, realized: s.realized, val: s.q * pKRW };
+      }),
+      totals: { totalVal, totalRealized }
+    };
+    cons.history.unshift(snapshot);
+  });
+}
+
 function closeConfirmModal() {
   document.getElementById('confirm-overlay').style.display = 'none';
 }
@@ -1979,9 +2012,128 @@ function closeConfirmModal() {
 //  이력 탭 (step ⑤)
 // ═══════════════════════════════════════════════════════════════════
 
-let _histSubTab = 'snapshots'; // 'snapshots' | 'tradelog'
+let _histSubTab = 'snapshots';     // 'snapshots' | 'tradelog'
+let _consHistSubTab = 'snapshots'; // 종합계좌 이력 서브탭
+
+function renderConsolidatedHistory() {
+  const tab  = document.getElementById('tab-history');
+  if (!tab) return;
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  if (!cons) return;
+
+  const history = cons.history || [];
+  if (!history.length) {
+    tab.innerHTML = `<div class="placeholder">
+      <strong>이력 없음</strong>
+      개별 계좌에서 확정 저장 시 자동으로 쌓입니다.
+    </div>`;
+    return;
+  }
+
+  const subBtnStyle = key => `padding:5px 14px;border:1px solid var(--border);border-radius:5px;font-size:13px;font-weight:600;background:${_consHistSubTab===key?'var(--accent)':'var(--btn-bg)'};color:${_consHistSubTab===key?'#fff':'var(--text)'};cursor:pointer`;
+
+  let html = `<div style="padding:0">
+    <div style="display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:6px">
+      <button style="${subBtnStyle('snapshots')}" onclick="_consHistSubTab='snapshots';renderConsolidatedHistory()">스냅샷 목록</button>
+      <button style="${subBtnStyle('tradelog')}"  onclick="_consHistSubTab='tradelog';renderConsolidatedHistory()">거래 로그</button>
+    </div>`;
+
+  if (_consHistSubTab === 'tradelog') {
+    // 거래로그: 연속 스냅샷 비교
+    html += `<div style="overflow-y:auto;max-height:calc(100vh - 110px)">`;
+    html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">종합 거래 로그 (${history.length - 1}건 비교)</div>`;
+    if (history.length < 2) {
+      html += `<div class="placeholder">스냅샷이 2개 이상 쌓이면 거래 로그가 표시됩니다.</div>`;
+    } else {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">날짜</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">트리거 계좌</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">종목</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">수량 변동</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">평가금액</th>
+        </tr></thead><tbody>`;
+
+      for (let i = 0; i < history.length - 1; i++) {
+        const cur  = history[i];
+        const prev = history[i + 1];
+        const dt   = new Date(cur.ts);
+        const dtStr = dt.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        const triggerName = appData.accounts.find(a => a.id === cur.triggeredBy)?.name || cur.triggeredBy || '—';
+
+        // 수량 변동이 있는 종목 추출
+        const changed = [];
+        cur.stocks.forEach(s => {
+          const prevS = prev.stocks.find(ps => ps.id === s.id);
+          const prevQ = prevS ? prevS.q : 0;
+          const diff  = s.q - prevQ;
+          if (Math.abs(diff) >= 0.001) changed.push({ s, diff });
+        });
+
+        if (!changed.length) {
+          html += `<tr><td colspan="5" style="padding:6px 10px;color:var(--text-sub);border-bottom:1px solid var(--border)">${dtStr} · ${esc(triggerName)} — 수량 변동 없음</td></tr>`;
+        } else {
+          changed.forEach((item, j) => {
+            const { s, diff } = item;
+            const diffCls = diff > 0 ? 'need-buy' : 'need-sell';
+            const diffStr = diff > 0 ? `+${fmtDec(diff, 2)}` : fmtDec(diff, 2);
+            html += `<tr style="border-bottom:1px solid var(--border)">
+              ${j === 0 ? `<td style="padding:6px 10px" rowspan="${changed.length}">${dtStr}</td>
+                           <td style="padding:6px 10px;color:var(--text-sub)" rowspan="${changed.length}">${esc(triggerName)}</td>` : ''}
+              <td style="padding:6px 10px">${esc(s.name)} <span style="font-size:11px;color:var(--text-sub)">${esc(s.ticker)}</span></td>
+              <td style="text-align:right;padding:6px 10px"><span class="${diffCls}">${diffStr}주</span></td>
+              <td style="text-align:right;padding:6px 10px">${fmtNum(s.val)} 원</td>
+            </tr>`;
+          });
+        }
+      }
+      html += `</tbody></table>`;
+    }
+    html += `</div></div>`;
+    tab.innerHTML = html;
+    return;
+  }
+
+  // 스냅샷 목록
+  html += `<div style="overflow-y:auto;max-height:calc(100vh - 110px)">`;
+  html += `<div style="font-size:12px;color:var(--text-sub);padding:6px 16px 0">총 ${history.length}건</div>`;
+
+  history.forEach((snap, i) => {
+    const dt     = new Date(snap.ts);
+    const dtStr  = dt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const pct    = snap.p0 ? (snap.totals.totalVal - snap.p0) / snap.p0 * 100 : null;
+    const pctStr = pct !== null ? (pct >= 0 ? '+' : '') + fmtDec(pct, 2) + '%' : '';
+    const pctCls = pct !== null ? (pct >= 0 ? 'val-pos' : 'val-neg') : '';
+    const realCls = (snap.totals.totalRealized || 0) >= 0 ? 'val-pos' : 'val-neg';
+    const triggerName = appData.accounts.find(a => a.id === snap.triggeredBy)?.name || snap.triggeredBy || '—';
+
+    html += `<div style="background:var(--surface);border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;padding:8px 14px;gap:24px;flex-wrap:wrap">
+        <div style="flex:0 0 auto;min-width:120px">
+          <div style="font-size:10px;color:var(--text-sub)">#${history.length - i} · ${esc(triggerName)} 확정</div>
+          <div style="font-size:12px;font-weight:700">${dtStr}</div>
+        </div>
+        <div style="display:flex;gap:28px;flex-wrap:wrap;flex:1">
+          <div style="min-width:120px">
+            <div style="font-size:9px;color:var(--text-sub)">총 평가</div>
+            <div style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalVal)} 원
+              ${pctStr ? `<span class="${pctCls}" style="font-size:10px;margin-left:4px">${pctStr}</span>` : ''}</div>
+          </div>
+          <div style="min-width:110px">
+            <div style="font-size:9px;color:var(--text-sub)">실현손익</div>
+            <div class="${realCls}" style="font-size:12px;font-weight:700">${fmtNum(snap.totals.totalRealized)} 원</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += `</div></div>`;
+  tab.innerHTML = html;
+}
 
 function renderHistoryTab() {
+  if (appData.activeConsolidatedId) { renderConsolidatedHistory(); return; }
   const tab = document.getElementById('tab-history');
   if (!state.history || !state.history.length) {
     tab.innerHTML = `<div class="placeholder">
@@ -2556,6 +2708,7 @@ function deleteAccount(id) {
 // ═══════════════════════════════════════════════════════════════════
 
 function renderMonitorTab() {
+  if (appData.activeConsolidatedId) { renderConsolidatedMonitor(); return; }
   const tab = document.getElementById('tab-monitor');
   if (!tab) return;
 
@@ -2707,6 +2860,157 @@ function renderMonitorTab() {
     </div>
     <div class="chart-card">
       <div class="chart-title">자산 구성 (현재 시점)</div>
+      ${donutChart}
+    </div>
+  </div>`;
+}
+
+function renderConsolidatedMonitor() {
+  const tab = document.getElementById('tab-monitor');
+  if (!tab) return;
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  if (!cons) return;
+
+  const isDark = (state.meta.theme || 'dark') === 'dark';
+  const textSub   = isDark ? '#7a8090' : '#6b7280';
+  const textColor = isDark ? '#dde1ea' : '#1a1d24';
+  const gridColor = isDark ? '#2e323c' : '#d8dce4';
+  const p0Line    = isDark ? '#4a5060' : '#9ca3af';
+
+  // ── 라인차트: 종합 history 기준 ──────────────────────────────────
+  const snapshots = [...(cons.history || [])].reverse();
+  let lineChart = '';
+  if (snapshots.length < 2) {
+    lineChart = `<div class="chart-empty">스냅샷이 2개 이상 쌓이면 그래프가 표시됩니다.<br>현재 ${snapshots.length}개</div>`;
+  } else {
+    const W = 600, H = 160, PAD = { t: 16, r: 20, b: 48, l: 64 };
+    const vals   = snapshots.map(s => s.totals.totalVal);
+    const p0     = snapshots[0].p0 || 0;
+    const allVals = p0 > 0 ? [...vals, p0] : vals;
+    const minV   = Math.min(...allVals) * 0.98;
+    const maxV   = Math.max(...allVals) * 1.02;
+    const range  = maxV - minV || 1;
+    const cW     = W - PAD.l - PAD.r;
+    const cH     = H - PAD.t - PAD.b;
+    const xOf    = i => PAD.l + (i / (snapshots.length - 1)) * cW;
+    const yOf    = v => PAD.t + cH - ((v - minV) / range) * cH;
+
+    let gridLines = '';
+    for (let k = 0; k <= 4; k++) {
+      const v = minV + (range * k / 4);
+      const y = yOf(v);
+      gridLines += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${gridColor}" stroke-dasharray="3,3" stroke-width="1"/>`;
+      gridLines += `<text x="${PAD.l - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="${textSub}">${fmtNum(v / 10000)}만</text>`;
+    }
+
+    let xLabels = '';
+    const labelIdx = [0, snapshots.length - 1];
+    if (snapshots.length > 2) labelIdx.splice(1, 0, Math.floor(snapshots.length / 2));
+    labelIdx.forEach(idx => {
+      const dt = new Date(snapshots[idx].ts);
+      const dateL = `${dt.getMonth()+1}/${dt.getDate()}`;
+      const timeL = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const x = xOf(idx);
+      xLabels += `<text x="${x}" y="${H - PAD.b + 14}" text-anchor="middle" font-size="10" fill="${textSub}">${dateL}</text>`;
+      xLabels += `<text x="${x}" y="${H - PAD.b + 26}" text-anchor="middle" font-size="10" fill="${textSub}">${timeL}</text>`;
+    });
+
+    let p0LineEl = '';
+    if (p0 > 0) {
+      const y = yOf(p0);
+      p0LineEl = `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="${p0Line}" stroke-dasharray="5,4" stroke-width="1.5"/>
+        <text x="${W - PAD.r + 2}" y="${y + 4}" font-size="9" fill="${p0Line}">P0</text>`;
+    }
+
+    const points   = snapshots.map((s, i) => `${xOf(i)},${yOf(s.totals.totalVal)}`).join(' ');
+    const accentC  = isDark ? '#4d9eff' : '#1a73e8';
+    const posC     = isDark ? '#3ecf8e' : '#0f9d58';
+    const lastVal  = vals[vals.length - 1];
+    const lineColor = p0 > 0 && lastVal >= p0 ? posC : accentC;
+    const dotsHtml = snapshots.map((s, i) => {
+      const dt = new Date(s.ts);
+      const label = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')} — ${fmtNum(s.totals.totalVal)}원`;
+      return `<circle cx="${xOf(i)}" cy="${yOf(s.totals.totalVal)}" r="4" fill="${lineColor}" stroke="var(--surface)" stroke-width="1.5"><title>${label}</title></circle>`;
+    }).join('');
+
+    lineChart = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+      ${gridLines}${xLabels}${p0LineEl}
+      <polyline points="${points}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round"/>
+      ${dotsHtml}
+    </svg>`;
+  }
+
+  // ── 도넛차트: 현재 합산 종목별 평가액 ───────────────────────────
+  const data = buildConsolidatedData(cons);
+  const fxN  = (data && data.fxN) || 0;
+  let donutChart = '';
+
+  if (!data || !data.stocks.length) {
+    donutChart = `<div class="chart-empty">포트폴리오 평가금액을 입력하면 차트가 표시됩니다.</div>`;
+  } else {
+    const usVal  = data.stocks.filter(s => s.market === 'US').reduce((a, s) => a + s.q * s.price * (fxN || 1), 0);
+    const krVal  = data.stocks.filter(s => s.market === 'KR').reduce((a, s) => a + s.q * s.price, 0);
+    const total  = usVal + krVal;
+    const colors = isDark ? { US: '#4d9eff', KR: '#ff6b6b' } : { US: '#1a73e8', KR: '#d32f2f' };
+
+    if (total <= 0) {
+      donutChart = `<div class="chart-empty">포트폴리오 평가금액을 입력하면 차트가 표시됩니다.</div>`;
+    } else {
+      const segments = [
+        { label: '미국(USD)', key: 'US', val: usVal },
+        { label: '한국(KRW)', key: 'KR', val: krVal },
+      ].filter(s => s.val > 0);
+
+      const CX = 100, CY = 100, R = 80, r = 48;
+      let startAngle = -Math.PI / 2;
+      let paths = '';
+      const arcPath = (cx, cy, R, r, s, e) => {
+        const x1 = cx + R * Math.cos(s), y1 = cy + R * Math.sin(s);
+        const x2 = cx + R * Math.cos(e), y2 = cy + R * Math.sin(e);
+        const x3 = cx + r * Math.cos(e), y3 = cy + r * Math.sin(e);
+        const x4 = cx + r * Math.cos(s), y4 = cy + r * Math.sin(s);
+        const large = (e - s) > Math.PI ? 1 : 0;
+        return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z`;
+      };
+      segments.forEach(seg => {
+        const sweep = (seg.val / total) * 2 * Math.PI;
+        const endAngle = startAngle + sweep;
+        const pct = (seg.val / total * 100).toFixed(1);
+        const mid = startAngle + sweep / 2;
+        const lx = CX + (R + 14) * Math.cos(mid);
+        const ly = CY + (R + 14) * Math.sin(mid);
+        paths += `<path d="${arcPath(CX, CY, R, r, startAngle, endAngle)}" fill="${colors[seg.key]}" opacity="0.9">
+          <title>${seg.label}: ${fmtNum(seg.val)}원 (${pct}%)</title></path>`;
+        if (sweep > 0.25) {
+          paths += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="${textColor}" font-weight="600">${pct}%</text>`;
+        }
+        startAngle = endAngle;
+      });
+
+      const donutSvg = `<svg viewBox="0 0 220 220" style="width:200px;height:200px;flex-shrink:0">
+        ${paths}
+        <text x="${CX}" y="${CY - 8}" text-anchor="middle" font-size="9" fill="${textSub}">총 평가</text>
+        <text x="${CX}" y="${CY + 9}" text-anchor="middle" font-size="11" fill="${textColor}" font-weight="700">${fmtNum(total/10000)}만</text>
+      </svg>`;
+      donutChart = `<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        ${donutSvg}
+        <div class="chart-legend" style="flex-direction:column;gap:10px">
+          ${segments.map(s => `<div class="legend-item">
+            <div class="legend-dot" style="background:${colors[s.key]}"></div>
+            <span><strong>${s.label}</strong> — ${fmtNum(s.val)}원 (${(s.val/total*100).toFixed(1)}%)</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  tab.innerHTML = `<div class="monitor-grid">
+    <div class="chart-card">
+      <div class="chart-title">📁 ${esc(cons.name)} — 자산 추이</div>
+      ${lineChart}
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📁 ${esc(cons.name)} — 자산 구성</div>
       ${donutChart}
     </div>
   </div>`;
@@ -2888,10 +3192,130 @@ function deactivateConsolidated() {
 }
 
 function renderConsolidatedPortfolio() {
-  const wrap = document.getElementById('pf-tbl-wrap');
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
   const summary = document.getElementById('pf-summary-bar');
-  if (summary) summary.innerHTML = '<div style="padding:16px;font-size:14px;color:var(--text-sub)">📁 종합계좌 — 포트폴리오 뷰 (준비 중)</div>';
-  if (wrap) wrap.innerHTML = '';
+  const wrap    = document.getElementById('pf-tbl-wrap');
+  if (!cons) return;
+
+  const data = buildConsolidatedData(cons);
+  if (!data || !data.stocks.length) {
+    if (summary) summary.innerHTML = '<div style="padding:16px;font-size:14px;color:var(--text-sub)">포함된 계좌에 종목이 없습니다.</div>';
+    if (wrap) wrap.innerHTML = '';
+    document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = 'none');
+    return;
+  }
+
+  const per1  = data.p0 / 100;
+  const fxN   = data.fxN || 0;
+  const hasFxN = fxN > 0;
+
+  // 요약 바
+  let totalVal = 0, totalRealized = 0;
+  data.stocks.forEach(s => {
+    const pKRW = s.market === 'US' ? s.price * fxN : s.price;
+    totalVal      += s.q * pKRW;
+    totalRealized += s.realized || 0;
+  });
+  const pctChg = data.p0 ? (totalVal - data.p0) / data.p0 * 100 : 0;
+  const pctStr = (pctChg >= 0 ? '+' : '') + fmtDec(pctChg, 2) + '%';
+  const pctCls = pctChg >= 0 ? 'val-pos' : 'val-neg';
+  const memberNames = cons.memberIds
+    .map(id => appData.accounts.find(a => a.id === id)?.name || '?')
+    .join(', ');
+
+  if (summary) summary.innerHTML = `
+    <div class="pf-summary" style="flex-wrap:wrap;gap:16px;padding:12px 16px">
+      <div class="pf-summary-item"><div class="s-label">📁 ${esc(cons.name)}</div>
+        <div style="font-size:11px;color:var(--text-sub)">${esc(memberNames)}</div></div>
+      <div class="pf-summary-item"><div class="s-label">합산 원금</div>
+        <div class="s-val">${fmtNum(data.p0)} 원</div></div>
+      <div class="pf-summary-item"><div class="s-label">총 평가금액</div>
+        <div class="s-val">${fmtNum(totalVal)} 원</div></div>
+      <div class="pf-summary-item"><div class="s-label">원금 대비</div>
+        <div class="s-val ${pctCls}">${pctStr}</div></div>
+      <div class="pf-summary-item"><div class="s-label">실현손익 누계</div>
+        <div class="s-val ${totalRealized >= 0 ? 'val-pos' : 'val-neg'}">${fmtNum(totalRealized)} 원</div></div>
+    </div>`;
+
+  // 표 (7열, 읽기 전용)
+  const groups = [
+    { label: '미국 (USD)', market: 'US' },
+    { label: '한국 (KRW)', market: 'KR' },
+  ];
+
+  let html = `<table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:180px">
+      <col style="width:100px">
+      <col style="width:100px">
+      <col style="width:90px">
+      <col style="width:80px">
+      <col style="width:110px">
+      <col style="width:100px">
+    </colgroup>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num">현재가</th>
+      <th class="num">평단가</th>
+      <th class="num">보유수량</th>
+      <th class="num">현재비중</th>
+      <th class="num">평가손익</th>
+      <th class="num">실현손익</th>
+    </tr></thead><tbody>`;
+
+  groups.forEach(g => {
+    const stocks = data.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+
+    html += `<tr class="group-hdr"><td colspan="7">${g.label}</td></tr>`;
+    let subVal = 0, subWeight = 0, subUnreal = 0, subReal = 0;
+
+    stocks.forEach(s => {
+      const pKRW   = s.market === 'US' ? s.price * fxN : s.price;
+      const val    = s.q * pKRW;
+      const wt     = per1 > 0 ? val / per1 : 0;
+      const avgKRW = s.market === 'US' ? s.avg * fxN : s.avg;
+      const unreal = s.q && s.avg && s.price ? (pKRW - avgKRW) * s.q : 0;
+      const valOk  = s.market !== 'US' || hasFxN;
+
+      subVal    += val;
+      subWeight += wt;
+      subUnreal += unreal;
+      subReal   += (s.realized || 0);
+
+      const badgeClass = s.market === 'US' ? 'badge-us' : 'badge-kr';
+      const unrealCls  = unreal >= 0 ? 'val-pos' : 'val-neg';
+      const realCls    = (s.realized || 0) >= 0 ? 'val-pos' : 'val-neg';
+
+      html += `<tr>
+        <td>
+          <span class="stock-name">${esc(s.name)}</span>
+          <span class="stock-ticker">${esc(s.ticker)}</span>
+          <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
+        </td>
+        <td class="num">${s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.avg   ? fmtNum(s.avg,   s.avg   % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
+        <td class="num">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
+        <td class="num ${unrealCls}">${s.q && s.avg && s.price && valOk ? fmtNum(unreal) : '—'}</td>
+        <td class="num ${realCls}">${s.realized ? fmtNum(s.realized) : '—'}</td>
+      </tr>`;
+    });
+
+    const subUnrealCls = subUnreal >= 0 ? 'val-pos' : 'val-neg';
+    const subRealCls   = subReal   >= 0 ? 'val-pos' : 'val-neg';
+    html += `<tr class="subtotal-row">
+      <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td class="num">${per1 ? fmtDec(subWeight, 2) : '—'}</td>
+      <td class="num ${subUnrealCls}">${fmtNum(subUnreal)}</td>
+      <td class="num ${subRealCls}">${fmtNum(subReal)}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  if (wrap) wrap.innerHTML = html;
+
+  document.querySelectorAll('#tab-portfolio .pf-actions').forEach(el => el.style.display = 'none');
 }
 
 // ═══════════════════════════════════════════════════════════════════
