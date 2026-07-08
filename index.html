@@ -20,8 +20,8 @@
       --surface2:    #23272f;
       --border:      #2e323c;
       --text:        #e8ecf4;
-      --text-sub:    #a0a8b8;
-      --text-muted:  #8890a0;
+      --text-sub:    #9aa0b0;
+      --text-muted:  #7a8090;
       --accent:      #4d9eff;
       --buy:         #4d9eff;
       --sell:        #ff5f5f;
@@ -43,8 +43,8 @@
       --surface2:    #f0f1f3;
       --border:      #d8dce4;
       --text:        #111318;
-      --text-sub:    #374151;
-      --text-muted:  #4b5563;
+      --text-sub:    #4b5563;
+      --text-muted:  #6b7280;
       --accent:      #1a73e8;
       --buy:         #1a73e8;
       --sell:        #d32f2f;
@@ -211,20 +211,18 @@
       position: sticky; top: 46px; z-index: 20; /* 앱 헤더(46px) 바로 아래 고정 */
       background: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 7px 10px; font-size: 13px; font-weight: 800;
-      color: var(--text); text-transform: uppercase; letter-spacing: .05em;
+      padding: 7px 10px; font-size: 13px; font-weight: 700;
+      color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em;
       white-space: nowrap;
     }
     thead th.num { text-align: right; }
     thead th.center { text-align: center; }
-    tbody tr { border-bottom: 1px solid #b0b5c0; }
-    :root[data-theme="dark"] tbody tr { border-bottom: 1px solid #3a3f4a; }
+    tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover:not(.group-hdr):not(.subtotal-row) { background: #dbeafe !important; }
-    :root[data-theme="dark"] tbody tr:hover:not(.group-hdr):not(.subtotal-row) { background: #1e3a5a !important; }
+    tbody tr:hover { background: var(--row-hover); }
     tbody tr.row-selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important; }
-    tbody td { padding: 10px 10px; vertical-align: middle; white-space: nowrap; }
-    tbody td.num { text-align: right; font-weight: 500; }
+    tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
+    tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
 
     /* 포트폴리오 간단/상세 보기 */
@@ -242,17 +240,17 @@
     }
     tr.group-hdr:first-child td { border-top: none; }
 
-    /* 그룹 헤더 시장별 색상 + 왼쪽 컬러 바 */
-    tr.group-hdr.group-us   td { background: #dbeafe; color: #1d4ed8; border-left: 4px solid #3b82f6; }
-    tr.group-hdr.group-kr   td { background: #fecaca; color: #b91c1c; border-left: 4px solid #ef4444; }
-    tr.group-hdr.group-cash td { background: #bbf7d0; color: #15803d; border-left: 4px solid #22c55e; }
-    :root[data-theme="dark"] tr.group-hdr.group-us   td { background: #1e3a5a; color: #93c5fd; border-left: 4px solid #3b82f6; }
-    :root[data-theme="dark"] tr.group-hdr.group-kr   td { background: #3b1a2a; color: #fca5a5; border-left: 4px solid #ef4444; }
-    :root[data-theme="dark"] tr.group-hdr.group-cash td { background: #1a3328; color: #86efac; border-left: 4px solid #22c55e; }
+    /* 그룹 헤더 시장별 색상 */
+    tr.group-hdr.group-us   td { background: #e8f0fe; color: #1a56c4; }
+    tr.group-hdr.group-kr   td { background: #fde8e8; color: #b91c1c; }
+    tr.group-hdr.group-cash td { background: #e8f5e9; color: #15803d; }
+    :root[data-theme="dark"] tr.group-hdr.group-us   td { background: #1a2744; color: #6bb5ff; }
+    :root[data-theme="dark"] tr.group-hdr.group-kr   td { background: #2d1a24; color: #ff8888; }
+    :root[data-theme="dark"] tr.group-hdr.group-cash td { background: #1a2d20; color: #5ecf88; }
 
     /* 행 교차 줄무늬 */
-    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #edf0f5; }
-    :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #22262e; }
+    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #f8f9fb; }
+    :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1e2128; }
 
     /* ± ratio 셀 */
     .ratio-cell { display: flex; align-items: center; gap: 4px; justify-content: center; }
@@ -1291,17 +1289,17 @@ function renderSettingsTable() {
   const allocCur = localStorage.getItem('allocCurrency') || 'KRW';
   const fxNv = state.meta.fxN;
 
-  let html = `<table style="table-layout:fixed;width:100%">
+  let html = `<table style="table-layout:fixed">
     <colgroup>
-      <col>                    <!-- 종목 — 나머지 공간 -->
-      <col style="width:55px"> <!-- 구분 -->
-      <col style="width:110px"><!-- 설정비율 -->
-      <col style="width:95px"> <!-- 종가 -->
-      <col style="width:100px"><!-- 배정금액 -->
-      <col style="width:95px"> <!-- 비중1당 -->
-      <col style="width:90px"> <!-- 보유수량 -->
-      <col style="width:40px"> <!-- 순서 -->
-      <col style="width:40px"> <!-- 삭제 -->
+      <col style="width:180px"><!-- 종목 -->
+      <col style="width:60px"> <!-- 구분 -->
+      <col style="width:120px"><!-- 설정비율 -->
+      <col style="width:110px"><!-- 종가 -->
+      <col style="width:120px"><!-- 배정금액 -->
+      <col style="width:110px"><!-- 비중1당 -->
+      <col style="width:110px"><!-- 보유수량 -->
+      <col style="width:50px"> <!-- 순서 -->
+      <col style="width:44px"> <!-- 삭제 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
@@ -1644,16 +1642,16 @@ function renderPortfolioTable() {
 
   let html;
   if (isSimple) {
-    html = `<table class="view-simple" style="table-layout:fixed;width:100%">
+    html = `<table class="view-simple" style="table-layout:fixed">
     <colgroup>
-      <col>                    <!-- 종목 — 나머지 공간 -->
-      <col style="width:95px"> <!-- 현재가 -->
-      <col style="width:95px"> <!-- 평단가 -->
-      <col style="width:75px"> <!-- 보유수량 -->
-      <col style="width:65px"> <!-- 설정비율 -->
-      <col style="width:65px"> <!-- 현재비중 -->
-      <col style="width:80px"> <!-- 필요매매 -->
-      <col style="width:110px"><!-- 평가금액 -->
+      <col style="width:160px"> <!-- 종목 -->
+      <col style="width:95px">  <!-- 현재가 -->
+      <col style="width:95px">  <!-- 평단가 -->
+      <col style="width:80px">  <!-- 보유수량 -->
+      <col style="width:70px">  <!-- 설정비율 -->
+      <col style="width:70px">  <!-- 현재비중 -->
+      <col style="width:80px">  <!-- 필요매매 -->
+      <col style="width:110px"> <!-- 평가금액 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
@@ -1666,20 +1664,20 @@ function renderPortfolioTable() {
       <th class="num">평가금액</th>
     </tr></thead><tbody>`;
   } else {
-    html = `<table class="view-detail" style="table-layout:fixed;width:100%">
+    html = `<table class="view-detail" style="table-layout:fixed">
     <colgroup>
-      <col>                    <!-- 종목 — 나머지 공간 -->
-      <col style="width:82px"> <!-- 현재가 -->
-      <col style="width:82px"> <!-- 평단가 -->
-      <col style="width:72px"> <!-- 보유수량 -->
-      <col style="width:55px"> <!-- 설정비율 -->
-      <col style="width:100px"><!-- 조정비율 -->
-      <col style="width:60px"> <!-- 현재비중 -->
-      <col style="width:72px"> <!-- 1%당주식수 -->
-      <col style="width:90px"> <!-- 배정금액 -->
-      <col style="width:78px"> <!-- 필요매매 -->
-      <col style="width:85px"> <!-- 평가손익 -->
-      <col style="width:75px"> <!-- 실현손익 -->
+      <col style="width:160px"><!-- 종목 -->
+      <col style="width:88px"> <!-- 현재가 -->
+      <col style="width:88px"> <!-- 평단가 -->
+      <col style="width:80px"> <!-- 보유수량 -->
+      <col style="width:60px"> <!-- 설정비율 -->
+      <col style="width:110px"><!-- 조정비율 -->
+      <col style="width:68px"> <!-- 현재비중 -->
+      <col style="width:76px"> <!-- 1%당주식수 -->
+      <col style="width:100px"><!-- 배정금액 -->
+      <col style="width:88px"> <!-- 필요매매 -->
+      <col style="width:90px"> <!-- 평가손익 -->
+      <col style="width:80px"> <!-- 실현손익 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
