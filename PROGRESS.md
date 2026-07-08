@@ -1,5 +1,14 @@
 # 구현 진행 상황
 
+## v2 — 동기화 자동화 + 종목 순서 변경 — 2026-07-08
+- [x] 기준설정 변경 함수들(onRatioChange, onRatioInput, onMetaInput, addStockFromForm, deleteStock, setPriceMode)에 renderPortfolioTable() 추가
+- [x] 동기화 버튼 + sync-msg 메시지 HTML 삭제 (syncSettingsToPortfolio 함수는 유지)
+- [x] 기준설정 표에 순서(▲▼) 열 추가 — colgroup/thead/행/colspan=9
+- [x] moveStock() 함수 — 같은 market 내에서 swap
+- [x] 현금(CASH)은 순서 버튼 없음
+- [x] 그룹 헤더 colspan 8 → 9
+- [x] sw.js CACHE_NAME rebalance-v38 → rebalance-v39
+
 ## v2 — 간단 보기 input 스타일 통일 — 2026-07-07
 - [x] CSS: .inp-pf를 .inp-price/.inp-avg/.inp-qty와 동일한 규칙에 추가
 - [x] SpaceX 현재가 input: inp-price → inp-pf, font-size:inherit 제거
