@@ -486,6 +486,12 @@
       margin-left: auto;
     }
     #backup-toast-badge.show { display: flex; }
+
+    /* 드래그 핸들 */
+    .drag-handle { cursor: grab; user-select: none; }
+    .drag-handle:active { cursor: grabbing; }
+    tbody tr.drag-over-top    { border-top:    2px solid var(--accent) !important; }
+    tbody tr.drag-over-bottom { border-bottom: 2px solid var(--accent) !important; }
   </style>
   <!-- Google Identity Services (OAuth) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1278,7 +1284,7 @@ function renderSettingsTable() {
       <th class="num">배정금액 <span class="ccy-switch ${allocCur === 'USD' ? 'usd' : ''}" onclick="toggleAllocCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${allocCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
       <th class="num">비중1당 주식수</th>
       <th class="num">기준 보유수량</th>
-      <th class="center">순서</th>
+      <th class="center"></th>
       <th class="center">삭제</th>
     </tr></thead><tbody>`;
 
@@ -1297,10 +1303,6 @@ function renderSettingsTable() {
       const q0    = s.r * unit;
       const isCash = s.market === 'CASH';
       const badgeClass = s.market === 'US' ? 'badge-us' : s.market === 'KR' ? 'badge-kr' : 'badge-cash';
-      const sameMarket = state.stocks.filter(st => st.market === s.market);
-      const idxInGroup = sameMarket.indexOf(s);
-      const isFirst = idxInGroup === 0;
-      const isLast  = idxInGroup === sameMarket.length - 1;
 
       let allocStr;
       if (allocCur === 'USD' && s.market === 'US') {
@@ -1343,8 +1345,8 @@ function renderSettingsTable() {
         <td class="num" id="cell-alloc-${s.id}">${allocStr}</td>
         <td class="num" id="cell-unit-${s.id}">${unitStr}</td>
         <td class="num" id="cell-q0-${s.id}">${q0Str}</td>
-        <td class="center" style="white-space:nowrap">
-          ${isCash ? '' : `<button class="pm-btn" onclick="moveStock('${s.id}','up')" title="위로" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>▲</button><button class="pm-btn" onclick="moveStock('${s.id}','down')" title="아래로" ${isLast ? 'disabled style="opacity:0.3"' : ''}>▼</button>`}
+        <td class="center${isCash ? '' : ' drag-handle'}" ${isCash ? '' : `draggable="true" data-stock-id="${s.id}" data-market="${s.market}" title="드래그하여 순서 변경"`} style="font-size:16px;color:var(--text-sub)">
+          ${isCash ? '' : '☰'}
         </td>
         <td class="center">
           <button class="del-btn" onclick="deleteStock('${s.id}')" title="삭제">✕</button>
@@ -3585,6 +3587,140 @@ restoreActiveTab();
 render();
 loadPriceServerUrl();
 initGoogleDrive();
+
+// ── 기준설정 종목 드래그앤드롭 순서 변경 ──────────────────
+(function initDragReorder() {
+  const wrap = document.getElementById('settings-tbl-wrap');
+  if (!wrap) return;
+
+  let draggedId = null;
+  let draggedMarket = null;
+  let draggedRow = null;
+
+  function clearHighlights() {
+    wrap.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  }
+
+  function cleanup() {
+    if (draggedRow) draggedRow.style.opacity = '';
+    clearHighlights();
+    draggedId = null;
+    draggedMarket = null;
+    draggedRow = null;
+  }
+
+  function doReorder(toId, clientY, targetRow) {
+    const stocks = state.stocks;
+    const fromIdx = stocks.findIndex(s => s.id === draggedId);
+    const toIdx   = stocks.findIndex(s => s.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const rect = targetRow.getBoundingClientRect();
+    const insertBefore = clientY < rect.top + rect.height / 2;
+    const [moved] = stocks.splice(fromIdx, 1);
+    const newToIdx = stocks.findIndex(s => s.id === toId);
+    stocks.splice(insertBefore ? newToIdx : newToIdx + 1, 0, moved);
+    saveState();
+    renderSettingsTable();
+    renderPortfolioTable();
+  }
+
+  // ── HTML5 드래그 이벤트 ──
+  wrap.addEventListener('dragstart', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) { e.preventDefault(); return; }
+    draggedId     = handle.dataset.stockId;
+    draggedMarket = handle.dataset.market;
+    draggedRow    = handle.closest('tr');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedId);
+    requestAnimationFrame(() => { if (draggedRow) draggedRow.style.opacity = '0.4'; });
+  });
+
+  wrap.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const targetRow = e.target.closest('tbody tr');
+    if (!targetRow || targetRow === draggedRow) return;
+    const targetHandle = targetRow.querySelector('.drag-handle');
+    if (!targetHandle || targetHandle.dataset.market !== draggedMarket) return;
+    clearHighlights();
+    const rect = targetRow.getBoundingClientRect();
+    targetRow.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+  });
+
+  wrap.addEventListener('dragleave', e => {
+    const row = e.target.closest('tbody tr');
+    if (row) row.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+
+  wrap.addEventListener('drop', e => {
+    e.preventDefault();
+    const targetRow = e.target.closest('tbody tr');
+    if (!targetRow || !draggedId) return;
+    const targetHandle = targetRow.querySelector('.drag-handle');
+    if (!targetHandle) return;
+    const targetId = targetHandle.dataset.stockId;
+    if (targetId === draggedId || targetHandle.dataset.market !== draggedMarket) return;
+    doReorder(targetId, e.clientY, targetRow);
+    cleanup();
+  });
+
+  wrap.addEventListener('dragend', cleanup);
+
+  // ── 터치 이벤트 (모바일) ──
+  let touchDragId = null;
+  let touchDragMarket = null;
+  let touchDragRow = null;
+
+  wrap.addEventListener('touchstart', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    touchDragId     = handle.dataset.stockId;
+    touchDragMarket = handle.dataset.market;
+    touchDragRow    = handle.closest('tr');
+    if (touchDragRow) touchDragRow.style.opacity = '0.4';
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (!touchDragId) return;
+    e.preventDefault();
+    clearHighlights();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetRow = el ? el.closest('tbody tr') : null;
+    if (!targetRow) return;
+    const targetHandle = targetRow.querySelector('.drag-handle');
+    if (!targetHandle || targetHandle.dataset.market !== touchDragMarket
+        || targetHandle.dataset.stockId === touchDragId) return;
+    const rect = targetRow.getBoundingClientRect();
+    targetRow.classList.add(touch.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+  }, { passive: false });
+
+  wrap.addEventListener('touchend', e => {
+    if (!touchDragId) return;
+    const touch = e.changedTouches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetRow = el ? el.closest('tbody tr') : null;
+    if (targetRow) {
+      const targetHandle = targetRow.querySelector('.drag-handle');
+      if (targetHandle && targetHandle.dataset.market === touchDragMarket
+          && targetHandle.dataset.stockId !== touchDragId) {
+        draggedId     = touchDragId;
+        draggedMarket = touchDragMarket;
+        draggedRow    = touchDragRow;
+        doReorder(targetHandle.dataset.stockId, touch.clientY, targetRow);
+      }
+    }
+    wrap.querySelectorAll('tr').forEach(r => {
+      r.style.opacity = '';
+      r.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    touchDragId = null; touchDragMarket = null; touchDragRow = null;
+    draggedId = null; draggedMarket = null; draggedRow = null;
+  }, { passive: true });
+})();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});

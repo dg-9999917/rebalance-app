@@ -1,5 +1,16 @@
 # 구현 진행 상황
 
+## v2 — 종목 드래그앤드롭 순서 변경 — 2026-07-08
+- [x] ▲▼ 버튼 제거, ☰ 드래그 핸들로 교체 (td.drag-handle, draggable="true")
+- [x] HTML5 dragstart/dragover/dragleave/drop/dragend 이벤트 위임 (#settings-tbl-wrap)
+- [x] 같은 market 그룹 내에서만 이동 허용
+- [x] 드래그 중 시각 피드백 (반투명 0.4 + 드롭 위치 파란 선 drag-over-top/bottom)
+- [x] 모바일 터치 이벤트 대응 (touchstart/touchmove/touchend)
+- [x] 현금(CASH) 드래그 불가 (빈 td, drag-handle 클래스 없음)
+- [x] doReorder() 공통 함수 → saveState + renderSettingsTable + renderPortfolioTable
+- [x] isFirst/isLast/sameMarket 변수 제거 (불필요)
+- [x] sw.js CACHE_NAME rebalance-v39 → rebalance-v40
+
 ## v2 — 동기화 자동화 + 종목 순서 변경 — 2026-07-08
 - [x] 기준설정 변경 함수들(onRatioChange, onRatioInput, onMetaInput, addStockFromForm, deleteStock, setPriceMode)에 renderPortfolioTable() 추가
 - [x] 동기화 버튼 + sync-msg 메시지 HTML 삭제 (syncSettingsToPortfolio 함수는 유지)
