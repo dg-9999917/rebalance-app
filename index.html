@@ -487,16 +487,19 @@
     }
     #backup-toast-badge.show { display: flex; }
 
-    /* 드래그 핸들 */
+    /* 드래그 핸들 / SortableJS */
     .drag-handle { cursor: grab; user-select: none; }
     .drag-handle:active { cursor: grabbing; }
-    tbody tr.drag-over-top    { border-top:    2px solid var(--accent) !important; }
-    tbody tr.drag-over-bottom { border-bottom: 2px solid var(--accent) !important; }
+    .sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .sortable-ghost  { opacity: 0.3; }
+    .sortable-drag   { background: var(--surface) !important; }
   </style>
   <!-- Google Identity Services (OAuth) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Google API Client (Drive API) -->
   <script src="https://apis.google.com/js/api.js" async defer></script>
+  <!-- SortableJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -1097,28 +1100,38 @@ function setPriceMode(mode) {
   renderPortfolioTable();
 }
 
-function moveStock(id, direction) {
-  const idx = state.stocks.findIndex(s => s.id === id);
-  if (idx < 0) return;
-  const s = state.stocks[idx];
-  if (direction === 'up') {
-    for (let i = idx - 1; i >= 0; i--) {
-      if (state.stocks[i].market === s.market) {
-        [state.stocks[idx], state.stocks[i]] = [state.stocks[i], state.stocks[idx]];
-        break;
+let sortableInstances = [];
+
+function initSortable() {
+  sortableInstances.forEach(s => s.destroy());
+  sortableInstances = [];
+  if (typeof Sortable === 'undefined') return;
+
+  document.querySelectorAll('#settings-tbl-wrap .sortable-group').forEach(tbody => {
+    const market = tbody.dataset.market;
+    if (market === 'CASH') return;
+
+    const instance = Sortable.create(tbody, {
+      handle: '.drag-handle',
+      animation: 200,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      onEnd: function() {
+        const rows = tbody.querySelectorAll('tr[data-stock-id]');
+        const newOrder = Array.from(rows).map(r => r.dataset.stockId);
+        const firstIdx = state.stocks.findIndex(s => s.market === market);
+        const marketStocks = newOrder.map(id => state.stocks.find(s => s.id === id)).filter(Boolean);
+        state.stocks = state.stocks.filter(s => s.market !== market);
+        state.stocks.splice(firstIdx, 0, ...marketStocks);
+        saveState();
+        renderSettingsTable();
+        renderPortfolioTable();
       }
-    }
-  } else {
-    for (let i = idx + 1; i < state.stocks.length; i++) {
-      if (state.stocks[i].market === s.market) {
-        [state.stocks[idx], state.stocks[i]] = [state.stocks[i], state.stocks[idx]];
-        break;
-      }
-    }
-  }
-  saveState();
-  renderSettingsTable();
-  renderPortfolioTable();
+    });
+
+    sortableInstances.push(instance);
+  });
 }
 
 function renderSettingsMeta() {
@@ -1286,7 +1299,7 @@ function renderSettingsTable() {
       <th class="num">기준 보유수량</th>
       <th class="center"></th>
       <th class="center">삭제</th>
-    </tr></thead><tbody>`;
+    </tr></thead>`;
 
   const per1 = state.meta.p0 / 100;
 
@@ -1295,7 +1308,8 @@ function renderSettingsTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    html += `<tr class="group-hdr"><td colspan="9" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text)">설정 ${fmtDec(rSum, 2)}%</span></td></tr>`;
+    html += `<tbody><tr class="group-hdr"><td colspan="9" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text)">설정 ${fmtDec(rSum, 2)}%</span></td></tr></tbody>`;
+    html += `<tbody class="sortable-group" data-market="${g.market}">`;
 
     stocks.forEach(s => {
       const unit  = calcUnit(s);
@@ -1313,7 +1327,7 @@ function renderSettingsTable() {
       const unitStr  = (unit && isFinite(unit)) ? fmtDec(unit, 4) : '—';
       const q0Str    = (unit && isFinite(unit)) ? fmtDec(q0, 2)   : '—';
 
-      html += `<tr>
+      html += `<tr data-stock-id="${s.id}">
         <td>
           <span class="stock-name">${esc(s.name)}</span>
           <span class="stock-ticker">${esc(s.ticker)}</span>
@@ -1345,7 +1359,7 @@ function renderSettingsTable() {
         <td class="num" id="cell-alloc-${s.id}">${allocStr}</td>
         <td class="num" id="cell-unit-${s.id}">${unitStr}</td>
         <td class="num" id="cell-q0-${s.id}">${q0Str}</td>
-        <td class="center${isCash ? '' : ' drag-handle'}" ${isCash ? '' : `draggable="true" data-stock-id="${s.id}" data-market="${s.market}" title="드래그하여 순서 변경"`} style="font-size:16px;color:var(--text-sub)">
+        <td class="center${isCash ? '' : ' drag-handle'}" style="font-size:16px;color:var(--text-sub)">
           ${isCash ? '' : '☰'}
         </td>
         <td class="center">
@@ -1353,9 +1367,10 @@ function renderSettingsTable() {
         </td>
       </tr>`;
     });
+    html += `</tbody>`;
   });
 
-  html += `</tbody></table>
+  html += `</table>
   <div class="add-stock-form">
     <div class="meta-field">
       <span class="meta-label">종목명</span>
@@ -1385,6 +1400,7 @@ function renderSettingsTable() {
   </div>`;
 
   wrap.innerHTML = html;
+  initSortable();
 }
 
 function esc(str) {
@@ -3587,140 +3603,6 @@ restoreActiveTab();
 render();
 loadPriceServerUrl();
 initGoogleDrive();
-
-// ── 기준설정 종목 드래그앤드롭 순서 변경 ──────────────────
-(function initDragReorder() {
-  const wrap = document.getElementById('settings-tbl-wrap');
-  if (!wrap) return;
-
-  let draggedId = null;
-  let draggedMarket = null;
-  let draggedRow = null;
-
-  function clearHighlights() {
-    wrap.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
-      el.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-  }
-
-  function cleanup() {
-    if (draggedRow) draggedRow.style.opacity = '';
-    clearHighlights();
-    draggedId = null;
-    draggedMarket = null;
-    draggedRow = null;
-  }
-
-  function doReorder(toId, clientY, targetRow) {
-    const stocks = state.stocks;
-    const fromIdx = stocks.findIndex(s => s.id === draggedId);
-    const toIdx   = stocks.findIndex(s => s.id === toId);
-    if (fromIdx < 0 || toIdx < 0) return;
-    const rect = targetRow.getBoundingClientRect();
-    const insertBefore = clientY < rect.top + rect.height / 2;
-    const [moved] = stocks.splice(fromIdx, 1);
-    const newToIdx = stocks.findIndex(s => s.id === toId);
-    stocks.splice(insertBefore ? newToIdx : newToIdx + 1, 0, moved);
-    saveState();
-    renderSettingsTable();
-    renderPortfolioTable();
-  }
-
-  // ── HTML5 드래그 이벤트 ──
-  wrap.addEventListener('dragstart', e => {
-    const handle = e.target.closest('.drag-handle');
-    if (!handle) { e.preventDefault(); return; }
-    draggedId     = handle.dataset.stockId;
-    draggedMarket = handle.dataset.market;
-    draggedRow    = handle.closest('tr');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', draggedId);
-    requestAnimationFrame(() => { if (draggedRow) draggedRow.style.opacity = '0.4'; });
-  });
-
-  wrap.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const targetRow = e.target.closest('tbody tr');
-    if (!targetRow || targetRow === draggedRow) return;
-    const targetHandle = targetRow.querySelector('.drag-handle');
-    if (!targetHandle || targetHandle.dataset.market !== draggedMarket) return;
-    clearHighlights();
-    const rect = targetRow.getBoundingClientRect();
-    targetRow.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
-  });
-
-  wrap.addEventListener('dragleave', e => {
-    const row = e.target.closest('tbody tr');
-    if (row) row.classList.remove('drag-over-top', 'drag-over-bottom');
-  });
-
-  wrap.addEventListener('drop', e => {
-    e.preventDefault();
-    const targetRow = e.target.closest('tbody tr');
-    if (!targetRow || !draggedId) return;
-    const targetHandle = targetRow.querySelector('.drag-handle');
-    if (!targetHandle) return;
-    const targetId = targetHandle.dataset.stockId;
-    if (targetId === draggedId || targetHandle.dataset.market !== draggedMarket) return;
-    doReorder(targetId, e.clientY, targetRow);
-    cleanup();
-  });
-
-  wrap.addEventListener('dragend', cleanup);
-
-  // ── 터치 이벤트 (모바일) ──
-  let touchDragId = null;
-  let touchDragMarket = null;
-  let touchDragRow = null;
-
-  wrap.addEventListener('touchstart', e => {
-    const handle = e.target.closest('.drag-handle');
-    if (!handle) return;
-    touchDragId     = handle.dataset.stockId;
-    touchDragMarket = handle.dataset.market;
-    touchDragRow    = handle.closest('tr');
-    if (touchDragRow) touchDragRow.style.opacity = '0.4';
-  }, { passive: true });
-
-  wrap.addEventListener('touchmove', e => {
-    if (!touchDragId) return;
-    e.preventDefault();
-    clearHighlights();
-    const touch = e.touches[0];
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const targetRow = el ? el.closest('tbody tr') : null;
-    if (!targetRow) return;
-    const targetHandle = targetRow.querySelector('.drag-handle');
-    if (!targetHandle || targetHandle.dataset.market !== touchDragMarket
-        || targetHandle.dataset.stockId === touchDragId) return;
-    const rect = targetRow.getBoundingClientRect();
-    targetRow.classList.add(touch.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
-  }, { passive: false });
-
-  wrap.addEventListener('touchend', e => {
-    if (!touchDragId) return;
-    const touch = e.changedTouches[0];
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const targetRow = el ? el.closest('tbody tr') : null;
-    if (targetRow) {
-      const targetHandle = targetRow.querySelector('.drag-handle');
-      if (targetHandle && targetHandle.dataset.market === touchDragMarket
-          && targetHandle.dataset.stockId !== touchDragId) {
-        draggedId     = touchDragId;
-        draggedMarket = touchDragMarket;
-        draggedRow    = touchDragRow;
-        doReorder(targetHandle.dataset.stockId, touch.clientY, targetRow);
-      }
-    }
-    wrap.querySelectorAll('tr').forEach(r => {
-      r.style.opacity = '';
-      r.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-    touchDragId = null; touchDragMarket = null; touchDragRow = null;
-    draggedId = null; draggedMarket = null; draggedRow = null;
-  }, { passive: true });
-})();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});

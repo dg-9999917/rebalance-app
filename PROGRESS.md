@@ -1,5 +1,17 @@
 # 구현 진행 상황
 
+## v2 — SortableJS 드래그앤드롭 — 2026-07-08
+- [x] SortableJS CDN 스크립트 추가 (Sortable 1.15.6)
+- [x] 기존 HTML5 initDragReorder IIFE + touchstart/move/end 전부 제거
+- [x] drag-over-top/drag-over-bottom CSS 제거
+- [x] renderSettingsTable: 그룹 헤더 별도 tbody, 종목 tbody.sortable-group[data-market]으로 분리
+- [x] <tr data-stock-id> 추가, draggable/data-market 속성 td에서 제거
+- [x] sortableInstances + initSortable() — renderSettingsTable 끝에서 호출
+- [x] onEnd: tr[data-stock-id] 순서 읽어 state.stocks 재배열 → saveState + renderSettingsTable + renderPortfolioTable
+- [x] 현금(CASH) sortable-group 제외 (market=CASH는 Sortable 미등록)
+- [x] CSS: sortable-chosen/ghost/drag 시각 피드백
+- [x] sw.js CACHE_NAME rebalance-v40 → rebalance-v41
+
 ## v2 — 종목 드래그앤드롭 순서 변경 — 2026-07-08
 - [x] ▲▼ 버튼 제거, ☰ 드래그 핸들로 교체 (td.drag-handle, draggable="true")
 - [x] HTML5 dragstart/dragover/dragleave/drop/dragend 이벤트 위임 (#settings-tbl-wrap)
