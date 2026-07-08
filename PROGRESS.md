@@ -1,5 +1,17 @@
 # 구현 진행 상황
 
+## v2 — 디자인 개선 (가독성·색 구분·입력 편의) — 2026-07-08
+- [x] index_before_design.html 복사본 생성
+- [x] 라이트 모드: --text #1a→#11, --text-sub #6b→#4b, --text-muted #9c→#6b
+- [x] 다크 모드: --text #dd→#e8, --text-sub #7a→#9a, --text-muted #4a→#7a
+- [x] val-dim: opacity: 0.85 추가
+- [x] 그룹 헤더 시장별 배경색 CSS (group-us/kr/cash, 라이트+다크)
+- [x] 행 교차 줄무늬 CSS (짝수 행, group-hdr/subtotal-row 제외)
+- [x] renderSettingsTable/renderPortfolioTable/renderConsolidatedPortfolio 그룹 헤더에 groupClass 추가
+- [x] 기준설정 그룹 헤더 중앙 퍼센트 텍스트 color: inherit으로 수정
+- [x] commaFocus: setTimeout(el.select, 0) 추가 — 클릭 시 전체 선택
+- [x] sw.js CACHE_NAME rebalance-v41 → rebalance-v42
+
 ## v2 — SortableJS 드래그앤드롭 — 2026-07-08
 - [x] SortableJS CDN 스크립트 추가 (Sortable 1.15.6)
 - [x] 기존 HTML5 initDragReorder IIFE + touchstart/move/end 전부 제거

@@ -19,9 +19,9 @@
       --surface:     #1c1f26;
       --surface2:    #23272f;
       --border:      #2e323c;
-      --text:        #e8ecf4;
-      --text-sub:    #9aa0b0;
-      --text-muted:  #7a8090;
+      --text:        #dde1ea;
+      --text-sub:    #7a8090;
+      --text-muted:  #4a5060;
       --accent:      #4d9eff;
       --buy:         #4d9eff;
       --sell:        #ff5f5f;
@@ -42,9 +42,9 @@
       --surface:     #ffffff;
       --surface2:    #f0f1f3;
       --border:      #d8dce4;
-      --text:        #111318;
-      --text-sub:    #4b5563;
-      --text-muted:  #6b7280;
+      --text:        #1a1d24;
+      --text-sub:    #6b7280;
+      --text-muted:  #9ca3af;
       --accent:      #1a73e8;
       --buy:         #1a73e8;
       --sell:        #d32f2f;
@@ -240,18 +240,6 @@
     }
     tr.group-hdr:first-child td { border-top: none; }
 
-    /* 그룹 헤더 시장별 색상 */
-    tr.group-hdr.group-us   td { background: #e8f0fe; color: #1a56c4; }
-    tr.group-hdr.group-kr   td { background: #fde8e8; color: #b91c1c; }
-    tr.group-hdr.group-cash td { background: #e8f5e9; color: #15803d; }
-    :root[data-theme="dark"] tr.group-hdr.group-us   td { background: #1a2744; color: #6bb5ff; }
-    :root[data-theme="dark"] tr.group-hdr.group-kr   td { background: #2d1a24; color: #ff8888; }
-    :root[data-theme="dark"] tr.group-hdr.group-cash td { background: #1a2d20; color: #5ecf88; }
-
-    /* 행 교차 줄무늬 */
-    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #f8f9fb; }
-    :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1e2128; }
-
     /* ± ratio 셀 */
     .ratio-cell { display: flex; align-items: center; gap: 4px; justify-content: center; }
     .ratio-cell .pm-btn {
@@ -314,7 +302,7 @@
     /* 숫자 하이라이트 */
     .val-pos { color: var(--positive); }
     .val-neg { color: var(--negative); }
-    .val-dim { color: var(--text-sub); opacity: 0.85; }
+    .val-dim { color: var(--text-sub); }
 
     /* ── 포트폴리오 탭 ──────────────────────────────────────── */
     #tab-portfolio { padding: 0; }
@@ -1320,8 +1308,7 @@ function renderSettingsTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    const groupClass = g.market === 'US' ? 'group-us' : g.market === 'KR' ? 'group-kr' : 'group-cash';
-    html += `<tbody><tr class="group-hdr ${groupClass}"><td colspan="9" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:inherit">설정 ${fmtDec(rSum, 2)}%</span></td></tr></tbody>`;
+    html += `<tbody><tr class="group-hdr"><td colspan="9" style="position:relative">${g.label}<span style="position:absolute;left:50%;transform:translateX(-50%);font-weight:700;color:var(--text)">설정 ${fmtDec(rSum, 2)}%</span></td></tr></tbody>`;
     html += `<tbody class="sortable-group" data-market="${g.market}">`;
 
     stocks.forEach(s => {
@@ -1700,8 +1687,7 @@ function renderPortfolioTable() {
     if (!stocks.length) return;
 
     const rSum = stocks.reduce((a, s) => a + (s.r || 0), 0);
-    const groupClass = g.market === 'US' ? 'group-us' : g.market === 'KR' ? 'group-kr' : 'group-cash';
-    html += `<tr class="group-hdr ${groupClass}"><td colspan="${isSimple ? 8 : 12}">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="${isSimple ? 8 : 12}">${g.label}</td></tr>`;
 
     let subVal = 0, subWeight = 0, subAlloc = 0, subUnreal = 0, subReal = 0;
 
@@ -2776,10 +2762,7 @@ function buildTradeLogHtml() {
 }
 
 // ── 입력칸 콤마 포매터 ──────────────────────────────────────────────
-function commaFocus(el) {
-  el.value = el.value.replace(/,/g, '');
-  setTimeout(() => el.select(), 0);
-}
+function commaFocus(el)   { el.value = el.value.replace(/,/g, ''); }
 function commaBlur(el) {
   const raw = el.value.replace(/,/g, '');
   const v = parseFloat(raw);
@@ -3547,8 +3530,7 @@ function renderConsolidatedPortfolio() {
     const stocks = data.stocks.filter(s => s.market === g.market);
     if (!stocks.length) return;
 
-    const groupClass = g.market === 'US' ? 'group-us' : g.market === 'KR' ? 'group-kr' : 'group-cash';
-    html += `<tr class="group-hdr ${groupClass}"><td colspan="7">${g.label}</td></tr>`;
+    html += `<tr class="group-hdr"><td colspan="7">${g.label}</td></tr>`;
     let subVal = 0, subWeight = 0, subUnreal = 0, subReal = 0;
 
     stocks.forEach(s => {
