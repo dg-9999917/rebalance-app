@@ -1,5 +1,21 @@
 # 구현 진행 상황
 
+## v2 — 디자인 개선 2차 — 2026-07-08
+- [x] index_before_design2.html 복사본 생성
+- [x] 행 구분선 진하게: #b0b5c0 (라이트) / #3a3f4a (다크)
+- [x] 행 패딩 7px → 10px
+- [x] 줄무늬 진하게: #edf0f5 (라이트) / #22262e (다크)
+- [x] 마우스 호버: #dbeafe !important (라이트) / #1e3a5a !important (다크)
+- [x] --text-sub #4b→#37 (라이트) / #9a→#a0 (다크)
+- [x] --text-muted #6b→#4b (라이트) / #7a→#88 (다크)
+- [x] tbody td.num font-weight: 500
+- [x] thead th font-weight: 800, color: var(--text)
+- [x] 그룹 헤더 색 진하게 + border-left: 4px solid 컬러 바 (US/KR/CASH, 라이트+다크)
+- [x] 기준설정 colgroup: 종목 auto, 나머지 55/110/95/100/95/90/40/40px, width:100%
+- [x] 간단 보기 colgroup: 종목 auto, 나머지 95/95/75/65/65/80/110px, width:100%
+- [x] 상세 보기 colgroup: 종목 auto, 나머지 82/82/72/55/100/60/72/90/78/85/75px, width:100%
+- [x] sw.js CACHE_NAME rebalance-v42 → rebalance-v43
+
 ## v2 — 디자인 개선 (가독성·색 구분·입력 편의) — 2026-07-08
 - [x] index_before_design.html 복사본 생성
 - [x] 라이트 모드: --text #1a→#11, --text-sub #6b→#4b, --text-muted #9c→#6b
