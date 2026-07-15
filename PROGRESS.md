@@ -1,5 +1,19 @@
 # 구현 진행 상황
 
+## v3 1단계 — 비중 계산기 새로 짓기 (v3.html) — 2026-07-15
+- [x] v3.html 신규 생성 (index.html은 무수정 — git diff 없음 확인)
+- [x] 헤더: 앱 제목 + 계좌 전환 드롭다운(appData.accounts만, 전환 전용) + 탭[계산기]/[설정](준비 중)
+- [x] 기준 영역: 전체 자금(p0) 입력 + "1% = ₩○○○" 자동표시 + [🔄 시세 새로고침][＋ 종목 추가]
+- [x] reco-banner 자리만 (display:none, 2단계용)
+- [x] 요약 바 2개: 현재 비중 합계(100 기준 초록/빨강) + 현재 환율
+- [x] 표 8열: 종목(☰드래그+이름+티커+뱃지+삭제) / 현재가 / 평단가 / 보유수량 / 설정비율±(adjR) / 현재비중 / 필요매매 / 평가금액
+- [x] 그룹 헤더(US/KR/CASH) + 종목당 합계행, SortableJS 1.15.6 드래그 유지
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) index.html과 byte-for-byte 동일 — 자동 검증 스크립트로 확인
+- [x] 입력 핸들러(onPriceInput/onAvgInput/onQtyInput/onAdjRChange/onAdjRInput), 유틸(fmtNum/fmtDec/parseNum/esc/commaFocus/commaBlur/commaBlurQty), 시세연동(getPriceServerUrl/fetchPrices/showFetchResult), addStockFromForm/deleteStock/initSortable — 원본 그대로 복사, 렌더 호출부만 v3 구조(단일 표)에 맞게 조정
+- [x] localStorage: 신규 키 `rebalance_app_v3`, 기존 `rebalance_app_v2`는 읽기 전용 1회 마이그레이션(스냅샷/이력 제외, meta+stocks 핵심 필드만 이전)
+- [x] sw.js CACHE_NAME rebalance-v45 → rebalance-v46
+- [x] 검산: index.html calcUnit 최초 복사 시 실수 발견(환율 처리 분기 누락) → 자동 diff 스크립트로 잡아내 수정 후 byte-for-byte 일치 확인. currWeight/필요매매/평가금액 수치 계산 결과 index.html 함수 원본 실행 결과와 일치
+
 ## v2 — 디자인 개선 2차 — 2026-07-08
 - [x] index_before_design2.html 복사본 생성
 - [x] 행 구분선 진하게: #b0b5c0 (라이트) / #3a3f4a (다크)
