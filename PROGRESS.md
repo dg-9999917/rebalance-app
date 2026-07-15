@@ -1,5 +1,17 @@
 # 구현 진행 상황
 
+## v3 3단계 — 설정 탭 (v3.html) — 2026-07-15
+- [x] ① 계좌 관리: 목록(이름·종목수)+전환/이름변경/삭제(확인모달, 최소1개 보호), 새 계좌 추가(이름만 입력 → 종목 없음·p0=0로 시작해 추천 배너로 채우는 흐름 유도)
+- [x] ② 종합계좌: appData.consolidated[] 그대로 사용(history 필드는 v3에 없어 제외) — 생성/편집/삭제/전환, 계좌 드롭다운에 구분선+📁 접두어 표시, 계산기 탭에서 종합 선택 시 읽기 전용 8열 뷰(설정비율·필요매매는 '—', 입력칸·±·×·드래그 전부 제거) — buildConsolidatedData는 index.html 로직 참고해 이식(realized 필드는 v3에 없어 제외), 전체자금 입력 readOnly 전환, 현재비중합계=합산평가÷합산per1, 시세새로고침은 계속 동작(단 "마지막으로 선택했던 개별 계좌 기준" 안내문 추가 — index.html cons-actions와 동일한 제약)
+- [x] ③ 구글 드라이브: GDRIVE 상수·GIS/gapi 스크립트 태그·initGoogleDrive 폴링·connect/disconnect/ensureToken/getOrCreateFolder/saveToDrive/loadFromDrive/showDriveFileList/restoreFromDrive/buildGdriveUI/updateGdriveUI — index.html에서 거의 그대로 이식(저장 대상만 v3 appData/rebalance_app_v3), restoreFromDrive는 sanitizeLoadedAppData()로 migrateAccountFromV2 재사용해 옛 v2 백업의 이력·스냅샷 필드를 걸러내고 저장
+- [x] ④ 추천 비중: "적용된 추천: {appliedRecoVersion|없음}" 표시 + [지금 확인] 버튼(캐시 우회 fetch, 최신이면 안내, 새 버전이면 배너 재평가)
+- [x] ⑤ 고급(기본 접힘, ▸/▾ 토글): 메모 입력 + [배포용 JSON 복사] — 활성 계좌 종목의 r=adjR로 weights.json 형식 생성, version은 YYYY-MM-DD-N 자동증가(appliedRecoVersion·현재 recoData.version과 안 겹치게), 클립보드 복사 후 안내문
+- [x] ⑥ 초기화: 현재 계좌 초기화(종목·수량·원금 비움, 확인모달) / 전체 초기화(2중 확인, rebalance_app_v3만 삭제 후 새로고침) — 두 경우 모두 rebalance_app_v2 미접촉
+- [x] jsdom으로 전체 시나리오 실행 검증: 계좌 추가/삭제(최소1개 보호 alert 확인)/종합계좌 생성·전환(읽기전용 뷰+p0 readOnly+드롭다운 📁 표시)/복귀 시 readOnly 해제/배포JSON 클립보드 내용(버전 형식·r=adjR)/현재계좌 초기화 — 전부 기대대로 동작, 에러 없음
+- [x] 계산 함수 6개 index.html과 byte-for-byte 동일 재검증, index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v50 → rebalance-v51
+- [ ] (미수행) 구글 드라이브 실제 OAuth 연동·GitHub Pages 배포 후 브라우저 라이브 확인 — 이번 세션은 코드 이식과 jsdom 시뮬레이션까지만 수행
+
 ## v3 수정 3차 — 표 위 빈 행 제거 + 헤더 고정 복구 (v3.html) — 2026-07-15
 - [x] jsdom으로 DOM 실측: 정적 HTML·스크립트 실행 후 모두 reco-banner가 `#tbl-wrap` 앞의 정상 형제 요소이고(`<table>` 안에 포이스터링된 적 없음), 그룹헤더 tbody가 첫 tbody로 NVDA 행보다 먼저 옴을 확인 — 마크업 중첩 문제 아님을 배제
 - [x] 원인 특정: `.tbl-wrap { overflow-x: auto }` (fix2에서 남아있던 v3.html 150줄) — CSS 스펙상 overflow-x가 auto/scroll/hidden이고 overflow-y가 명시 안 되면 overflow-y도 auto로 강제 계산됨 → `.tbl-wrap`이 의도치 않게 스크롤 컨테이너가 되어 `thead th`의 `position:sticky`가 페이지가 아닌 이 컨테이너 기준으로 고정 컨텍스트를 잡음 → 헤더 고정 실패 + 빈 행 렌더링 아티팩트로 이어짐

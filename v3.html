@@ -97,6 +97,8 @@
     .btn-sm { padding: 3px 8px; font-size: 12px; }
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
+    .btn-danger { border-color: var(--negative); color: var(--negative); }
+    .btn-danger:hover { background: rgba(211,47,47,.08); }
     button:disabled { opacity: 0.38; cursor: not-allowed; }
 
     /* 계좌 선택 드롭다운 */
@@ -302,6 +304,39 @@
     }
     .placeholder strong { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text); }
 
+    /* ── 설정 탭 ──────────────────────────────────────────── */
+    #settings-content {
+      max-width: 720px; margin: 0 auto; padding: 20px 16px 60px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .settings-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px;
+    }
+    .settings-card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .settings-card-subtitle { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-sub); }
+    .settings-list-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .settings-list-row:last-of-type { border-bottom: none; }
+    .settings-list-row.active-row {
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
+      border-radius: 6px; padding-left: 8px; padding-right: 8px; margin: 0 -8px;
+    }
+    .settings-list-info { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 2px; }
+    .settings-list-name { font-weight: 700; font-size: 14px; }
+    .settings-list-sub { font-size: 12px; color: var(--text-sub); }
+    .settings-badge-active {
+      font-size: 11px; background: var(--accent); color: #fff;
+      padding: 1px 7px; border-radius: 3px; font-weight: 700; margin-left: 6px;
+    }
+    .settings-list-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .settings-add-row {
+      display: flex; gap: 10px; align-items: center; margin-top: 14px;
+      padding-top: 14px; border-top: 1px dashed var(--border); flex-wrap: wrap;
+    }
+
     /* 드래그 SortableJS 피드백 */
     .sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
     .sortable-ghost  { opacity: 0.3; }
@@ -309,6 +344,10 @@
   </style>
   <!-- SortableJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
+  <!-- Google Identity Services (OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Google API Client (Drive API) -->
+  <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 <div id="app">
@@ -380,7 +419,7 @@
 
     <!-- ══════════════ 설정 탭 ══════════════ -->
     <section id="tab-settings" class="tab-content">
-      <div class="placeholder"><strong>설정</strong>준비 중입니다.</div>
+      <div id="settings-content"><!-- renderSettingsTab() 로 채워짐 --></div>
     </section>
   </main>
 
@@ -721,13 +760,30 @@ function initSortable() {
 function renderAccountDropdown() {
   const sel = document.getElementById('account-select');
   if (!sel) return;
-  sel.innerHTML = appData.accounts.map(a =>
-    `<option value="${esc(a.id)}"${a.id === appData.activeAccountId ? ' selected' : ''}>${esc(a.name)}</option>`
+  let html = appData.accounts.map(a =>
+    `<option value="${esc(a.id)}"${!appData.activeConsolidatedId && a.id === appData.activeAccountId ? ' selected' : ''}>${esc(a.name)}</option>`
   ).join('');
+  const cons = appData.consolidated || [];
+  if (cons.length) {
+    html += `<option disabled>──────────</option>`;
+    cons.forEach(c => {
+      const selected = appData.activeConsolidatedId === c.id;
+      html += `<option value="${esc(c.id)}"${selected ? ' selected' : ''}>📁 ${esc(c.name)}</option>`;
+    });
+  }
+  sel.innerHTML = html;
 }
 
 function onAccountChange(id) {
-  if (id === appData.activeAccountId) return;
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (cons) {
+    appData.activeConsolidatedId = id;
+    saveState();
+    renderAll();
+    return;
+  }
+  if (appData.activeConsolidatedId) appData.activeConsolidatedId = null;
+  if (id === appData.activeAccountId) { renderAll(); return; }
   activateAccount(id);
   saveState();
   renderAll();
@@ -736,6 +792,7 @@ function onAccountChange(id) {
 
 function renderMeta() {
   const el = document.getElementById('in-p0');
+  if (el) el.readOnly = false;
   if (el && document.activeElement !== el) el.value = state.meta.p0 ? fmtNum(state.meta.p0) : '';
   document.getElementById('disp-per1').textContent = state.meta.p0 ? '1% = ₩' + fmtNum(state.meta.p0 / 100) : '1% = —';
 }
@@ -971,9 +1028,211 @@ function renderDerived() {
 
 function renderAll() {
   renderAccountDropdown();
-  renderMeta();
-  renderSummary();
-  renderTable();
+  if (appData.activeConsolidatedId) {
+    renderConsolidatedView();
+  } else {
+    renderMeta();
+    renderSummary();
+    renderTable();
+  }
+}
+
+// 계산기 탭 뷰만 다시 그림 (fetchPrices 등에서 호출) — 계좌/종합 모드에 맞게 분기
+function renderCalcView() {
+  if (appData.activeConsolidatedId) renderConsolidatedView();
+  else { renderTable(); renderSummary(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  종합계좌 (appData.consolidated[] — index.html 로직 참고, v3 8열 표에 맞춰 읽기 전용으로 표시)
+// ═══════════════════════════════════════════════════════════════════
+
+// 멤버 계좌들의 종목을 ticker 기준으로 합산 (index.html buildConsolidatedData 참고, v3엔 realized 없음)
+function buildConsolidatedData(cons) {
+  const members = appData.accounts.filter(a => cons.memberIds.includes(a.id));
+  if (!members.length) return null;
+
+  const p0  = members.reduce((sum, m) => sum + (m.state.meta.p0 || 0), 0);
+  const fxN = members[0].state.meta.fxN || 0;
+
+  const stockMap = {};
+  members.forEach(m => {
+    m.state.stocks.forEach(s => {
+      if (s.market === 'CASH') return;
+      if (!stockMap[s.id]) {
+        stockMap[s.id] = { id: s.id, name: s.name, ticker: s.ticker, market: s.market, q: 0, avgSum: 0, price: s.price };
+      }
+      const t = stockMap[s.id];
+      t.avgSum += s.q * (s.avg || 0);
+      t.q += s.q;
+      if (s.price) t.price = s.price;
+    });
+  });
+
+  const stocks = Object.values(stockMap).map(t => ({ ...t, avg: t.q > 0 ? t.avgSum / t.q : 0 }));
+  return { p0, fxN, stocks };
+}
+
+function addConsolidatedV3() {
+  const nameEl = document.getElementById('new-cons-name-v3');
+  const name = (nameEl ? nameEl.value : '').trim();
+  if (!name) { alert('종합계좌 이름을 입력해 주세요.'); return; }
+  const checkboxes = document.querySelectorAll('#cons-member-checkboxes-v3 input[type="checkbox"]:checked');
+  const memberIds = Array.from(checkboxes).map(cb => cb.value);
+  if (memberIds.length < 2) { alert('2개 이상의 계좌를 선택해 주세요.'); return; }
+  if (!appData.consolidated) appData.consolidated = [];
+  appData.consolidated.push({ id: 'cons_' + Date.now(), name, memberIds });
+  saveState();
+  renderSettingsTab();
+  renderAccountDropdown();
+}
+
+function deleteConsolidatedV3(id) {
+  if (!confirm('이 종합계좌를 삭제하시겠습니까? (포함된 개별 계좌는 영향 없음)')) return;
+  appData.consolidated = (appData.consolidated || []).filter(c => c.id !== id);
+  const wasActive = appData.activeConsolidatedId === id;
+  if (wasActive) appData.activeConsolidatedId = null;
+  saveState();
+  renderSettingsTab();
+  renderAccountDropdown();
+  if (wasActive) renderAll();
+}
+
+function editConsolidatedV3(id) {
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (!cons) return;
+  const currentNames = cons.memberIds.map(mid => appData.accounts.find(a => a.id === mid)?.name || mid).join(', ');
+  const newName = prompt('종합계좌 이름:', cons.name);
+  if (newName === null) return;
+  if (newName.trim()) cons.name = newName.trim();
+
+  const nameToId = {};
+  appData.accounts.forEach(a => { nameToId[a.name] = a.id; });
+  const input = prompt(
+    `포함할 계좌 이름을 쉼표로 입력하세요 (2개 이상):\n예: ${appData.accounts.map(a => a.name).join(', ')}\n\n현재: ${currentNames}`,
+    currentNames
+  );
+  if (input === null) { saveState(); renderSettingsTab(); return; }
+  const newIds = input.split(',').map(s => s.trim()).map(n => nameToId[n]).filter(Boolean);
+  if (newIds.length < 2) { alert('유효한 계좌가 2개 이상이어야 합니다. 변경하지 않습니다.'); saveState(); renderSettingsTab(); return; }
+  cons.memberIds = newIds;
+  saveState();
+  renderSettingsTab();
+  if (appData.activeConsolidatedId === id) renderAll();
+}
+
+function activateConsolidatedV3(id) {
+  const cons = (appData.consolidated || []).find(c => c.id === id);
+  if (!cons) return;
+  appData.activeConsolidatedId = id;
+  saveState();
+  renderAccountDropdown();
+  renderSettingsTab();
+  renderAll();
+}
+
+function deactivateConsolidatedV3() {
+  appData.activeConsolidatedId = null;
+  saveState();
+  renderAccountDropdown();
+  renderSettingsTab();
+  renderAll();
+}
+
+// 종합계좌 읽기 전용 뷰 — 입력칸·±·×·드래그 핸들 없이 텍스트로만 표시
+function renderConsolidatedView() {
+  const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
+  if (!cons) { appData.activeConsolidatedId = null; renderAll(); return; }
+  const data = buildConsolidatedData(cons);
+
+  const p0El = document.getElementById('in-p0');
+  if (p0El) { p0El.value = data && data.p0 ? fmtNum(data.p0) : ''; p0El.readOnly = true; }
+  const per1El = document.getElementById('disp-per1');
+  if (per1El) per1El.textContent = data && data.p0 ? '1% = ₩' + fmtNum(data.p0 / 100) : '1% = —';
+
+  const wtEl = document.getElementById('disp-wtsum');
+  const fxEl = document.getElementById('disp-fxn');
+  const wrap = document.getElementById('tbl-wrap');
+
+  if (!data || !data.stocks.length) {
+    if (wtEl) { wtEl.textContent = '—'; wtEl.className = 'meta-sub'; }
+    if (fxEl) fxEl.textContent = data && data.fxN ? fmtNum(data.fxN, 2) : '—';
+    if (wrap) wrap.innerHTML = `<div style="padding:32px 16px;color:var(--text-sub);font-size:13px;text-align:center">포함된 계좌에 종목이 없습니다.</div>`;
+    return;
+  }
+
+  const per1 = data.p0 / 100;
+  const hasFxN = !!(data.fxN && data.fxN > 0);
+
+  let totalWeight = 0;
+  data.stocks.forEach(s => {
+    const pKRW = s.market === 'US' ? s.price * data.fxN : s.price;
+    if (per1) totalWeight += (s.q * pKRW) / per1;
+  });
+  const wtCls = !per1 ? '' : (totalWeight > 100 ? 'val-pos' : totalWeight < 100 ? 'val-neg' : '');
+  if (wtEl) { wtEl.textContent = per1 ? fmtDec(totalWeight, 1) + '%' : '—'; wtEl.className = 'meta-sub' + (wtCls ? ' ' + wtCls : ''); }
+  if (fxEl) fxEl.textContent = data.fxN ? fmtNum(data.fxN, 2) : '—';
+
+  const groups = [
+    { label: '미국 (USD)', market: 'US' },
+    { label: '한국 (KRW)', market: 'KR' },
+  ];
+
+  let html = `<div style="padding:8px 16px;font-size:11px;color:var(--text-muted)">* 시세 새로고침은 마지막으로 선택했던 개별 계좌 기준으로 동작합니다</div>
+  <table style="table-layout:fixed">
+    <colgroup>
+      <col style="width:190px"><col style="width:100px"><col style="width:95px">
+      <col style="width:85px"><col style="width:115px"><col style="width:80px">
+      <col style="width:90px"><col style="width:120px">
+    </colgroup>
+    <thead><tr>
+      <th>종목</th>
+      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
+      <th class="num">평단가</th>
+      <th class="num">보유수량</th>
+      <th class="center" style="border-left:2px solid var(--border)">설정비율</th>
+      <th class="num">현재비중</th>
+      <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
+      <th class="num">평가금액</th>
+    </tr></thead>`;
+
+  groups.forEach(g => {
+    const stocks = data.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+    const groupClass = g.market === 'US' ? 'group-us' : 'group-kr';
+    html += `<tbody><tr class="group-hdr ${groupClass}"><td colspan="8">${g.label}</td></tr></tbody><tbody>`;
+
+    let subVal = 0, subWeight = 0;
+    stocks.forEach(s => {
+      const pKRW = s.market === 'US' ? s.price * data.fxN : s.price;
+      const val  = s.q * pKRW;
+      const wt   = per1 ? val / per1 : 0;
+      const valOk = s.market !== 'US' || hasFxN;
+      subVal += val; subWeight += wt;
+      const badgeClass = s.market === 'US' ? 'badge-us' : 'badge-kr';
+      html += `<tr>
+        <td><span class="stock-name">${esc(s.name)}</span><span class="stock-ticker">${esc(s.ticker)}</span><span class="badge ${badgeClass}">${s.market}</span></td>
+        <td class="num" style="border-left:2px solid var(--border)">${s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
+        <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
+        <td class="num">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
+        <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
+        <td class="num">${valOk ? fmtNum(val) + ' 원' : '—'}</td>
+      </tr>`;
+    });
+
+    html += `</tbody><tbody><tr class="subtotal-row">
+      <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계</td>
+      <td class="num">—</td>
+      <td class="num">${per1 ? fmtDec(subWeight, 2) : '—'}</td>
+      <td class="num"></td>
+      <td class="num">${fmtNum(subVal)} 원</td>
+    </tr></tbody>`;
+  });
+
+  html += '</table>';
+  if (wrap) wrap.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1000,6 +1259,8 @@ async function checkRecoWeights() {
 function evaluateRecoBanner() {
   const banner = document.getElementById('reco-banner');
   if (!banner) return;
+  // 종합계좌 모드에서는 추천 적용 대상(개별 계좌)이 모호하므로 배너를 띄우지 않음
+  if (appData.activeConsolidatedId) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   if (!recoData) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
 
   const applied = state.meta.appliedRecoVersion;
@@ -1204,8 +1465,7 @@ async function fetchPrices() {
   }));
 
   saveState();
-  renderTable();
-  renderSummary();
+  renderCalcView();
 
   ['btn-fetch-prices', 'btn-fetch-prices-settings'].forEach(id => {
     const b = document.getElementById(id);
@@ -1246,8 +1506,593 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     const s = document.getElementById('tab-' + btn.dataset.tab);
     if (s) s.classList.add('active');
+    if (btn.dataset.tab === 'settings') renderSettingsTab();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — ① 계좌 관리
+// ═══════════════════════════════════════════════════════════════════
+
+function getAccountStockCount(acc) {
+  return acc.state.stocks.filter(s => s.market !== 'CASH' && (s.r || 0) > 0).length;
+}
+
+function buildAccountsSection() {
+  let html = `<div class="settings-card"><div class="settings-card-title">① 계좌 관리</div>`;
+  appData.accounts.forEach(acc => {
+    const isActive = !appData.activeConsolidatedId && acc.id === appData.activeAccountId;
+    const canDelete = appData.accounts.length > 1;
+    html += `<div class="settings-list-row${isActive ? ' active-row' : ''}">
+      <div class="settings-list-info">
+        <span class="settings-list-name">${esc(acc.name)}${isActive ? '<span class="settings-badge-active">현재</span>' : ''}</span>
+        <span class="settings-list-sub">종목 ${getAccountStockCount(acc)}개</span>
+      </div>
+      <div class="settings-list-actions">
+        ${!isActive ? `<button class="btn btn-sm" onclick="switchAccountFromSettings('${acc.id}')">전환</button>` : ''}
+        <button class="btn btn-sm" onclick="renameAccountV3('${acc.id}')">이름 변경</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteAccountV3('${acc.id}')" ${canDelete ? '' : 'disabled title="계좌는 최소 1개 이상 있어야 합니다"'}>삭제</button>
+      </div>
+    </div>`;
+  });
+  html += `<div class="settings-add-row">
+    <input class="inp" id="new-acc-name-v3" placeholder="예: 연금저축, 해외주식" style="max-width:220px">
+    <button class="btn btn-primary btn-sm" onclick="addAccountV3()">+ 계좌 추가</button>
+  </div>
+  </div>`;
+  return html;
+}
+
+function switchAccountFromSettings(id) {
+  onAccountChange(id);
+  renderSettingsTab();
+}
+
+// 새 계좌 초기 상태: 종목 없음, p0=0 (추천 비중 배너로 채우는 흐름)
+function addAccountV3() {
+  const nameEl = document.getElementById('new-acc-name-v3');
+  const name = (nameEl ? nameEl.value : '').trim();
+  if (!name) { alert('계좌 이름을 입력해 주세요.'); return; }
+  const id = 'acc_' + Date.now();
+  appData.accounts.push({ id, name, state: { meta: { p0: 0, fx0: 0, fxN: 0, priceMode: 'curr' }, stocks: [] } });
+  activateAccount(id);
+  saveState();
+  renderSettingsTab();
+  renderAccountDropdown();
+}
+
+function renameAccountV3(id) {
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return;
+  const newName = prompt('새 계좌 이름을 입력하세요:', acc.name);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { alert('이름을 비워둘 수 없습니다.'); return; }
+  acc.name = trimmed;
+  saveState();
+  renderSettingsTab();
+  renderAccountDropdown();
+}
+
+function deleteAccountV3(id) {
+  if (appData.accounts.length <= 1) { alert('계좌는 최소 1개 이상 있어야 합니다.'); return; }
+  const acc = appData.accounts.find(a => a.id === id);
+  if (!acc) return;
+  if (!confirm(`"${acc.name}" 계좌를 삭제합니다.\n이 계좌의 모든 데이터가 사라집니다.\n계속하시겠습니까?`)) return;
+
+  if (id === appData.activeAccountId) {
+    const other = appData.accounts.find(a => a.id !== id);
+    if (other) activateAccount(other.id);
+  }
+  appData.accounts = appData.accounts.filter(a => a.id !== id);
+  saveState();
+  renderSettingsTab();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — ③ 구글 드라이브 백업 (index.html 원본 그대로 이식)
+// ═══════════════════════════════════════════════════════════════════
+
+const GDRIVE_CLIENT_ID   = '848368395563-kp5f6h7mceh25hsnuree1ljarbf5f90e.apps.googleusercontent.com';
+const GDRIVE_SCOPES      = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_FOLDER_NAME = '리밸런싱앱_백업';
+
+let gdriveTokenClient = null;
+let gdriveAccessToken = null;
+let gdriveUserEmail   = null;
+let gdriveAutoBackup  = true;
+
+function initGoogleDrive() {
+  let attempts = 0;
+  const maxAttempts = 20;
+
+  function tryInit() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+      const saved = localStorage.getItem('gdrive_auto_backup');
+      gdriveAutoBackup = saved !== null ? saved === 'true' : true;
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      updateGdriveUI();
+      return;
+    }
+    attempts++;
+    if (attempts < maxAttempts) {
+      setTimeout(tryInit, 500);
+    } else {
+      gdriveUserEmail = localStorage.getItem('gdrive_user_email') || null;
+      updateGdriveUI();
+    }
+  }
+
+  tryInit();
+}
+
+function connectGoogleDrive() {
+  if (!gdriveTokenClient) {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+      gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID,
+        scope: GDRIVE_SCOPES,
+        callback: onGdriveTokenResponse,
+      });
+    } else {
+      alert('구글 로그인 서비스를 불러오는 중입니다.\n잠시 후 다시 시도해 주세요.');
+      return;
+    }
+  }
+  gdriveTokenClient.requestAccessToken();
+}
+
+async function onGdriveTokenResponse(tokenResponse) {
+  if (tokenResponse.error) {
+    console.error('Google OAuth error:', tokenResponse.error);
+    alert('구글 로그인에 실패했습니다: ' + (tokenResponse.error_description || tokenResponse.error));
+    return;
+  }
+  gdriveAccessToken = tokenResponse.access_token;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${gdriveAccessToken}` }
+    });
+    const info = await res.json();
+    gdriveUserEmail = info.email || '연결됨';
+    localStorage.setItem('gdrive_user_email', gdriveUserEmail);
+  } catch (e) {
+    gdriveUserEmail = '연결됨';
+  }
+  updateGdriveUI();
+}
+
+function disconnectGoogleDrive() {
+  if (gdriveAccessToken && typeof google !== 'undefined') {
+    google.accounts.oauth2.revoke(gdriveAccessToken, () => {});
+  }
+  gdriveAccessToken = null;
+  gdriveUserEmail = null;
+  localStorage.removeItem('gdrive_user_email');
+  updateGdriveUI();
+}
+
+async function ensureGdriveToken() {
+  if (!gdriveAccessToken) return false;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + gdriveAccessToken);
+    if (res.ok) return true;
+  } catch (e) {}
+  return new Promise(resolve => {
+    gdriveTokenClient.callback = (resp) => {
+      if (resp.error) { gdriveAccessToken = null; resolve(false); return; }
+      gdriveAccessToken = resp.access_token;
+      gdriveTokenClient.callback = onGdriveTokenResponse;
+      resolve(true);
+    };
+    gdriveTokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+async function getOrCreateDriveFolder() {
+  const token = gdriveAccessToken;
+  const q = encodeURIComponent(`name='${GDRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const searchData = await searchRes.json();
+  if (searchData.files && searchData.files.length > 0) return searchData.files[0].id;
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: GDRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+  });
+  const created = await createRes.json();
+  return created.id;
+}
+
+// 저장 대상: v3 appData 전체 (rebalance_app_v3)
+async function saveToDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) return false;
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+
+    const now = new Date();
+    const ts = now.getFullYear()
+      + '-' + String(now.getMonth() + 1).padStart(2, '0')
+      + '-' + String(now.getDate()).padStart(2, '0')
+      + '_' + String(now.getHours()).padStart(2, '0')
+      + '-' + String(now.getMinutes()).padStart(2, '0')
+      + '-' + String(now.getSeconds()).padStart(2, '0');
+    const fileName = `backup_${ts}.json`;
+
+    const backupData = JSON.stringify(appData, null, 2);
+    const metadata = { name: fileName, mimeType: 'application/json', parents: [folderId] };
+    const boundary = '---rebalance_backup_boundary';
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${backupData}\r\n--${boundary}--`;
+
+    const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (uploadRes.ok) {
+      localStorage.setItem('gdrive_last_backup', now.toLocaleString('ko-KR'));
+      updateGdriveUI();
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('드라이브 저장 오류:', e);
+    return false;
+  }
+}
+
+async function loadFromDrive() {
+  const valid = await ensureGdriveToken();
+  if (!valid) { alert('구글 드라이브에 연결되어 있지 않습니다.\n먼저 연결해 주세요.'); return; }
+  try {
+    const folderId = await getOrCreateDriveFolder();
+    const token = gdriveAccessToken;
+
+    const q = encodeURIComponent(`'${folderId}' in parents and mimeType='application/json' and trashed=false`);
+    const searchRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&pageSize=30&fields=files(id,name,modifiedTime,size)`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const searchData = await searchRes.json();
+
+    if (!searchData.files || !searchData.files.length) {
+      alert('드라이브에 백업 파일이 없습니다.');
+      return;
+    }
+
+    showDriveFileList(searchData.files);
+  } catch (e) {
+    console.error('드라이브 불러오기 오류:', e);
+    alert('드라이브에서 파일 목록을 가져오는 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+function showDriveFileList(files) {
+  const existing = document.getElementById('gdrive-file-modal');
+  if (existing) existing.remove();
+
+  let listHtml = '';
+  files.forEach((f, i) => {
+    const date = f.modifiedTime ? new Date(f.modifiedTime).toLocaleString('ko-KR') : '알 수 없음';
+    const sizeKB = f.size ? (parseInt(f.size) / 1024).toFixed(1) + ' KB' : '';
+    const badge = i === 0 ? ' <span style="color:var(--positive);font-size:11px;font-weight:700">최신</span>' : '';
+    listHtml += `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer"
+           onclick="restoreFromDrive('${f.id}', '${esc(f.name)}')"
+           onmouseover="this.style.background='var(--surface2)'"
+           onmouseout="this.style.background='transparent'">
+        <div>
+          <div style="font-size:13px;font-weight:600">${esc(f.name)}${badge}</div>
+          <div style="font-size:11px;color:var(--text-sub)">${date}${sizeKB ? ' · ' + sizeKB : ''}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();restoreFromDrive('${f.id}', '${esc(f.name)}')">복원</button>
+      </div>`;
+  });
+
+  const modal = document.createElement('div');
+  modal.id = 'gdrive-file-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;display:flex;align-items:center;justify-content:center;';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:16px;font-weight:700">☁️ 드라이브 백업 목록</div>
+        <button style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text)" onclick="document.getElementById('gdrive-file-modal').remove()">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">${listHtml}</div>
+      <div style="padding:12px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-sub)">
+        총 ${files.length}개 백업 · 클릭하여 복원
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+// 예전(v2) 백업일 수도 있으므로 1단계 마이그레이션과 동일한 정리(이력·스냅샷 필드 제거)를 통과시킴
+function sanitizeLoadedAppData(loaded) {
+  return {
+    activeAccountId: loaded.activeAccountId,
+    accounts: (loaded.accounts || []).map(migrateAccountFromV2),
+    consolidated: (loaded.consolidated || []).map(c => ({ id: c.id, name: c.name, memberIds: c.memberIds || [] })),
+    activeConsolidatedId: loaded.activeConsolidatedId || null,
+  };
+}
+
+async function restoreFromDrive(fileId, fileName) {
+  if (!confirm(`"${fileName}" 백업을 복원합니다.\n\n현재 모든 데이터가 이 백업으로 교체됩니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+  try {
+    const token = gdriveAccessToken;
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fileText = await fileRes.text();
+    const loaded = JSON.parse(fileText);
+
+    if (!loaded.accounts || !Array.isArray(loaded.accounts) || !loaded.accounts.length) {
+      alert('백업 파일 형식이 올바르지 않습니다.');
+      return;
+    }
+
+    appData = sanitizeLoadedAppData(loaded);
+    const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
+      ? appData.activeAccountId : appData.accounts[0].id;
+    activateAccount(validId);
+    saveState();
+    renderAll();
+    renderSettingsTab();
+
+    const modal = document.getElementById('gdrive-file-modal');
+    if (modal) modal.remove();
+
+    alert(`백업 복원 완료! (${loaded.accounts.length}개 계좌)\n파일: ${fileName}`);
+  } catch (e) {
+    console.error('드라이브 복원 오류:', e);
+    alert('복원 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+async function manualDriveBackup(e) {
+  const btn = (e && e.target) || document.activeElement;
+  if (btn) { btn.disabled = true; btn.textContent = '백업 중...'; }
+  const ok = await saveToDrive();
+  if (btn) { btn.disabled = false; btn.textContent = '지금 백업하기'; }
+  if (ok) alert('구글 드라이브에 백업 완료!');
+  else alert('백업에 실패했습니다. 연결 상태를 확인해 주세요.');
+}
+
+function buildGdriveUI() {
+  const isConnected = !!gdriveAccessToken;
+  const email = gdriveUserEmail || '';
+  const lastBackup = localStorage.getItem('gdrive_last_backup') || '없음';
+  const autoChecked = gdriveAutoBackup ? 'checked' : '';
+
+  if (!isConnected) {
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;color:var(--text-sub)">구글 드라이브에 연결하면 계좌 데이터를 백업/복원할 수 있습니다.</div>
+        <div><button class="btn btn-primary" onclick="connectGoogleDrive()">구글 드라이브 연결</button></div>
+        ${email ? `<div style="font-size:11px;color:var(--text-muted)">이전 연결: ${esc(email)} (재연결 필요)</div>` : ''}
+      </div>`;
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--positive);font-weight:700">✅ 연결됨</span>
+        <span style="font-size:13px;color:var(--text-sub)">${esc(email)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="manualDriveBackup(event)">지금 백업하기</button>
+        <button class="btn" onclick="loadFromDrive()">드라이브에서 불러오기</button>
+        <button class="btn btn-sm" style="color:var(--text-muted)" onclick="disconnectGoogleDrive()">연결 해제</button>
+      </div>
+    </div>`;
+}
+
+function updateGdriveUI() {
+  const section = document.getElementById('gdrive-section');
+  if (section) section.innerHTML = buildGdriveUI();
+}
+
+function buildDriveSection() {
+  return `<div class="settings-card"><div class="settings-card-title">③ 구글 드라이브 백업</div>
+    <div id="gdrive-section">${buildGdriveUI()}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — ④ 추천 비중
+// ═══════════════════════════════════════════════════════════════════
+
+function buildRecoSection() {
+  const applied = state && state.meta ? state.meta.appliedRecoVersion : null;
+  return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
+    <div style="font-size:13px;color:var(--text-sub);margin-bottom:12px">적용된 추천: <strong style="color:var(--text)">${esc(applied || '없음')}</strong></div>
+    <button class="btn" onclick="checkRecoNow()">지금 확인</button>
+    <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
+  </div>`;
+}
+
+async function checkRecoNow() {
+  const resultEl = document.getElementById('reco-check-result');
+  try {
+    const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data || !data.version || !Array.isArray(data.stocks)) throw new Error('형식 오류');
+    recoData = data;
+    const applied = state.meta.appliedRecoVersion;
+    if (resultEl) resultEl.style.display = 'inline';
+    if (data.version === applied) {
+      if (resultEl) resultEl.textContent = '이미 최신입니다.';
+    } else {
+      if (resultEl) resultEl.textContent = '새 버전이 있습니다 — 계산기 탭에서 배너를 확인하세요.';
+      evaluateRecoBanner();
+    }
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = '확인 실패 — 네트워크를 확인하세요.'; resultEl.style.display = 'inline'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — ⑤ 고급 (접이식, 기본 접힘) — 배포 도구
+// ═══════════════════════════════════════════════════════════════════
+
+let advancedOpen = false;
+
+function toggleAdvanced() {
+  advancedOpen = !advancedOpen;
+  renderSettingsTab();
+}
+
+function nextRecoVersion() {
+  const today = new Date();
+  const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  const taken = new Set();
+  if (state.meta.appliedRecoVersion) taken.add(state.meta.appliedRecoVersion);
+  if (recoData && recoData.version) taken.add(recoData.version);
+  let n = 1;
+  while (taken.has(`${datePart}-${n}`)) n++;
+  return `${datePart}-${n}`;
+}
+
+function copyDeployJson() {
+  const memoEl = document.getElementById('deploy-memo');
+  const memo = memoEl ? memoEl.value.trim() : '';
+  const today = new Date();
+  const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  const payload = {
+    version: nextRecoVersion(),
+    date: datePart,
+    memo,
+    stocks: state.stocks.map(s => ({ name: s.name, ticker: s.ticker, market: s.market, r: s.adjR })),
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const resultEl = document.getElementById('deploy-copy-result');
+  const showResult = msg => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(json)
+      .then(() => showResult('복사되었습니다. GitHub의 weights.json에 붙여넣으면 배포됩니다.'))
+      .catch(() => { console.log(json); showResult('클립보드 복사 실패 — 콘솔에 출력했습니다.'); });
+  } else {
+    console.log(json);
+    showResult('클립보드 API를 사용할 수 없어 콘솔에 출력했습니다.');
+  }
+}
+
+function buildAdvancedSection() {
+  return `<div class="settings-card">
+    <div class="settings-card-title" style="cursor:pointer;user-select:none" onclick="toggleAdvanced()">${advancedOpen ? '▾' : '▸'} 고급</div>
+    ${advancedOpen ? `
+    <div>
+      <div class="settings-card-subtitle">배포 도구</div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:420px">
+        <div>
+          <div class="meta-label" style="margin-bottom:4px">메모</div>
+          <input class="inp" id="deploy-memo" placeholder="예: 반도체 확대">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="copyDeployJson()" style="align-self:flex-start">배포용 JSON 복사</button>
+        <div id="deploy-copy-result" style="font-size:12px;color:var(--text-sub);display:none"></div>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — ⑥ 초기화
+// ═══════════════════════════════════════════════════════════════════
+
+function buildResetSection() {
+  return `<div class="settings-card"><div class="settings-card-title">⑥ 초기화</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-danger" onclick="resetCurrentAccountV3()">현재 계좌 초기화</button>
+      <button class="btn btn-danger" onclick="resetAllV3()">전체 초기화</button>
+    </div>
+  </div>`;
+}
+
+function resetCurrentAccountV3() {
+  const accName = appData.accounts.find(a => a.id === appData.activeAccountId)?.name || '현재 계좌';
+  if (!confirm(`"${accName}"의 종목·보유수량·원금을 모두 비웁니다.\n되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+  state.meta.p0 = 0; state.meta.fx0 = 0; state.meta.fxN = 0;
+  delete state.meta.appliedRecoVersion;
+  state.stocks = [];
+  saveState();
+  renderAll();
+  renderSettingsTab();
+}
+
+// rebalance_app_v2(기존 앱 키)는 절대 건드리지 않음 — v3 키만 삭제
+function resetAllV3() {
+  if (!confirm('모든 계좌가 삭제됩니다. 정말 전체 초기화하시겠습니까?')) return;
+  if (!confirm('마지막 확인입니다 — rebalance_app_v3 데이터가 전부 삭제되고 새로고침됩니다.\n계속하시겠습니까?')) return;
+  localStorage.removeItem(V3_STORAGE_KEY);
+  location.reload();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  설정 탭 — 렌더 진입점
+// ═══════════════════════════════════════════════════════════════════
+
+function renderSettingsTab() {
+  const container = document.getElementById('settings-content');
+  if (!container) return;
+  container.innerHTML =
+    buildAccountsSection() +
+    buildConsolidatedSectionV3() +
+    buildDriveSection() +
+    buildRecoSection() +
+    buildAdvancedSection() +
+    buildResetSection();
+}
+
+function buildConsolidatedSectionV3() {
+  const cons = appData.consolidated || [];
+  const memberCheckboxes = appData.accounts.map(a =>
+    `<label style="font-size:13px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" value="${esc(a.id)}"> ${esc(a.name)}
+    </label>`
+  ).join('');
+
+  let html = `<div class="settings-card"><div class="settings-card-title">② 종합계좌</div>`;
+  cons.forEach(c => {
+    const memberNames = c.memberIds.map(id => appData.accounts.find(a => a.id === id)?.name || '(삭제됨)').join(', ');
+    const isActive = appData.activeConsolidatedId === c.id;
+    html += `<div class="settings-list-row${isActive ? ' active-row' : ''}">
+      <div class="settings-list-info">
+        <span class="settings-list-name">📁 ${esc(c.name)}${isActive ? '<span class="settings-badge-active">현재</span>' : ''}</span>
+        <span class="settings-list-sub">${esc(memberNames)}</span>
+      </div>
+      <div class="settings-list-actions">
+        ${!isActive
+          ? `<button class="btn btn-sm" onclick="activateConsolidatedV3('${c.id}')">전환</button>`
+          : `<button class="btn btn-sm" onclick="deactivateConsolidatedV3()">해제</button>`}
+        <button class="btn btn-sm" onclick="editConsolidatedV3('${c.id}')">편집</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteConsolidatedV3('${c.id}')">삭제</button>
+      </div>
+    </div>`;
+  });
+
+  html += `<div class="settings-add-row" style="flex-direction:column;align-items:flex-start;gap:10px">
+    <input class="inp" id="new-cons-name-v3" placeholder="예: 전체 종합" style="max-width:220px">
+    <div id="cons-member-checkboxes-v3" style="display:flex;flex-direction:column;gap:6px">${memberCheckboxes}</div>
+    <button class="btn btn-primary btn-sm" onclick="addConsolidatedV3()">📁 종합계좌 만들기</button>
+  </div>
+  </div>`;
+  return html;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 //  초기 실행
@@ -1255,8 +2100,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 loadState();
 renderAll();
+renderSettingsTab();
 loadPriceServerUrl();
 checkRecoWeights();
+initGoogleDrive();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
