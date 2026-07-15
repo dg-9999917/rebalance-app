@@ -267,8 +267,32 @@
     }
     .inp-pf:focus { outline: none; border-color: var(--accent); }
 
-    /* 추천 비중 배너 (2단계에서 구현) */
-    #reco-banner { }
+    /* 추천 비중 배너 */
+    #reco-banner {
+      display: none; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 10px 16px; background: #e8f0fe; color: #1a56c4;
+      border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600;
+    }
+    :root[data-theme="dark"] #reco-banner { background: #1a2744; color: #6bb5ff; }
+    #reco-banner .reco-banner-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    #reco-banner .reco-banner-close {
+      width: 22px; height: 22px; border: none; border-radius: 3px;
+      background: none; color: inherit; font-size: 14px; line-height: 1; opacity: .7;
+    }
+    #reco-banner .reco-banner-close:hover { opacity: 1; background: rgba(0,0,0,.06); }
+
+    /* 추천 비중 적용 확인 모달 */
+    #reco-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      z-index: 500; align-items: center; justify-content: center;
+    }
+    #reco-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      width: min(520px, 92vw); max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+    #reco-modal .reco-modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; }
+    #reco-modal .reco-modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.8; }
+    #reco-modal .reco-modal-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+    .reco-diff-title { font-weight: 700; margin-bottom: 2px; }
+    .reco-diff-block { margin-bottom: 12px; }
 
     /* 준비 중 플레이스홀더 */
     .placeholder {
@@ -345,8 +369,8 @@
         <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
       </div>
 
-      <!-- 추천 비중 배너 (2단계에서 구현) -->
-      <div id="reco-banner" style="display:none"></div>
+      <!-- 추천 비중 배너 -->
+      <div id="reco-banner"></div>
 
       <!-- 종목 표 -->
       <div class="tbl-wrap" id="tbl-wrap">
@@ -359,6 +383,18 @@
       <div class="placeholder"><strong>설정</strong>준비 중입니다.</div>
     </section>
   </main>
+
+  <!-- ══════════════ 추천 비중 적용 확인 모달 ══════════════ -->
+  <div id="reco-modal-overlay" onclick="if(event.target===this) closeRecoModal()">
+    <div id="reco-modal">
+      <div class="reco-modal-header">추천 비중 적용 확인</div>
+      <div class="reco-modal-body" id="reco-modal-body"></div>
+      <div class="reco-modal-footer">
+        <button class="btn" onclick="closeRecoModal()">취소</button>
+        <button class="btn btn-primary" onclick="confirmApplyReco()">적용</button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- #app -->
 
@@ -695,6 +731,7 @@ function onAccountChange(id) {
   activateAccount(id);
   saveState();
   renderAll();
+  evaluateRecoBanner();
 }
 
 function renderMeta() {
@@ -940,6 +977,152 @@ function renderAll() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  추천 비중 배포 시스템 (weights.json)
+// ═══════════════════════════════════════════════════════════════════
+
+const DISMISSED_RECO_KEY = 'v3_dismissedRecoVersion';
+let recoData = null;
+
+// 앱 로드 시(및 계좌 전환 시) 1회 조회 — 실패해도 조용히 무시
+async function checkRecoWeights() {
+  try {
+    const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || !data.version || !Array.isArray(data.stocks)) return;
+    recoData = data;
+    evaluateRecoBanner();
+  } catch (e) {
+    // 오프라인 등 실패 시 앱 동작에 지장 없이 무시
+  }
+}
+
+function evaluateRecoBanner() {
+  const banner = document.getElementById('reco-banner');
+  if (!banner) return;
+  if (!recoData) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+
+  const applied = state.meta.appliedRecoVersion;
+  const dismissed = localStorage.getItem(DISMISSED_RECO_KEY);
+  if (recoData.version === applied || recoData.version === dismissed) {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
+    return;
+  }
+
+  banner.innerHTML = `
+    <span>📢 ${esc(recoData.date || '')} 추천 비중 도착 — "${esc(recoData.memo || '')}"</span>
+    <div class="reco-banner-actions">
+      <button class="btn btn-primary btn-sm" onclick="openRecoModal()">적용하기</button>
+      <button class="reco-banner-close" onclick="dismissRecoBanner()" title="닫기">✕</button>
+    </div>`;
+  banner.style.display = 'flex';
+}
+
+function dismissRecoBanner() {
+  if (recoData) localStorage.setItem(DISMISSED_RECO_KEY, recoData.version);
+  const banner = document.getElementById('reco-banner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+}
+
+// 종목 매칭 키: ticker + market
+function buildRecoDiff() {
+  const added = [];
+  const changed = [];
+  const excluded = [];
+
+  recoData.stocks.forEach(rs => {
+    const existing = state.stocks.find(s => s.ticker === rs.ticker && s.market === rs.market);
+    if (!existing) {
+      added.push(rs);
+    } else if (+existing.r !== +rs.r) {
+      changed.push({ name: existing.name, from: existing.r, to: rs.r });
+    }
+  });
+
+  state.stocks.forEach(s => {
+    const inReco = recoData.stocks.some(rs => rs.ticker === s.ticker && rs.market === s.market);
+    if (!inReco) excluded.push(s);
+  });
+
+  return { added, changed, excluded };
+}
+
+function openRecoModal() {
+  if (!recoData) return;
+  const diff = buildRecoDiff();
+  let html = '';
+  if (diff.added.length) {
+    html += `<div class="reco-diff-block"><div class="reco-diff-title">새로 추가</div>${diff.added.map(s => esc(s.name)).join(', ')}</div>`;
+  }
+  if (diff.changed.length) {
+    html += `<div class="reco-diff-block"><div class="reco-diff-title">비중 변경</div>${diff.changed.map(c => `${esc(c.name)} ${fmtDec(c.from, 1)} → ${fmtDec(c.to, 1)}`).join('<br>')}</div>`;
+  }
+  if (diff.excluded.length) {
+    html += `<div class="reco-diff-block"><div class="reco-diff-title">추천 제외 (0%로)</div>${diff.excluded.map(s => esc(s.name)).join(', ')}</div>`;
+  }
+  if (!diff.added.length && !diff.changed.length && !diff.excluded.length) {
+    html += `<div class="reco-diff-block">변경 사항이 없습니다.</div>`;
+  }
+  html += `<div style="padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-sub)">적용하면 기존 종목의 개인 조정(±)이 추천 비중으로 초기화됩니다. 추천에서 제외된 종목은 삭제되지 않고 비중만 0%가 됩니다.</div>`;
+
+  document.getElementById('reco-modal-body').innerHTML = html;
+  document.getElementById('reco-modal-overlay').style.display = 'flex';
+}
+
+function closeRecoModal() {
+  document.getElementById('reco-modal-overlay').style.display = 'none';
+}
+
+function confirmApplyReco() {
+  if (!recoData) return;
+  const recoList = recoData.stocks;
+  let hasNewZeroPrice = false;
+
+  // 1) 기존 종목: r/adjR을 추천 값으로 갱신 / 3) 추천에 없는 기존 종목: r/adjR=0 (행 유지)
+  state.stocks.forEach(s => {
+    const rs = recoList.find(r => r.ticker === s.ticker && r.market === s.market);
+    if (rs) {
+      s.r = rs.r; s.adjR = rs.r;
+    } else {
+      s.r = 0; s.adjR = 0;
+    }
+  });
+
+  // 2) 신규 종목 추가 — 추천의 market 그룹 순서대로 각 그룹 끝에 배치
+  recoList.forEach(rs => {
+    const exists = state.stocks.some(s => s.ticker === rs.ticker && s.market === rs.market);
+    if (exists) return;
+    const newStock = {
+      id: rs.ticker, name: rs.name, ticker: rs.ticker, market: rs.market,
+      c0: rs.market === 'CASH' ? 1 : 0, price: 0, r: rs.r, adjR: rs.r, q: 0, avg: 0,
+    };
+    let insertAt = -1;
+    for (let i = state.stocks.length - 1; i >= 0; i--) {
+      if (state.stocks[i].market === rs.market) { insertAt = i + 1; break; }
+    }
+    if (insertAt === -1) state.stocks.push(newStock);
+    else state.stocks.splice(insertAt, 0, newStock);
+    hasNewZeroPrice = true;
+  });
+
+  state.meta.appliedRecoVersion = recoData.version;
+  saveState();
+
+  closeRecoModal();
+  const banner = document.getElementById('reco-banner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
+
+  renderMeta();
+  renderSummary();
+  renderTable();
+
+  if (hasNewZeroPrice) {
+    showFetchResult('신규 종목이 추가되었습니다 — 시세 새로고침을 눌러주세요', 'info');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  시세 서버 연동 (index.html 원본 그대로 복사 — 마지막 렌더 호출부만 v3용으로 교체)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1073,6 +1256,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 loadState();
 renderAll();
 loadPriceServerUrl();
+checkRecoWeights();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});

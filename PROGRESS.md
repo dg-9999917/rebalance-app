@@ -1,5 +1,17 @@
 # 구현 진행 상황
 
+## v3 2단계 — 추천 비중 배포 시스템 (weights.json) — 2026-07-15
+- [x] weights.json 레포 루트 신규 생성 — 초기값은 v3 "기본 계좌"(DEFAULT_STOCKS_V3) 전 종목의 name/ticker/market/adjR을 그대로 이전, version "2026-07-15-1"
+- [x] v3.html: 앱 로드 시 `fetch('./weights.json?ts='+Date.now(), {cache:'no-store'})` 1회 조회(checkRecoWeights), 실패 시 조용히 무시
+- [x] state.meta.appliedRecoVersion(계좌별) vs localStorage dismissedRecoVersion(기기별) 비교해 배너 표시 여부 판정(evaluateRecoBanner), 계좌 전환(onAccountChange) 시에도 재판정
+- [x] 배너: reco-banner 자리 사용, "📢 {date} 추천 비중 도착 — {memo}" + [적용하기][×], 연한 파랑 배경(라이트/다크)
+- [x] 적용 확인 모달(reco-modal-overlay): 새로 추가/비중 변경/추천 제외 목록 표시(buildRecoDiff, 매칭 키 ticker+market) + 개인조정 초기화 안내 문구
+- [x] 적용 로직(confirmApplyReco): 기존 종목 r=adjR=추천r, 신규 종목 추가(q=0/avg=0/price=0, market 그룹 순서 유지해 삽입), 추천에 없는 기존 종목은 행 삭제 없이 r=adjR=0, appliedRecoVersion 저장 후 재렌더, 신규 종목 있으면 안내 메시지 1회(showFetchResult 재사용)
+- [x] sw.js: fetch 핸들러에 `url.pathname.includes('weights.json')` 시 respondWith 없이 return — 캐시 완전 우회, 기존 index.html 캐싱 흐름엔 영향 없음
+- [x] sw.js CACHE_NAME rebalance-v47 → rebalance-v48
+- [x] 계산 함수 6개 index.html과 byte-for-byte 동일 재검증, index.html 무수정 확인(git diff 없음)
+- [x] Node 시뮬레이션으로 buildRecoDiff/confirmApplyReco 검증(신규/변경/제외/그룹순서 삽입 전부 기대값과 일치) — 실제 브라우저·GitHub Pages 배포 후 라이브 확인은 미수행
+
 ## v3 수정 1차 — 상단 레이아웃 정리 (v3.html) — 2026-07-15
 - [x] 헤더: "리밸런싱 계산기" 제목 삭제, [계산기][설정] 탭 좌측으로, 계좌 드롭다운 우측으로 이동
 - [x] 기준 영역 한 줄 통합: 전체 자금 · 1%금액 · 현재 비중 합계 · 현재 환율 · [시세 새로고침] — [+ 종목 추가] 버튼 삭제(테이블 하단 폼과 중복), 별도 요약 바(summary-bar) 제거하고 renderSummary()가 인라인 span(#disp-wtsum/#disp-fxn) 직접 갱신하도록 변경, 현재비중 100 초과/미만 색상 규칙 그대로 유지

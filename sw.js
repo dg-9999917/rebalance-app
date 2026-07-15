@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rebalance-v47';
+const CACHE_NAME = 'rebalance-v48';
 const SHELL = ['./', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -20,6 +20,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // 크로스-오리진(시세 API 등)은 캐시하지 않고 통과
   if (url.origin !== self.location.origin) return;
+  // weights.json은 캐시 완전 우회 — 항상 네트워크 최신본 (가족이 옛 추천을 보지 않도록)
+  if (url.pathname.includes('weights.json')) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => {
