@@ -1,5 +1,14 @@
 # 구현 진행 상황
 
+## v3 수정 3차 — 표 위 빈 행 제거 + 헤더 고정 복구 (v3.html) — 2026-07-15
+- [x] jsdom으로 DOM 실측: 정적 HTML·스크립트 실행 후 모두 reco-banner가 `#tbl-wrap` 앞의 정상 형제 요소이고(`<table>` 안에 포이스터링된 적 없음), 그룹헤더 tbody가 첫 tbody로 NVDA 행보다 먼저 옴을 확인 — 마크업 중첩 문제 아님을 배제
+- [x] 원인 특정: `.tbl-wrap { overflow-x: auto }` (fix2에서 남아있던 v3.html 150줄) — CSS 스펙상 overflow-x가 auto/scroll/hidden이고 overflow-y가 명시 안 되면 overflow-y도 auto로 강제 계산됨 → `.tbl-wrap`이 의도치 않게 스크롤 컨테이너가 되어 `thead th`의 `position:sticky`가 페이지가 아닌 이 컨테이너 기준으로 고정 컨텍스트를 잡음 → 헤더 고정 실패 + 빈 행 렌더링 아티팩트로 이어짐
+- [x] grep으로 파일 전체 overflow 선언 전수 확인 — tbl-wrap 외에는 reco-modal(별도 fixed 오버레이, 무관)뿐임을 확인
+- [x] `.tbl-wrap`의 overflow-x:auto 제거(가로 스크롤 대응은 데스크톱 기준이라 이번엔 생략), jsdom으로 tbl-wrap computed overflow-x/y가 visible로 바뀐 것과 thead th가 top:46px로 sticky 유지되는 것 재확인
+- [x] thead th top은 46px 유지(0이 아님) — #app-header 자체가 top:0·z-index:200 sticky라 top:0으로 두면 종목 헤더 행이 앱 헤더 뒤에 가려짐, 46px(앱 헤더 높이)로 그 아래 고정되어야 실제 요구사항("화면 상단에 고정되고 뒤 글자 비침 없이") 충족
+- [x] 계산 함수 6개 index.html과 byte-for-byte 동일 재검증, index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v49 → rebalance-v50
+
 ## v3 수정 2차 — 내부 스크롤 제거 + 전체 확대 (v3.html) — 2026-07-15
 - [x] 원인: `.tbl-wrap { overflow-y: auto; max-height: calc(100vh - 230px); }` (v3.html 150~151줄, fix1에서 헤더 비침 수정 시 함께 남아있던 고정 높이 스크롤 컨테이너) — grep(`max-height|overflow-y`)으로 특정 후 두 속성만 제거, `overflow-x: auto`는 유지
 - [x] thead 고정 방식을 tbl-wrap 자체 스크롤 기준(top:0)에서 페이지 스크롤 기준으로 전환: `thead th { top: 46px }` (앱 헤더 높이만큼 오프셋 — index.html과 동일 컨벤션), 기존 z-index:50·불투명 배경·::after 마감선은 그대로 유지되어 페이지 스크롤에서도 헤더 비침 없음

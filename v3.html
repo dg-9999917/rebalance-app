@@ -147,7 +147,8 @@
 
     /* ── 표 ──────────────────────────────────────────────────── */
     .tbl-wrap {
-      overflow-x: auto;
+      /* overflow(x/y 어느 한쪽이라도 auto/scroll/hidden)를 주면 이 요소가 새 스크롤 컨테이너가 되어
+         하위 position:sticky가 페이지가 아닌 이 컨테이너 기준으로 고정되어 버린다 — 절대 넣지 말 것 */
       background: var(--surface);
       isolation: isolate; /* 헤더 sticky 레이어를 별도 스택 컨텍스트로 분리 — 스크롤 시 아래 행 비침 방지 */
     }
