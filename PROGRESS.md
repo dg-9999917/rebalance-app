@@ -1,5 +1,13 @@
 # 구현 진행 상황
 
+## v3 수정 2차 — 내부 스크롤 제거 + 전체 확대 (v3.html) — 2026-07-15
+- [x] 원인: `.tbl-wrap { overflow-y: auto; max-height: calc(100vh - 230px); }` (v3.html 150~151줄, fix1에서 헤더 비침 수정 시 함께 남아있던 고정 높이 스크롤 컨테이너) — grep(`max-height|overflow-y`)으로 특정 후 두 속성만 제거, `overflow-x: auto`는 유지
+- [x] thead 고정 방식을 tbl-wrap 자체 스크롤 기준(top:0)에서 페이지 스크롤 기준으로 전환: `thead th { top: 46px }` (앱 헤더 높이만큼 오프셋 — index.html과 동일 컨벤션), 기존 z-index:50·불투명 배경·::after 마감선은 그대로 유지되어 페이지 스크롤에서도 헤더 비침 없음
+- [x] 전체 확대: table 15→16px, thead th 14→15px, tbody td padding 7px→10px(세로), 기준영역 값 표시 3곳(1%금액/현재비중합계/현재환율) 14→15px
+- [x] 앱 컨테이너 max-width 제한: 검색 결과 없음(해당 없음, 추가 조치 불필요)
+- [x] 계산 함수 6개 index.html과 byte-for-byte 동일 재검증, index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v48 → rebalance-v49
+
 ## v3 2단계 — 추천 비중 배포 시스템 (weights.json) — 2026-07-15
 - [x] weights.json 레포 루트 신규 생성 — 초기값은 v3 "기본 계좌"(DEFAULT_STOCKS_V3) 전 종목의 name/ticker/market/adjR을 그대로 이전, version "2026-07-15-1"
 - [x] v3.html: 앱 로드 시 `fetch('./weights.json?ts='+Date.now(), {cache:'no-store'})` 1회 조회(checkRecoWeights), 실패 시 조용히 무시

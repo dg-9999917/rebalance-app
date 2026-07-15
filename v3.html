@@ -147,20 +147,19 @@
 
     /* ── 표 ──────────────────────────────────────────────────── */
     .tbl-wrap {
-      overflow-x: auto; overflow-y: auto;
-      max-height: calc(100vh - 230px);
+      overflow-x: auto;
       background: var(--surface);
       isolation: isolate; /* 헤더 sticky 레이어를 별도 스택 컨텍스트로 분리 — 스크롤 시 아래 행 비침 방지 */
     }
     table {
       width: 100%; border-collapse: collapse;
-      font-size: 15px; table-layout: auto;
+      font-size: 16px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 0; z-index: 50;
+      position: sticky; top: 46px; z-index: 50; /* 앱 헤더(46px) 높이만큼 내려서 고정 — 페이지 스크롤 기준 */
       background-color: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
-      padding: 7px 10px; font-size: 14px; font-weight: 800;
+      padding: 7px 10px; font-size: 15px; font-weight: 800;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .03em;
       white-space: nowrap;
     }
@@ -176,7 +175,7 @@
     :root[data-theme="dark"] tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--row-hover); }
-    tbody td { padding: 7px 10px; vertical-align: middle; white-space: nowrap; }
+    tbody td { padding: 10px 10px; vertical-align: middle; white-space: nowrap; }
     tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
 
@@ -344,19 +343,19 @@
         <div class="meta-field">
           <span class="meta-label">1% 금액</span>
           <div class="meta-input-row">
-            <span id="disp-per1" class="meta-sub" style="font-size:14px;color:var(--text);font-weight:700">1% = —</span>
+            <span id="disp-per1" class="meta-sub" style="font-size:15px;color:var(--text);font-weight:700">1% = —</span>
           </div>
         </div>
         <div class="meta-field">
           <span class="meta-label">현재 비중 합계</span>
           <div class="meta-input-row">
-            <span id="disp-wtsum" class="meta-sub" style="font-size:14px;font-weight:700">—</span>
+            <span id="disp-wtsum" class="meta-sub" style="font-size:15px;font-weight:700">—</span>
           </div>
         </div>
         <div class="meta-field">
           <span class="meta-label">현재 환율</span>
           <div class="meta-input-row">
-            <span id="disp-fxn" class="meta-sub" style="font-size:14px;color:var(--text);font-weight:700">—</span>
+            <span id="disp-fxn" class="meta-sub" style="font-size:15px;color:var(--text);font-weight:700">—</span>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
