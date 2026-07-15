@@ -1,5 +1,14 @@
 # 구현 진행 상황
 
+## v3 수정 1차 — 상단 레이아웃 정리 (v3.html) — 2026-07-15
+- [x] 헤더: "리밸런싱 계산기" 제목 삭제, [계산기][설정] 탭 좌측으로, 계좌 드롭다운 우측으로 이동
+- [x] 기준 영역 한 줄 통합: 전체 자금 · 1%금액 · 현재 비중 합계 · 현재 환율 · [시세 새로고침] — [+ 종목 추가] 버튼 삭제(테이블 하단 폼과 중복), 별도 요약 바(summary-bar) 제거하고 renderSummary()가 인라인 span(#disp-wtsum/#disp-fxn) 직접 갱신하도록 변경, 현재비중 100 초과/미만 색상 규칙 그대로 유지
+- [x] 미사용된 focusAddForm()·`.pf-summary*` CSS 정리
+- [x] 종목 셀 flex 컨테이너화 + 삭제(✕) 버튼 margin-left:auto — 모든 행 ✕ 위치 세로 정렬
+- [x] 표 헤더 스크롤 비침 수정: thead th z-index 20→50, tbl-wrap에 isolation:isolate, thead th::after 마감선(2px) 추가로 border-collapse 이음매 비침 차단
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) index.html과 byte-for-byte 동일 재검증 통과, index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v46 → rebalance-v47
+
 ## v3 1단계 — 비중 계산기 새로 짓기 (v3.html) — 2026-07-15
 - [x] v3.html 신규 생성 (index.html은 무수정 — git diff 없음 확인)
 - [x] 헤더: 앱 제목 + 계좌 전환 드롭다운(appData.accounts만, 전환 전용) + 탭[계산기]/[설정](준비 중)

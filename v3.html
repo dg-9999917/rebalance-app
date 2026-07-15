@@ -74,8 +74,7 @@
       border-bottom: 1px solid var(--border);
       display: flex; align-items: stretch; padding: 0 12px 0 0;
     }
-    .app-title { display: flex; align-items: center; padding: 0 16px; font-weight: 700; font-size: 16px; white-space: nowrap; }
-    .tabs { display: flex; align-items: stretch; margin-left: auto; }
+    .tabs { display: flex; align-items: stretch; }
     .tab-btn {
       padding: 0 20px; height: 46px;
       border: none; border-bottom: 2px solid transparent;
@@ -151,18 +150,24 @@
       overflow-x: auto; overflow-y: auto;
       max-height: calc(100vh - 230px);
       background: var(--surface);
+      isolation: isolate; /* 헤더 sticky 레이어를 별도 스택 컨텍스트로 분리 — 스크롤 시 아래 행 비침 방지 */
     }
     table {
       width: 100%; border-collapse: collapse;
       font-size: 15px; table-layout: auto;
     }
     thead th {
-      position: sticky; top: 0; z-index: 20;
-      background: var(--surface2);
+      position: sticky; top: 0; z-index: 50;
+      background-color: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
       padding: 7px 10px; font-size: 14px; font-weight: 800;
       color: var(--text-sub); text-transform: uppercase; letter-spacing: .03em;
       white-space: nowrap;
+    }
+    /* border-collapse 경계의 1px 이음매로 아래 행이 비쳐 보이는 것을 막는 마감선 */
+    thead th::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+      height: 2px; background-color: var(--surface2);
     }
     thead th.num { text-align: right; }
     thead th.center { text-align: center; }
@@ -262,18 +267,6 @@
     }
     .inp-pf:focus { outline: none; border-color: var(--accent); }
 
-    /* 요약 바 */
-    .pf-summary {
-      display: flex; flex-wrap: wrap;
-      border-bottom: 2px solid var(--border);
-      background: var(--surface); padding: 10px 16px; gap: 16px;
-      align-items: center; justify-content: center;
-    }
-    .pf-summary-item { display: flex; flex-direction: column; gap: 2px; align-items: center; }
-    .pf-summary-item .s-label { font-size: 12px; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
-    .pf-summary-item .s-val   { font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
-    .pf-summary-sep { width: 1px; background: var(--border); align-self: stretch; margin: 4px 0; }
-
     /* 추천 비중 배너 (2단계에서 구현) */
     #reco-banner { }
 
@@ -297,17 +290,16 @@
 <div id="app">
 
   <header id="app-header">
-    <div class="app-title">리밸런싱 계산기</div>
-    <div class="header-actions" style="margin-left:16px">
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="calc">계산기</button>
+      <button class="tab-btn" data-tab="settings">설정</button>
+    </nav>
+    <div class="header-actions" style="margin-left:auto">
       <span class="account-label">계좌</span>
       <select id="account-select" onchange="onAccountChange(this.value)" title="계좌 전환">
         <option>기본 계좌</option>
       </select>
     </div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="calc">계산기</button>
-      <button class="tab-btn" data-tab="settings">설정</button>
-    </nav>
   </header>
 
   <main>
@@ -331,9 +323,20 @@
             <span id="disp-per1" class="meta-sub" style="font-size:14px;color:var(--text);font-weight:700">1% = —</span>
           </div>
         </div>
+        <div class="meta-field">
+          <span class="meta-label">현재 비중 합계</span>
+          <div class="meta-input-row">
+            <span id="disp-wtsum" class="meta-sub" style="font-size:14px;font-weight:700">—</span>
+          </div>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">현재 환율</span>
+          <div class="meta-input-row">
+            <span id="disp-fxn" class="meta-sub" style="font-size:14px;color:var(--text);font-weight:700">—</span>
+          </div>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
           <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
-          <button class="btn btn-primary" onclick="focusAddForm()">＋ 종목 추가</button>
         </div>
       </div>
 
@@ -344,9 +347,6 @@
 
       <!-- 추천 비중 배너 (2단계에서 구현) -->
       <div id="reco-banner" style="display:none"></div>
-
-      <!-- 요약 바 -->
-      <div class="pf-summary" id="summary-bar"><!-- renderSummary() --></div>
 
       <!-- 종목 표 -->
       <div class="tbl-wrap" id="tbl-wrap">
@@ -645,11 +645,6 @@ function addStockFromForm() {
   saveState(); renderTable();
 }
 
-function focusAddForm() {
-  const el = document.getElementById('add-name');
-  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus(); }
-}
-
 let sortableInstances = [];
 
 function initSortable() {
@@ -721,16 +716,13 @@ function renderSummary() {
   const totalWeight = state.stocks.reduce((a, s) => a + currWeight(s), 0);
   const wtCls = !per1 ? '' : (totalWeight > 100 ? 'val-pos' : totalWeight < 100 ? 'val-neg' : '');
   const fxN = state.meta.fxN;
-  document.getElementById('summary-bar').innerHTML = `
-    <div class="pf-summary-item">
-      <span class="s-label">현재 비중 합계</span>
-      <span class="s-val ${wtCls}">${per1 ? fmtDec(totalWeight, 1) + '%' : '—'}</span>
-    </div>
-    <div class="pf-summary-sep"></div>
-    <div class="pf-summary-item">
-      <span class="s-label">현재 환율</span>
-      <span class="s-val">${fxN ? fmtNum(fxN, 2) : '—'}</span>
-    </div>`;
+  const wtEl = document.getElementById('disp-wtsum');
+  if (wtEl) {
+    wtEl.textContent = per1 ? fmtDec(totalWeight, 1) + '%' : '—';
+    wtEl.className = 'meta-sub' + (wtCls ? ' ' + wtCls : '');
+  }
+  const fxEl = document.getElementById('disp-fxn');
+  if (fxEl) fxEl.textContent = fxN ? fmtNum(fxN, 2) : '—';
 }
 
 function renderTable() {
@@ -812,11 +804,13 @@ function renderTable() {
 
       html += `<tr data-stock-id="${s.id}">
         <td>
-          ${isCash ? '' : '<span class="drag-handle" style="margin-right:6px">☰</span>'}
-          <span class="stock-name">${esc(s.name)}</span>
-          <span class="stock-ticker">${esc(s.ticker)}</span>
-          <span class="badge ${badgeClass}" style="margin-left:4px">${s.market}</span>
-          <button class="del-btn" style="margin-left:6px" onclick="deleteStock('${s.id}')" title="삭제">✕</button>
+          <div style="display:flex;align-items:center;gap:4px">
+            ${isCash ? '' : '<span class="drag-handle">☰</span>'}
+            <span class="stock-name">${esc(s.name)}</span>
+            <span class="stock-ticker">${esc(s.ticker)}</span>
+            <span class="badge ${badgeClass}">${s.market}</span>
+            <button class="del-btn" style="margin-left:auto" onclick="deleteStock('${s.id}')" title="삭제">✕</button>
+          </div>
         </td>
         <td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
         <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
