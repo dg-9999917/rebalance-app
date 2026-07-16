@@ -1755,6 +1755,7 @@ let gdriveTokenClient = null;
 let gdriveAccessToken = null;
 let gdriveUserEmail   = null;
 let gdriveAutoBackup  = true;
+let lastDriveFileList = []; // 미리보기 모달 "뒤로" 클릭 시 재요청 없이 목록 복원용
 
 function initGoogleDrive() {
   let attempts = 0;
@@ -1923,6 +1924,7 @@ async function loadFromDrive() {
       return;
     }
 
+    lastDriveFileList = searchData.files;
     showDriveFileList(searchData.files);
   } catch (e) {
     console.error('드라이브 불러오기 오류:', e);
@@ -1941,14 +1943,14 @@ function showDriveFileList(files) {
     const badge = i === 0 ? ' <span style="color:var(--positive);font-size:11px;font-weight:700">최신</span>' : '';
     listHtml += `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer"
-           onclick="restoreFromDrive('${f.id}', '${esc(f.name)}')"
+           onclick="previewDriveFile('${f.id}', '${esc(f.name)}')"
            onmouseover="this.style.background='var(--surface2)'"
            onmouseout="this.style.background='transparent'">
         <div>
           <div style="font-size:13px;font-weight:600">${esc(f.name)}${badge}</div>
           <div style="font-size:11px;color:var(--text-sub)">${date}${sizeKB ? ' · ' + sizeKB : ''}</div>
         </div>
-        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();restoreFromDrive('${f.id}', '${esc(f.name)}')">복원</button>
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();previewDriveFile('${f.id}', '${esc(f.name)}')">미리보기</button>
       </div>`;
   });
 
@@ -1965,10 +1967,75 @@ function showDriveFileList(files) {
       </div>
       <div style="overflow-y:auto;flex:1">${listHtml}</div>
       <div style="padding:12px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-sub)">
-        총 ${files.length}개 백업 · 클릭하여 복원
+        총 ${files.length}개 백업 · 클릭하여 미리보기
       </div>
     </div>`;
 
+  document.body.appendChild(modal);
+}
+
+// 파일 클릭 시 즉시 복원하지 않고 내용을 내려받아 미리보기 (신규)
+async function previewDriveFile(fileId, fileName) {
+  let loaded = null;
+  try {
+    const token = gdriveAccessToken;
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fileText = await fileRes.text();
+    const parsed = JSON.parse(fileText);
+    if (parsed && Array.isArray(parsed.accounts) && parsed.accounts.length) loaded = parsed;
+  } catch (e) {
+    console.error('드라이브 미리보기 오류:', e);
+    loaded = null;
+  }
+  showDrivePreviewModal(fileId, fileName, loaded);
+}
+
+function showDrivePreviewModal(fileId, fileName, loaded) {
+  const existing = document.getElementById('gdrive-preview-modal');
+  if (existing) existing.remove();
+  const existingList = document.getElementById('gdrive-file-modal');
+  if (existingList) existingList.remove();
+
+  // 저장 시각은 파일명 기준(backup_YYYY-MM-DD_HH-MM-SS.json), 형식이 다르면 파일명 그대로 표시
+  const m = fileName.match(/backup_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  const savedAt = m ? `${m[1]} ${m[2]}:${m[3]}:${m[4]}` : fileName;
+
+  let bodyHtml;
+  let canRestore = false;
+  if (!loaded) {
+    bodyHtml = `<div style="padding:16px 0;color:var(--negative);font-size:13px">⚠️ 읽을 수 없는 백업 파일입니다.</div>`;
+  } else {
+    canRestore = true;
+    const accList = loaded.accounts.map(a => {
+      const stockCount = ((a.state && a.state.stocks) || []).filter(s => s.market !== 'CASH').length;
+      return `<li>${esc(a.name)} (종목 ${stockCount}개)</li>`;
+    }).join('');
+    const cons = loaded.consolidated || [];
+    const consList = cons.map(c => `<li>📁 ${esc(c.name)} (멤버: ${(c.memberIds || []).length}개)</li>`).join('');
+    bodyHtml = `
+      <div style="font-size:13px;line-height:1.8">
+        <div style="color:var(--text-sub);margin-bottom:8px">저장 시각: ${esc(savedAt)}</div>
+        <div style="font-weight:700;margin-bottom:4px">포함된 계좌</div>
+        <ul style="margin:0 0 10px 18px;padding:0">${accList || '<li style="color:var(--text-sub)">없음</li>'}</ul>
+        ${cons.length ? `<div style="font-weight:700;margin-bottom:4px">종합계좌</div><ul style="margin:0;padding:0 0 0 18px">${consList}</ul>` : ''}
+      </div>`;
+  }
+
+  const modal = document.createElement('div');
+  modal.id = 'gdrive-preview-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:650;display:flex;align-items:center;justify-content:center;';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:440px;max-height:80vh;overflow-y:auto;padding:20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;word-break:break-all">${esc(fileName)}</div>
+      ${bodyHtml}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-sm" onclick="document.getElementById('gdrive-preview-modal').remove();showDriveFileList(lastDriveFileList)">뒤로</button>
+        <button class="btn btn-sm btn-primary" ${canRestore ? '' : 'disabled'} onclick="document.getElementById('gdrive-preview-modal').remove();restoreFromDrive('${fileId}', '${esc(fileName)}')">이 백업으로 복원</button>
+      </div>
+    </div>`;
   document.body.appendChild(modal);
 }
 
@@ -2121,17 +2188,22 @@ function nextRecoVersion() {
   return `${datePart}-${n}`;
 }
 
-function copyDeployJson() {
+// [배포용 JSON 복사]와 [GitHub로 배포]가 공유하는 payload 생성 (기존 copyDeployJson 로직 그대로 분리)
+function buildDeployPayload() {
   const memoEl = document.getElementById('deploy-memo');
   const memo = memoEl ? memoEl.value.trim() : '';
   const today = new Date();
   const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  const payload = {
+  return {
     version: nextRecoVersion(),
     date: datePart,
     memo,
     stocks: state.stocks.map(s => ({ name: s.name, ticker: s.ticker, market: s.market, r: s.adjR })),
   };
+}
+
+function copyDeployJson() {
+  const payload = buildDeployPayload();
   const json = JSON.stringify(payload, null, 2);
   const resultEl = document.getElementById('deploy-copy-result');
   const showResult = msg => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; } };
@@ -2145,7 +2217,128 @@ function copyDeployJson() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  GitHub 원버튼 배포 (신규 — 토큰은 appData와 분리된 별도 localStorage 키에 저장,
+//  드라이브 백업(appData)·weights.json 어디에도 포함되지 않음)
+// ═══════════════════════════════════════════════════════════════════
+
+const GH_TOKEN_KEY = 'rebalance_v3_gh_token'; // appData(V3_STORAGE_KEY)와 완전히 분리된 키
+const GH_OWNER = 'dg-9999917';
+const GH_REPO = 'rebalance-app';
+const GH_BRANCH = 'main'; // git으로 확인한 기본 브랜치명
+
+function getGhToken() { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
+
+function saveGhToken() {
+  const input = document.getElementById('gh-token-input');
+  const token = input ? input.value.trim() : '';
+  if (!token) { alert('토큰을 입력해 주세요.'); return; }
+  localStorage.setItem(GH_TOKEN_KEY, token);
+  renderSettingsTab();
+}
+
+function deleteGhToken() {
+  if (!confirm('저장된 GitHub 토큰을 삭제하시겠습니까?')) return;
+  localStorage.removeItem(GH_TOKEN_KEY);
+  renderSettingsTab();
+}
+
+let pendingDeployPayload = null;
+
+function openGithubDeployModal() {
+  if (!getGhToken()) { alert('먼저 GitHub 토큰을 저장해 주세요.'); return; }
+  pendingDeployPayload = buildDeployPayload();
+  const existing = document.getElementById('gh-deploy-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'gh-deploy-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:650;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:420px;padding:20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px">🚀 GitHub로 배포</div>
+      <div style="font-size:13px;line-height:1.9;color:var(--text)">
+        <div>버전: <b>${esc(pendingDeployPayload.version)}</b></div>
+        <div>메모: ${esc(pendingDeployPayload.memo || '(없음)')}</div>
+        <div>종목 수: ${pendingDeployPayload.stocks.length}개</div>
+      </div>
+      <div id="gh-deploy-result" style="font-size:12px;margin-top:10px;display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-sm" onclick="pendingDeployPayload=null;document.getElementById('gh-deploy-modal-overlay').remove()">취소</button>
+        <button class="btn btn-primary btn-sm" id="gh-deploy-confirm-btn" onclick="confirmGithubDeploy()">배포</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function confirmGithubDeploy() {
+  const payload = pendingDeployPayload;
+  if (!payload) return;
+  const token = getGhToken();
+  const btn = document.getElementById('gh-deploy-confirm-btn');
+  const resultEl = document.getElementById('gh-deploy-result');
+  const showResult = (msg, isErr) => {
+    if (!resultEl) return;
+    resultEl.textContent = msg;
+    resultEl.style.display = 'block';
+    resultEl.style.color = isErr ? 'var(--negative)' : 'var(--positive)';
+  };
+  if (btn) { btn.disabled = true; btn.textContent = '배포 중...'; }
+
+  const apiBase = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/weights.json`;
+  try {
+    let sha = null;
+    const getRes = await fetch(`${apiBase}?ref=${GH_BRANCH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getRes.status === 401 || getRes.status === 403) {
+      showResult('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요', true);
+      if (btn) { btn.disabled = false; btn.textContent = '배포'; }
+      return;
+    }
+    if (getRes.ok) {
+      sha = (await getRes.json()).sha;
+    } else if (getRes.status === 404) {
+      showResult('GitHub에 weights.json이 없습니다 — 새로 생성합니다...', false);
+    } else {
+      showResult(`오류 (상태 코드 ${getRes.status})`, true);
+      if (btn) { btn.disabled = false; btn.textContent = '배포'; }
+      return;
+    }
+
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(jsonStr)));
+    const body = { message: `배포 ${payload.version}`, content: b64, branch: GH_BRANCH };
+    if (sha) body.sha = sha;
+
+    const putRes = await fetch(apiBase, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (putRes.status === 401 || putRes.status === 403) {
+      showResult('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요', true);
+    } else if (putRes.ok) {
+      state.meta.appliedRecoVersion = payload.version;
+      saveState();
+      showResult('배포 완료 — 반영까지 1~2분 걸릴 수 있습니다', false);
+      renderSettingsTab();
+      setTimeout(() => { const el = document.getElementById('gh-deploy-modal-overlay'); if (el) el.remove(); }, 1500);
+    } else {
+      showResult(`배포 실패 (상태 코드 ${putRes.status})`, true);
+    }
+  } catch (e) {
+    showResult('네트워크 오류: ' + e.message, true);
+  } finally {
+    pendingDeployPayload = null;
+    if (btn) { btn.disabled = false; btn.textContent = '배포'; }
+  }
+}
+
 function buildAdvancedSection() {
+  const hasGhToken = !!getGhToken();
   return `<div class="settings-card">
     <div class="settings-card-title" style="cursor:pointer;user-select:none" onclick="toggleAdvanced()">${advancedOpen ? '▾' : '▸'} 고급</div>
     ${advancedOpen ? `
@@ -2156,8 +2349,23 @@ function buildAdvancedSection() {
           <div class="meta-label" style="margin-bottom:4px">메모</div>
           <input class="inp" id="deploy-memo" placeholder="예: 반도체 확대">
         </div>
-        <button class="btn btn-primary btn-sm" onclick="copyDeployJson()" style="align-self:flex-start">배포용 JSON 복사</button>
-        <div id="deploy-copy-result" style="font-size:12px;color:var(--text-sub);display:none"></div>
+
+        <div>
+          <div class="meta-label" style="margin-bottom:4px">GitHub 토큰</div>
+          <div style="display:flex;gap:6px">
+            <input class="inp" type="password" id="gh-token-input" placeholder="${hasGhToken ? '변경하려면 새 토큰 입력' : 'ghp_... 또는 github_pat_...'}" style="flex:1">
+            <button class="btn btn-sm" onclick="saveGhToken()">토큰 저장</button>
+            ${hasGhToken ? `<button class="btn btn-sm btn-danger" onclick="deleteGhToken()">삭제</button>` : ''}
+          </div>
+          <div style="font-size:11px;color:${hasGhToken ? 'var(--positive)' : 'var(--text-sub)'};margin-top:4px">${hasGhToken ? '토큰 저장됨 ●●●' : '토큰 미저장'}</div>
+        </div>
+
+        <button class="btn btn-primary btn-sm" onclick="openGithubDeployModal()" style="align-self:flex-start" ${hasGhToken ? '' : 'disabled title="먼저 토큰을 저장하세요"'}>🚀 GitHub로 배포</button>
+
+        <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px">
+          <button class="btn btn-sm" onclick="copyDeployJson()" style="align-self:flex-start">배포용 JSON 복사 (예비 수단)</button>
+          <div id="deploy-copy-result" style="font-size:12px;color:var(--text-sub);display:none;margin-top:6px"></div>
+        </div>
       </div>
     </div>` : ''}
   </div>`;

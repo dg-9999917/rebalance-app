@@ -1,5 +1,20 @@
 # 구현 진행 상황
 
+## v3 5단계 — GitHub 원버튼 배포 + 드라이브 미리보기 (v3.html) — 2026-07-16
+- [x] **시작 전 origin 병합**: 로컬 저장소에 remote가 전혀 없어(git remote -v 빈 결과) `https://github.com/dg-9999917/rebalance-app.git`을 origin으로 신규 등록 → fetch로 GitHub 쪽만 먼저 확인 → **origin/main과 로컬 master는 공통 조상이 없는 완전 별개 히스토리**(origin은 "Add files via upload" + GitHub 웹 UI에서의 "Update index.html/sw.js" 13개 커밋)임을 발견. 파일 단위 diff로 origin 고유 콘텐츠가 있는지 전수 확인한 결과 **0줄**(index.html은 로컬이 상위호환, sw.js는 origin이 v38로 구버전, manifest.json·아이콘은 byte-identical) — 사용자 확인 받은 후 `git merge origin/main --allow-unrelated-histories` 진행, index.html/sw.js add/add 충돌은 로컬(ours) 버전으로 해결(양쪽 히스토리 모두 보존, force push 없이 fast-forward push 성공)
+- [x] 작업1: 설정 > 고급에 GitHub 원버튼 배포 추가
+  — 토큰 입력(type=password)+[토큰 저장]/[삭제], 별도 localStorage 키 `rebalance_v3_gh_token`(appData=`rebalance_app_v3`와 완전 분리) — "토큰 저장됨 ●●●" 상태 표시
+  — [GitHub로 배포] 버튼은 토큰 미저장 시 disabled, 클릭 시 확인 모달(버전·메모·종목수) → GitHub Contents API GET(sha 조회)→PUT(dg-9999917/rebalance-app, 브랜치 `main`—fetch로 확인한 실제 기본 브랜치) → 성공 시 appliedRecoVersion 갱신(관리자 본인 배너 재노출 방지)
+  — base64는 `btoa(String.fromCharCode(...new TextEncoder().encode(jsonStr)))`로 UTF-8 안전 인코딩(한글 메모 보존, round-trip 검증 통과)
+  — 401/403 "토큰이 유효하지 않습니다", GET 404는 sha 없이 신규 생성으로 진행(에러 아님), 기타 상태코드는 코드와 함께 표시
+  — 기존 [배포용 JSON 복사]는 payload 생성 로직을 `buildDeployPayload()`로 공통 추출해 그대로 예비 수단 유지
+  — **토큰이 백업 파일에 안 들어가는지 직접 확인(요청 핵심)**: Node vm으로 실제 앱 코드를 로드해 `JSON.stringify(appData,null,2)`(=드라이브 백업이 업로드하는 바로 그 문자열)와 `buildDeployPayload()`(=weights.json 내용) 양쪽에 대해 토큰 문자열·토큰 관련 키 이름 모두 `indexOf === -1` 확인, PUT 요청의 body(JSON.parse 후)에도 토큰 없음(Authorization 헤더에만 존재) 확인 — 전부 PASS
+- [x] 작업2: 드라이브 불러오기 미리보기 — 목록 클릭 시 `previewDriveFile()`이 파일을 내려받아 파싱만 하고, `showDrivePreviewModal()`이 저장시각(파일명 기준)·계좌별 이름+종목수(CASH 제외)·종합계좌(멤버수) 표시, [이 백업으로 복원]을 눌러야만 기존 `restoreFromDrive()`(무수정) 실행, [뒤로]는 재요청 없이 직전 파일목록(`lastDriveFileList`) 재표시, JSON 파싱 실패 시 "읽을 수 없는 백업"+복원 버튼 disabled
+- [x] Node vm으로 v3.html 인라인 스크립트 로드해 전 시나리오 검증: 토큰 저장/삭제, 백업·weights.json 토큰 미포함(핵심), 배포 성공(기존파일 sha 포함 PUT)/401 오류/404 신규생성, 드라이브 미리보기 정상·파싱실패 케이스 — 전부 PASS
+- [x] 계산 함수 6개(git HEAD 대비) + `restoreFromDrive()`(직전 커밋 대비) byte-for-byte 무수정 재검증, index.html 무수정 확인
+- [x] sw.js CACHE_NAME rebalance-v53 → rebalance-v54
+- [ ] (미수행) 실제 GitHub 토큰으로 브라우저에서 배포 버튼을 눌러 GitHub 커밋 발생 확인, 배포 후 다른 계좌/브라우저에서 배너 노출 확인 — 로컬 Node 시뮬레이션까지만 수행
+
 ## v3 수정 4차 — 현금 행 레이아웃 + ₩/$ 스위치 (v3.html) — 2026-07-16
 - [x] 작업1: CASH 행 현재가·평단가·보유수량 3칸을 `colspan="3"`으로 병합, 자동계산 현금액을 가운데 정렬로 표시(콤마 포맷, 기존 title 툴팁·음수 빨강 유지) — 일반 종목 행은 기존 3개 개별 td 그대로(무변경, 8열 구조 동일 확인)
 - [x] 현금 그룹 헤더 행("현금" 초록 배경)도 병합 셀과 같은 위치에 "보유" 라벨(colspan=3, 작은 글씨·보조색) 추가, US/KR 그룹 헤더는 기존 colspan=8 단일 셀 그대로
