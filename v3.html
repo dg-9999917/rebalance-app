@@ -519,6 +519,25 @@ function currWeight(s) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  현금 자동 계산 (신규 함수 — 위 6개 계산 함수는 무수정, s.q에 결과만 반영)
+// ═══════════════════════════════════════════════════════════════════
+
+// 현금 = 전체 자금(p0) − Σ( avgKRW(s) × q )  (CASH 제외 전 종목의 매수 원가 합)
+function computeCashAmount() {
+  const costSum = state.stocks.reduce((sum, s) => s.market === 'CASH' ? sum : sum + avgKRW(s) * s.q, 0);
+  return (state.meta.p0 || 0) - costSum;
+}
+
+// 계좌당 CASH 행은 1개 전제 — 배열상 첫 번째 CASH 행에만 자동계산 반영.
+// (예외) 이미 CASH 행이 2개 이상인 구계정은 첫 번째만 자동 계산하고 나머지는 기존 수동값 그대로 둔다.
+function syncCashAmount() {
+  const cash = state.stocks.find(s => s.market === 'CASH');
+  if (!cash) return;
+  cash.q = computeCashAmount();
+  saveState();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  입력 핸들러 (index.html 원본 그대로 복사 — 마지막 렌더 호출부만 v3용으로 교체)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -712,6 +731,7 @@ function addStockFromForm() {
   const c0raw  = document.getElementById('add-c0').value.trim();
   if (!name || !ticker) { alert('종목명과 티커를 입력하세요.'); return; }
   if (state.stocks.find(s => s.id === ticker)) { alert('이미 존재하는 티커입니다: ' + ticker); return; }
+  if (market === 'CASH' && state.stocks.some(s => s.market === 'CASH')) { alert('현금(CASH) 행은 계좌당 1개만 존재할 수 있습니다.'); return; }
   const c0 = market === 'CASH' ? 1 : (parseNum(c0raw) || 0);
   state.stocks.push({ id: ticker, name, ticker, market, c0, price: 0, r: 0, adjR: 0, q: 0, avg: 0 });
   document.getElementById('add-name').value = '';
@@ -819,10 +839,26 @@ function renderSummary() {
   if (fxEl) fxEl.textContent = fxN ? fmtNum(fxN, 2) : '—';
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  평가금액 ₩/$ 토글 (신규 — index.html 배정금액 토글의 localStorage+재렌더 방식 참고)
+// ═══════════════════════════════════════════════════════════════════
+const EVAL_CCY_KEY = 'v3_evalCurrency';
+
+function getEvalCurrency() {
+  return localStorage.getItem(EVAL_CCY_KEY) || 'KRW';
+}
+
+function toggleEvalCurrency() {
+  localStorage.setItem(EVAL_CCY_KEY, getEvalCurrency() === 'KRW' ? 'USD' : 'KRW');
+  renderTable();
+}
+
 function renderTable() {
+  syncCashAmount();
   const wrap = document.getElementById('tbl-wrap');
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
+  const evalCur = getEvalCurrency();
 
   const groups = [
     { label: '미국 (USD)', market: 'US'   },
@@ -849,7 +885,7 @@ function renderTable() {
       <th class="center" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="num">현재비중</th>
       <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
-      <th class="num">평가금액</th>
+      <th class="num" style="cursor:pointer" onclick="toggleEvalCurrency()" title="클릭해서 원/달러 표시 전환">평가금액 (${evalCur === 'USD' ? '$' : '₩'})</th>
     </tr></thead>`;
 
   groups.forEach(g => {
@@ -861,9 +897,13 @@ function renderTable() {
     html += `<tbody class="sortable-group" data-market="${g.market}">`;
 
     let subVal = 0, subWeight = 0, subAdjR = 0;
+    let autoCashAssigned = false;
 
     stocks.forEach(s => {
       const isCash = isCashGroup;
+      // 계좌당 CASH 1개 전제 — 배열상 첫 CASH 행만 자동계산(isAutoCash), 그 외(구계정 예외)는 수동 유지
+      const isAutoCash = isCash && !autoCashAssigned;
+      if (isAutoCash) autoCashAssigned = true;
       const val = evalVal(s);
       const wt  = currWeight(s);
       subVal    += val;
@@ -874,18 +914,28 @@ function renderTable() {
       const valOk = s.market !== 'US' || hasFxN;
       const wtCls = valOk && wt > s.r ? 'val-pos' : '';
 
-      // 필요매매: 기존 간단 보기 로직(index.html 1745줄 근처) 그대로
+      // 필요매매: 기존 간단 보기 로직(index.html 1745줄 근처) 그대로 (+ 자동계산 현금 행만 신규 분기)
       const unit   = calcUnit(s);
       const adjQty = s.adjR * unit;
       const need   = adjQty - s.q;
       let needStr = '—', needCls = '';
-      if (!isCash && unit > 0 && s.q > 0) {
+      if (isAutoCash) {
+        // 필요매매(원) = (adjR × per1) − 현금
+        if (unit > 0) {
+          if (Math.abs(need) < 1) { needStr = '0원'; }
+          else if (need > 0) { needStr = '+' + fmtNum(need) + '원'; needCls = 'val-pos'; }
+          else { needStr = fmtNum(need) + '원'; needCls = 'val-neg'; }
+        }
+      } else if (!isCash && unit > 0 && s.q > 0) {
         if (Math.abs(need) < 0.0001) { needStr = '0'; }
         else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
         else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
       }
 
-      const evalStr = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
+      const cashNegCls = isAutoCash && s.q < 0 ? ' val-neg' : '';
+      const evalStr = evalCur === 'USD'
+        ? (hasFxN ? '$' + fmtNum((isCash ? s.q : val) / state.meta.fxN, 2) : '—')
+        : (isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—'));
       const priceDisplay = isCash ? '—'
         : (s.price > 0
           ? (s.market === 'US' ? '$' : '') + fmtNum(s.price, s.price % 1 ? 2 : 0)
@@ -914,13 +964,17 @@ function renderTable() {
             onfocus="commaFocus(this)"
             onchange="onAvgInput('${s.id}',this.value)"
             onblur="commaBlur(this)">`}</td>
-        <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
-            id="pf-in-q-${s.id}"
-            value="${s.q ? fmtDec(s.q, 2) : ''}"
-            style="width:65px"
-            onfocus="commaFocus(this)"
-            onchange="onQtyInput('${s.id}',this.value)"
-            onblur="commaBlur(this)">`}</td>
+        <td class="num${cashNegCls}">${
+          isAutoCash
+            ? `<span id="pf-q-${s.id}" title="자동 계산: 전체 자금 − 매수 원가 합계">${fmtNum(s.q)}</span>`
+            : `<input class="inp-pf" type="text" inputmode="decimal"
+                id="pf-in-q-${s.id}"
+                value="${s.q ? fmtDec(s.q, 2) : ''}"
+                style="width:65px"
+                onfocus="commaFocus(this)"
+                onchange="onQtyInput('${s.id}',this.value)"
+                onblur="commaBlur(this)">`
+        }</td>
         <td class="center" style="border-left:2px solid var(--border)">
           <div class="ratio-cell">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
@@ -933,7 +987,7 @@ function renderTable() {
         </td>
         <td class="num ${wtCls}" id="pf-wt-${s.id}">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
         <td class="num ${needCls}" style="border-left:2px solid var(--border)" id="pf-need-${s.id}">${needStr}</td>
-        <td class="num" id="pf-eval-${s.id}">${evalStr}</td>
+        <td class="num${cashNegCls}" id="pf-eval-${s.id}">${evalStr}</td>
       </tr>`;
     });
 
@@ -941,7 +995,9 @@ function renderTable() {
 
     const subWtCls   = subWeight > 0 ? 'val-pos' : '';
     const showUsWarn = g.market === 'US' && !hasFxN;
-    const subValStr  = showUsWarn ? '—' : fmtNum(subVal) + ' 원';
+    const subValStr  = evalCur === 'USD'
+      ? (hasFxN ? '$' + fmtNum(subVal / state.meta.fxN, 2) : '—')
+      : (showUsWarn ? '—' : fmtNum(subVal) + ' 원');
     html += `<tbody><tr class="subtotal-row">
       <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
       <td class="num">${fmtDec(subAdjR, 2)}%</td>
@@ -986,10 +1042,14 @@ function renderTable() {
 
 // 파생 열만 갱신 (표 전체 재렌더 없이 — 입력 커서 유지용)
 function updateRows() {
+  syncCashAmount();
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
+  const evalCur = getEvalCurrency();
+  const autoCashId = (state.stocks.find(s => s.market === 'CASH') || {}).id;
   state.stocks.forEach(s => {
-    const isCash = s.market === 'CASH';
+    const isCash     = s.market === 'CASH';
+    const isAutoCash = isCash && s.id === autoCashId;
     const unit   = calcUnit(s);
     const wt     = currWeight(s);
     const valOk  = s.market !== 'US' || hasFxN;
@@ -997,6 +1057,7 @@ function updateRows() {
     const wtEl   = document.getElementById(`pf-wt-${s.id}`);
     const needEl = document.getElementById(`pf-need-${s.id}`);
     const evalEl = document.getElementById(`pf-eval-${s.id}`);
+    const qEl    = document.getElementById(`pf-q-${s.id}`);
 
     if (wtEl) {
       wtEl.textContent = per1 && valOk ? fmtDec(wt, 2) : '—';
@@ -1006,7 +1067,13 @@ function updateRows() {
       const adjQty = s.adjR * unit;
       const need   = adjQty - s.q;
       let needStr = '—', needCls = '';
-      if (!isCash && unit > 0 && s.q > 0) {
+      if (isAutoCash) {
+        if (unit > 0) {
+          if (Math.abs(need) < 1) { needStr = '0원'; }
+          else if (need > 0) { needStr = '+' + fmtNum(need) + '원'; needCls = 'val-pos'; }
+          else { needStr = fmtNum(need) + '원'; needCls = 'val-neg'; }
+        }
+      } else if (!isCash && unit > 0 && s.q > 0) {
         if (Math.abs(need) < 0.0001) { needStr = '0'; }
         else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
         else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
@@ -1014,9 +1081,16 @@ function updateRows() {
       needEl.textContent = needStr;
       needEl.className = 'num ' + needCls;
     }
+    if (qEl) {
+      qEl.textContent = fmtNum(s.q);
+      qEl.parentElement.className = 'num' + (s.q < 0 ? ' val-neg' : '');
+    }
     if (evalEl) {
       const val = evalVal(s);
-      evalEl.textContent = isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—');
+      evalEl.textContent = evalCur === 'USD'
+        ? (hasFxN ? '$' + fmtNum((isCash ? s.q : val) / state.meta.fxN, 2) : '—')
+        : (isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—'));
+      if (isAutoCash) evalEl.className = 'num' + (s.q < 0 ? ' val-neg' : '');
     }
   });
 }
@@ -1507,6 +1581,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const s = document.getElementById('tab-' + btn.dataset.tab);
     if (s) s.classList.add('active');
     if (btn.dataset.tab === 'settings') renderSettingsTab();
+    else if (btn.dataset.tab === 'calc') renderAll();
   });
 });
 
@@ -1558,7 +1633,7 @@ function addAccountV3() {
   activateAccount(id);
   saveState();
   renderSettingsTab();
-  renderAccountDropdown();
+  renderAll();
 }
 
 function renameAccountV3(id) {

@@ -1,5 +1,22 @@
 # 구현 진행 상황
 
+## v3 4단계 — 계산기 개선 (v3.html) — 2026-07-16
+- [x] 작업1(버그): 계좌 전환 렌더 버그 — `addAccountV3()`(설정 탭 [+ 계좌 추가])가 `activateAccount()` 후 `renderSettingsTab()`+`renderAccountDropdown()`만 호출하고 계산기 뷰(표·기준 영역)는 재렌더하지 않아, 계산기 탭 이동 시 이전 계좌 데이터가 남아있던 것이 원인 — `renderAll()` 호출로 교체
+  — 방어적으로 [계산기] 탭 버튼 클릭 시에도 `renderAll()`을 호출하도록 탭 전환 핸들러 보강(기존엔 `settings` 탭 진입 시에만 재렌더 호출, `calc` 탭 복귀 시엔 없었음)
+  — `deleteAccountV3`/`onAccountChange`/종합계좌 전환 계열 함수들은 이미 `renderAll()`을 호출하고 있어 문제 없음을 grep 전수 확인(`activateAccount(` / `activeAccountId =` / `activeConsolidatedId =` 전체 호출부 검토)
+- [x] 작업2(핵심): 현금 자동 계산 — 신규 함수 `computeCashAmount()`/`syncCashAmount()` 추가(기존 6개 계산 함수 getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight는 무수정, git HEAD와 byte-for-byte 동일 재검증 통과)
+  — `현금 = p0 − Σ(avgKRW(s)×q)` (CASH 제외), 계산 결과를 CASH 행의 `s.q`에 반영 → 기존 evalVal/currWeight가 그대로 올바른 값을 내도록 함(계산 함수 흐름 재사용)
+  — `renderTable()`/`updateRows()` 시작 시 `syncCashAmount()` 호출로 p0·평단가·수량 변경마다 즉시 갱신
+  — 현금 행 보유수량 칸: 읽기전용 텍스트(콤마 포맷, title="자동 계산: 전체 자금 − 매수 원가 합계"), 음수면 `val-neg`(빨강) 클래스, 평가금액 칸도 동일 값·색상 반영
+  — 현금 필요매매(원화): `(adjR × per1) − 현금`, `+`/`-` 부호 + 콤마 + "원" 포맷(예: `-500,000원`) — 주식 행 부호 방향과 동일
+  — **CASH 행 다중 존재 예외 처리**(사용자 확인 후 결정): 계좌당 CASH는 1개 전제, `addStockFromForm()`에 시장=CASH 중복 추가 차단(alert) 추가 — 단 기존 CASH 행 삭제 후에는 재추가 허용(구조상 차단이 아니라 "이미 있으면" 조건이므로 자동 해제됨). 혹시 있을 구계정의 CASH 2개 이상 케이스는 배열상 첫 번째 행만 자동계산(`isAutoCash`), 나머지는 기존처럼 수동 입력 유지
+  — 종합계좌 뷰(`buildConsolidatedData`)는 CASH를 애초에 집계 대상에서 제외하고 있어(기존 3단계 구현) 현금 행 자체가 표시되지 않음 — 이번 작업으로 개별 계좌 현금 계산이 달라져도 종합 뷰에는 영향 없음(현 상태 그대로, 별도 요청 없어 미변경)
+- [x] 작업3: 평가금액 ₩/$ 토글 — `toggleEvalCurrency()` + `localStorage['v3_evalCurrency']`(index.html 배정금액 토글의 localStorage+재렌더 패턴 참고), 평가금액 열 머리글 클릭으로 전환, 머리글에 "평가금액 (₩)"/"평가금액 ($)" 표시, $ 모드는 원화 평가금액÷fxN(소수 2자리) — 스펙 문구대로 시장 구분 없이 전체 열(US/KR/CASH)에 동일 적용(index.html 원본의 "US 종목만 환산"과는 다른 규칙임에 유의), 그룹 합계 행도 함께 전환, fxN 미입력 시 '—'
+- [x] Node vm 컨텍스트로 v3.html 인라인 스크립트를 로드해 시나리오 검증(jsdom 미설치 환경) — 검산 예시(원금 1000만/평단 10만×90주→현금 100만, adjR 5%→필요매매 -500,000원, 수량 95로 변경 시 현금 500,000 즉시 갱신), 원가초과 음수+빨강, ₩/$ 토글 양방향, 주식 행 currWeight/evalVal 무변경, 새 계좌 생성 후 즉시 재렌더, CASH 중복 차단+삭제후 재추가 — 전부 PASS
+- [x] 계산 함수 6개 git HEAD(fa3fcd8) 버전과 byte-for-byte 동일 재검증(자동 diff 스크립트)
+- [x] sw.js CACHE_NAME rebalance-v51 → rebalance-v52
+- [ ] (미수행) 실제 브라우저·GitHub Pages 배포 후 라이브 확인 — 이번 세션은 Node vm 시뮬레이션까지만 수행
+
 ## v3 3단계 — 설정 탭 (v3.html) — 2026-07-15
 - [x] ① 계좌 관리: 목록(이름·종목수)+전환/이름변경/삭제(확인모달, 최소1개 보호), 새 계좌 추가(이름만 입력 → 종목 없음·p0=0로 시작해 추천 배너로 채우는 흐름 유도)
 - [x] ② 종합계좌: appData.consolidated[] 그대로 사용(history 필드는 v3에 없어 제외) — 생성/편집/삭제/전환, 계좌 드롭다운에 구분선+📁 접두어 표시, 계산기 탭에서 종합 선택 시 읽기 전용 8열 뷰(설정비율·필요매매는 '—', 입력칸·±·×·드래그 전부 제거) — buildConsolidatedData는 index.html 로직 참고해 이식(realized 필드는 v3에 없어 제외), 전체자금 입력 readOnly 전환, 현재비중합계=합산평가÷합산per1, 시세새로고침은 계속 동작(단 "마지막으로 선택했던 개별 계좌 기준" 안내문 추가 — index.html cons-actions와 동일한 제약)
