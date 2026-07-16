@@ -1,5 +1,21 @@
 # 구현 진행 상황
 
+## v3 디자인 1차 — 크기·정렬 다듬기 (v3.html) — 2026-07-16
+- [x] 시작 전 `v3_before_design1.html` 백업 생성 — 직전 커밋(0e8ddfa) 상태와 diff 없음(byte-for-byte 동일) 확인
+- [x] 1. 상단 기준 영역: `.settings-meta`에 `justify-content: space-between` 추가(기존엔 시세새로고침 버튼의 `margin-left:auto`가 나머지 4개 필드를 왼쪽에 몰아넣던 문제 — 그 inline `margin-left:auto` 제거), 값 3개(1%금액/현재비중합계/현재환율) 15px→20px, 라벨은 `.settings-meta .meta-label`로 스코프해 13px, 전체자금 입력 `#in-p0`는 19px·굵게·padding/width 확대(기존 인라인 width:140px 제거하고 CSS로 이전)
+- [x] 2. 그룹 헤더 가운데 정렬: `tr.group-hdr td`에 `text-align:center` 추가 + 12px→15px(US/KR/CASH 공통 규칙이라 개별계좌·종합계좌 뷰 모두 적용됨, 현금 그룹의 병합 셀 구조는 유지)
+- [x] 3. "보유" 라벨: 개별계좌(renderTable)·종합계좌(renderConsolidatedView) 두 곳의 인라인 스타일 모두 10px→15px, opacity:.75(보조색) 그대로 유지
+- [x] 4. 그룹 합계 행: `tr.subtotal-row td` 12px→16px(라벨·숫자 공통, 기존부터 font-weight:700이라 굵게는 이미 충족)
+- [x] 5. 종목 추가 폼: `.add-stock-form` padding 12px→14px, `.add-stock-form .inp`(종목명/티커/시장선택/종가 공통)·`.add-stock-form .btn`(+종목추가 버튼, btn-sm보다 구체적인 선택자라 정상 override) 신규 규칙으로 15px·padding 소폭 확대
+- [x] 6. 계좌 드롭다운: `#account-select` 13px→15px, padding 확대(세로 8px+테두리 2px+라인하이트 ≈ 36px), `.account-label` 11px→13px, max-width 160→180px
+- [x] 7. 설정 탭 2열: `#settings-content`에 `@media (min-width:801px)` 블록 추가해 `display:grid; grid-template-columns:1fr 1fr`로 전환(800px 이하는 기존 1열 flex 그대로 유지) — column-count 방식 대신 grid 행 배치를 선택(스펙의 "또는 자연스러운 높이 균형" 대안 문구로 허용된 범위), 카드(①~⑥) 내부 HTML은 무수정
+- [x] CSS/마크업만 변경 — JS 로직·계산 함수 전부 무수정, `computeCashAmount`/`restoreFromDrive` 등 이전 세션에서 검증한 함수들도 byte-for-byte 재확인
+- [x] Node vm으로 v3.html 재검증: 계산 함수 6개 무결성, 현금 자동계산·₩/$ 스위치·종합계좌 현금합산·GitHub 배포·드라이브 미리보기 등 기존 시나리오 전부 재실행해 회귀 없음 확인(과거 run_verify.js의 구형 "평가금액 (₩)" 텍스트 assertion 2건은 fix4에서 이미 슬라이드 스위치로 교체되며 무효화된 낡은 테스트라 실패 — 오늘 변경과 무관, 실제 동작은 run_verify_fix4.js로 별도 확인됨)
+- [x] index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v54 → rebalance-v55
+- [ ] (미수행) 실제 브라우저에서 레이아웃 육안 확인 — 이번 세션은 코드 변경과 Node 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 5단계 — GitHub 원버튼 배포 + 드라이브 미리보기 (v3.html) — 2026-07-16
 - [x] **시작 전 origin 병합**: 로컬 저장소에 remote가 전혀 없어(git remote -v 빈 결과) `https://github.com/dg-9999917/rebalance-app.git`을 origin으로 신규 등록 → fetch로 GitHub 쪽만 먼저 확인 → **origin/main과 로컬 master는 공통 조상이 없는 완전 별개 히스토리**(origin은 "Add files via upload" + GitHub 웹 UI에서의 "Update index.html/sw.js" 13개 커밋)임을 발견. 파일 단위 diff로 origin 고유 콘텐츠가 있는지 전수 확인한 결과 **0줄**(index.html은 로컬이 상위호환, sw.js는 origin이 v38로 구버전, manifest.json·아이콘은 byte-identical) — 사용자 확인 받은 후 `git merge origin/main --allow-unrelated-histories` 진행, index.html/sw.js add/add 충돌은 로컬(ours) 버전으로 해결(양쪽 히스토리 모두 보존, force push 없이 fast-forward push 성공)
 - [x] 작업1: 설정 > 고급에 GitHub 원버튼 배포 추가

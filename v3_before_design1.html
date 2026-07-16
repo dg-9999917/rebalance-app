@@ -101,19 +101,19 @@
     .btn-danger:hover { background: rgba(211,47,47,.08); }
     button:disabled { opacity: 0.38; cursor: not-allowed; }
 
-    /* 계좌 선택 드롭다운 (크게: 15~16px, 높이 36px 내외) */
+    /* 계좌 선택 드롭다운 */
     #account-select {
       background: var(--surface2); color: var(--text);
       border: 1px solid var(--border); border-radius: 5px;
-      padding: 8px 32px 8px 12px; font-size: 15px; font-weight: 600;
-      font-family: inherit; cursor: pointer; max-width: 180px;
+      padding: 4px 28px 4px 10px; font-size: 13px; font-weight: 600;
+      font-family: inherit; cursor: pointer; max-width: 160px;
       -webkit-appearance: none; appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8090'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 11px center;
+      background-repeat: no-repeat; background-position: right 9px center;
     }
     #account-select:focus { outline: none; border-color: var(--accent); }
     .account-label {
-      font-size: 13px; color: var(--text-sub); font-weight: 700;
+      font-size: 11px; color: var(--text-sub); font-weight: 700;
       text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
     }
 
@@ -133,17 +133,15 @@
 
     /* ── 기준 영역 ──────────────────────────────────────────── */
     .settings-meta {
-      display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
-      padding: 14px 16px; background: var(--surface);
+      display: flex; align-items: flex-end; gap: 24px;
+      padding: 12px 16px; background: var(--surface);
       border-bottom: 2px solid var(--border); margin-bottom: 0;
       flex-wrap: wrap;
     }
     .meta-field { display: flex; flex-direction: column; gap: 4px; }
     .meta-label { font-size: 11px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-    .settings-meta .meta-label { font-size: 13px; }
     .meta-input-row { display: flex; align-items: center; gap: 6px; }
     .meta-sub { font-size: 12px; color: var(--text-sub); white-space: nowrap; }
-    #in-p0 { font-size: 19px; font-weight: 700; padding: 6px 10px; width: 150px; }
 
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -213,8 +211,8 @@
     /* 그룹 헤더 행 */
     tr.group-hdr td {
       background: var(--group-bg); color: var(--text-sub);
-      font-size: 15px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .08em; padding: 7px 10px; text-align: center;
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; padding: 7px 10px;
       border-top: 1px solid var(--border);
     }
     tr.group-hdr.group-us   td { background: #e8f0fe; color: #1a56c4; }
@@ -231,7 +229,7 @@
     /* 종합행 */
     tr.subtotal-row td {
       background: var(--surface2); font-weight: 700;
-      font-size: 16px; border-top: 1px solid var(--border);
+      font-size: 12px; border-top: 1px solid var(--border);
     }
 
     /* ± ratio 셀 */
@@ -275,17 +273,14 @@
     }
     .del-btn:hover { border-color: var(--negative); color: var(--negative); background: rgba(211,47,47,.08); }
 
-    /* 종목 추가 폼 (살짝 크게: 15~16px, 패딩 +2~4px) */
+    /* 종목 추가 폼 */
     .add-stock-form {
       display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;
-      padding: 14px 16px; border-top: 1px solid var(--border);
+      padding: 12px 16px; border-top: 1px solid var(--border);
       background: var(--surface2);
     }
     .add-stock-form .meta-field { min-width: 100px; }
     .add-stock-form .meta-field.narrow { min-width: 70px; }
-    .add-stock-form .meta-label { font-size: 12px; }
-    .add-stock-form .inp { font-size: 15px; padding: 7px 10px; }
-    .add-stock-form .btn { font-size: 15px; padding: 7px 14px; }
 
     /* 숫자 하이라이트 */
     .val-pos { color: var(--positive); }
@@ -339,16 +334,6 @@
     #settings-content {
       max-width: 720px; margin: 0 auto; padding: 20px 16px 60px;
       display: flex; flex-direction: column; gap: 20px;
-    }
-    /* 데스크톱(폭 800px 초과): 설정 카드 2열 그리드, 800px 이하는 위 1열 flex 유지 */
-    @media (min-width: 801px) {
-      #settings-content {
-        max-width: 1120px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        align-items: start;
-        gap: 20px;
-      }
     }
     .settings-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -413,7 +398,7 @@
         <div class="meta-field">
           <span class="meta-label">전체 자금</span>
           <div class="meta-input-row">
-            <input class="inp inp-num" id="in-p0"
+            <input class="inp inp-num" style="width:140px" id="in-p0"
               placeholder="0"
               onfocus="commaFocus(this)"
               oninput="onP0Input(this.value)"
@@ -424,22 +409,22 @@
         <div class="meta-field">
           <span class="meta-label">1% 금액</span>
           <div class="meta-input-row">
-            <span id="disp-per1" class="meta-sub" style="font-size:20px;color:var(--text);font-weight:700">1% = —</span>
+            <span id="disp-per1" class="meta-sub" style="font-size:15px;color:var(--text);font-weight:700">1% = —</span>
           </div>
         </div>
         <div class="meta-field">
           <span class="meta-label">현재 비중 합계</span>
           <div class="meta-input-row">
-            <span id="disp-wtsum" class="meta-sub" style="font-size:20px;font-weight:700">—</span>
+            <span id="disp-wtsum" class="meta-sub" style="font-size:15px;font-weight:700">—</span>
           </div>
         </div>
         <div class="meta-field">
           <span class="meta-label">현재 환율</span>
           <div class="meta-input-row">
-            <span id="disp-fxn" class="meta-sub" style="font-size:20px;color:var(--text);font-weight:700">—</span>
+            <span id="disp-fxn" class="meta-sub" style="font-size:15px;color:var(--text);font-weight:700">—</span>
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
           <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
         </div>
       </div>
@@ -937,7 +922,7 @@ function renderTable() {
     html += isCashGroup
       ? `<tbody><tr class="group-hdr ${groupClass}">
           <td>${g.label}</td>
-          <td colspan="3" style="text-align:center;font-size:15px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
+          <td colspan="3" style="text-align:center;font-size:10px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
           <td colspan="4"></td>
         </tr></tbody>`
       : `<tbody><tr class="group-hdr ${groupClass}"><td colspan="8">${g.label}</td></tr></tbody>`;
@@ -1378,7 +1363,7 @@ function renderConsolidatedView() {
     const cashWt  = per1 ? data.cash / per1 : 0;
     html += `<tbody><tr class="group-hdr group-cash">
       <td>현금</td>
-      <td colspan="3" style="text-align:center;font-size:15px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
+      <td colspan="3" style="text-align:center;font-size:10px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
       <td colspan="4"></td>
     </tr></tbody>`;
     html += `<tbody><tr>
