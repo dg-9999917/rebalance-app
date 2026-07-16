@@ -173,6 +173,32 @@
     }
     thead th.num { text-align: right; }
     thead th.center { text-align: center; }
+
+    /* 원/$ 토글 스위치 (index.html ccy-switch 원본 그대로) */
+    .ccy-switch {
+      display: inline-flex; align-items: center; gap: 4px;
+      cursor: pointer; vertical-align: middle; user-select: none;
+      margin-left: 6px; line-height: 1;
+    }
+    .ccy-switch-track {
+      position: relative; width: 34px; height: 18px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; transition: background .18s, border-color .18s; flex-shrink: 0;
+    }
+    .ccy-switch.usd .ccy-switch-track { background: var(--accent); border-color: var(--accent); }
+    .ccy-switch-knob {
+      position: absolute; top: 2px; left: 2px;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--text-sub); transition: transform .18s, background .18s;
+    }
+    .ccy-switch.usd .ccy-switch-knob { transform: translateX(16px); background: #fff; }
+    .ccy-switch-lbl {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      transition: color .18s; min-width: 10px; text-align: center;
+    }
+    .ccy-switch:not(.usd) .ccy-switch-lbl-krw { color: var(--accent); }
+    .ccy-switch.usd      .ccy-switch-lbl-usd  { color: var(--accent); }
+
     /* 행 구분선 진하게 (라이트), 다크는 기존 --border 유지 */
     tbody tr { border-bottom: 1px solid #b0b5c0; }
     :root[data-theme="dark"] tbody tr { border-bottom: 1px solid var(--border); }
@@ -885,7 +911,7 @@ function renderTable() {
       <th class="center" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="num">현재비중</th>
       <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
-      <th class="num" style="cursor:pointer" onclick="toggleEvalCurrency()" title="클릭해서 원/달러 표시 전환">평가금액 (${evalCur === 'USD' ? '$' : '₩'})</th>
+      <th class="num">평가금액 <span class="ccy-switch ${evalCur === 'USD' ? 'usd' : ''}" onclick="toggleEvalCurrency()" title="원/달러 표시 전환" role="switch" aria-checked="${evalCur === 'USD'}" aria-label="원/달러 표시 전환"><span class="ccy-switch-lbl ccy-switch-lbl-krw">₩</span><span class="ccy-switch-track"><span class="ccy-switch-knob"></span></span><span class="ccy-switch-lbl ccy-switch-lbl-usd">$</span></span></th>
     </tr></thead>`;
 
   groups.forEach(g => {
@@ -893,7 +919,13 @@ function renderTable() {
     if (!stocks.length) return;
     const isCashGroup = g.market === 'CASH';
     const groupClass = g.market === 'US' ? 'group-us' : g.market === 'KR' ? 'group-kr' : 'group-cash';
-    html += `<tbody><tr class="group-hdr ${groupClass}"><td colspan="8">${g.label}</td></tr></tbody>`;
+    html += isCashGroup
+      ? `<tbody><tr class="group-hdr ${groupClass}">
+          <td>${g.label}</td>
+          <td colspan="3" style="text-align:center;font-size:10px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
+          <td colspan="4"></td>
+        </tr></tbody>`
+      : `<tbody><tr class="group-hdr ${groupClass}"><td colspan="8">${g.label}</td></tr></tbody>`;
     html += `<tbody class="sortable-group" data-market="${g.market}">`;
 
     let subVal = 0, subWeight = 0, subAdjR = 0;
@@ -956,25 +988,36 @@ function renderTable() {
             <button class="del-btn" style="margin-left:auto" onclick="deleteStock('${s.id}')" title="삭제">✕</button>
           </div>
         </td>
-        <td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
-        <td class="num">${isCash ? '—' : `<input class="inp-pf" type="text" inputmode="decimal"
+        ${isCash
+          ? `<td class="num center${cashNegCls}" colspan="3" style="border-left:2px solid var(--border);text-align:center">${
+              isAutoCash
+                ? `<span id="pf-q-${s.id}" title="자동 계산: 전체 자금 − 매수 원가 합계">${fmtNum(s.q)}</span>`
+                : `<input class="inp-pf" type="text" inputmode="decimal"
+                    id="pf-in-q-${s.id}"
+                    value="${s.q ? fmtDec(s.q, 2) : ''}"
+                    style="width:65px;text-align:center"
+                    onfocus="commaFocus(this)"
+                    onchange="onQtyInput('${s.id}',this.value)"
+                    onblur="commaBlur(this)">`
+            }</td>`
+          : `<td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
+        <td class="num"><input class="inp-pf" type="text" inputmode="decimal"
             id="pf-in-avg-${s.id}"
             value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
             style="width:75px"
             onfocus="commaFocus(this)"
             onchange="onAvgInput('${s.id}',this.value)"
-            onblur="commaBlur(this)">`}</td>
-        <td class="num${cashNegCls}">${
-          isAutoCash
-            ? `<span id="pf-q-${s.id}" title="자동 계산: 전체 자금 − 매수 원가 합계">${fmtNum(s.q)}</span>`
-            : `<input class="inp-pf" type="text" inputmode="decimal"
+            onblur="commaBlur(this)"></td>
+        <td class="num">
+                <input class="inp-pf" type="text" inputmode="decimal"
                 id="pf-in-q-${s.id}"
                 value="${s.q ? fmtDec(s.q, 2) : ''}"
                 style="width:65px"
                 onfocus="commaFocus(this)"
                 onchange="onQtyInput('${s.id}',this.value)"
-                onblur="commaBlur(this)">`
-        }</td>
+                onblur="commaBlur(this)">
+        </td>`
+        }
         <td class="center" style="border-left:2px solid var(--border)">
           <div class="ratio-cell">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
@@ -1144,7 +1187,15 @@ function buildConsolidatedData(cons) {
   });
 
   const stocks = Object.values(stockMap).map(t => ({ ...t, avg: t.q > 0 ? t.avgSum / t.q : 0 }));
-  return { p0, fxN, stocks };
+
+  // 종합 현금 = 각 멤버 계좌의 자동계산 현금 합 (신규 추가 — 위 US/KR 집계 로직·검증된 계산 함수는 무수정.
+  // computeCashAmount()는 전역 state만 읽는 순수 함수라, 계좌별로 state를 잠시 바꿔 그대로 재사용한다)
+  const savedState = state;
+  let cash = 0;
+  members.forEach(m => { state = m.state; cash += computeCashAmount(); });
+  state = savedState;
+
+  return { p0, fxN, stocks, cash };
 }
 
 function addConsolidatedV3() {
@@ -1243,6 +1294,7 @@ function renderConsolidatedView() {
     const pKRW = s.market === 'US' ? s.price * data.fxN : s.price;
     if (per1) totalWeight += (s.q * pKRW) / per1;
   });
+  if (per1) totalWeight += data.cash / per1; // 신규: 현재비중 합계에 종합 현금 포함
   const wtCls = !per1 ? '' : (totalWeight > 100 ? 'val-pos' : totalWeight < 100 ? 'val-neg' : '');
   if (wtEl) { wtEl.textContent = per1 ? fmtDec(totalWeight, 1) + '%' : '—'; wtEl.className = 'meta-sub' + (wtCls ? ' ' + wtCls : ''); }
   if (fxEl) fxEl.textContent = data.fxN ? fmtNum(data.fxN, 2) : '—';
@@ -1304,6 +1356,32 @@ function renderConsolidatedView() {
       <td class="num">${fmtNum(subVal)} 원</td>
     </tr></tbody>`;
   });
+
+  // 종합 현금 행 (신규 — 멤버 계좌 자동계산 현금 합, 개별 계좌 표와 동일한 병합 레이아웃)
+  if (data.cash !== undefined) {
+    const cashNeg = data.cash < 0 ? ' val-neg' : '';
+    const cashWt  = per1 ? data.cash / per1 : 0;
+    html += `<tbody><tr class="group-hdr group-cash">
+      <td>현금</td>
+      <td colspan="3" style="text-align:center;font-size:10px;font-weight:600;text-transform:none;letter-spacing:normal;opacity:.75">보유</td>
+      <td colspan="4"></td>
+    </tr></tbody>`;
+    html += `<tbody><tr>
+      <td><span class="stock-name">현금</span><span class="badge badge-cash">CASH</span></td>
+      <td class="num center${cashNeg}" colspan="3" style="border-left:2px solid var(--border);text-align:center" title="자동 계산: 전체 자금 − 매수 원가 합계(멤버 계좌 합산)">${fmtNum(data.cash)}</td>
+      <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
+      <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
+      <td class="num${cashNeg}">${fmtNum(data.cash)} 원</td>
+    </tr></tbody>`;
+    html += `<tbody><tr class="subtotal-row">
+      <td colspan="4" style="text-align:right;padding-right:10px">현금 합계</td>
+      <td class="num">—</td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
+      <td class="num"></td>
+      <td class="num">${fmtNum(data.cash)} 원</td>
+    </tr></tbody>`;
+  }
 
   html += '</table>';
   if (wrap) wrap.innerHTML = html;
