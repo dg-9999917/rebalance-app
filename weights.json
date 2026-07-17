@@ -3,7 +3,7 @@
     {
       "id": "s_mro8x1knr1d9",
       "name": "test_001",
-      "version": "2026-07-17-1",
+      "version": "2026-07-17-2",
       "date": "2026-07-17",
       "memo": "",
       "stocks": [
@@ -11,13 +11,13 @@
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 3
+          "r": 0
         },
         {
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 3
+          "r": 6
         },
         {
           "name": "샌디스크",
