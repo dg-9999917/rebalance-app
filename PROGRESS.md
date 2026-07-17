@@ -1,5 +1,23 @@
 # 구현 진행 상황
 
+## v3 수정 11차 — 적용 버전 표시 갱신 + 입력 열 정렬 (index.html 정식 앱) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 d9c371e, origin과 0/0 동기화 확인, 작업 트리 깨끗함). **⚠️ 절차 누락**: fix11.md가 요구한 "커밋으로 안전점 확보"(빈 커밋) 단계를 건너뛰고 바로 진단·수정에 들어감 — d9c371e 자체가 이미 push된 깨끗한 롤백 지점이라 실질적 위험은 없었지만, 지시된 절차를 그대로 안 따른 점 사용자에게 별도 보고
+- [x] **작업 1 진단 — 적용 버전 표시 갱신 안 됨**:
+  — 먼저 `confirmApplyReco()`(계산기 배너/모달의 [적용] 버튼)를 Node vm으로 직접 시뮬레이션 — `state.meta.appliedRecoVersion` 저장과 그 직후 `closeRecoModal()`이 호출하는 `renderSettingsTab()` 둘 다 정상 동작해 ④ 카드가 새 버전으로 즉시 재렌더됨을 확인(이 경로 자체는 버그 없음)
+  — **실제 원인 위치**: `checkRecoWeights()`(`index.html`, 앱 로드 시 + 수정10차의 화면복귀/30분 주기 자동확인이 경유)와 `checkRecoNow()`(설정 탭 "업데이트 확인" 버튼) 두 함수 — 둘 다 `recoProfiles = profiles;`로 전역 추천 목록을 새로 갱신한 뒤 `evaluateRecoBanner()`(계산기 탭의 `#reco-banner`만 갱신)만 호출하고 **`renderSettingsTab()`을 호출하지 않았음**. 그 결과 설정 탭이 이미 한 번이라도 렌더된 상태에서 recoProfiles가 나중에(특히 수정10차가 새로 추가한 화면복귀·30분 주기 백그라운드 확인으로) 갱신되면, ④ "따르는 전략" 표시·"전략 변경" 드롭다운이 탭을 벗어났다 다시 들어오기 전까지 예전 값에 머물러 있었음 — fix10 작업7(콘솔 버전)과 정확히 같은 유형(저장은 되는데 이미 그려진 화면이 안 갱신되는) 버그였고, 수정10차에서 백그라운드 자동확인을 새로 추가하면서 이 경로가 실제로 노출되기 쉬워진 것으로 보임
+  — **수정**: `checkRecoWeights()`의 `evaluateRecoBanner()` 다음 줄에 `renderSettingsTab()` 추가. `checkRecoNow()`는 `#reco-check-result` 결과 메시지(이미 최신입니다/변경 있음/실패)를 이 카드 안의 span에 쓰는데, `renderSettingsTab()`이 카드 전체를 새로 그리며 그 span도 새 엘리먼트로 교체되므로 **순서를 재렌더 먼저 → 그 다음에 새로 만들어진 `#reco-check-result`를 다시 조회해서 메시지를 쓰도록** 재구성(재렌더 전 참조에 메시지를 쓰면 이미 DOM에서 떨어져 나간 옛 엘리먼트를 건드리는 것이라 화면에 아무 변화가 안 생김 — 이 순서 문제까지 함께 잡음)
+- [x] **작업 2 진단 — 평단가 헤더·입력칸 열 어긋남**:
+  — **정확한 원인 위치**: `#tbl-wrap thead th.num { text-align: right; }`(디자인4~6차부터 있던 기존 규칙, 헤더는 항상 우측 정렬)와 수정10차에서 새로 추가한 `#tbl-wrap tbody td.num:has(.inp-pf) { text-align: center; }`(입력칸이 "실제로 들어있는" 셀만 가운데 정렬) — 이 둘이 서로 다른 정렬을 지정하면서 현재가·평단가·보유수량 3개 열에서 헤더(우측)와 입력칸 셀(가운데)이 어긋나 보이던 것. 게다가 같은 "현재가" 열도 시세가 이미 있어 텍스트로만 보일 때(우측, 입력칸이 없어 `:has()` 미매치)와 입력칸일 때(가운데)가 행마다 서로 달라 열 자체가 흔들려 보이는 부수 문제도 함께 있었음
+  — **수정**: `:has()` 조건부 규칙을 제거하고, 현재가·평단가·보유수량 3개 열의 헤더(`<th>`)와 셀(`<td>`) 전부에 신규 `col-center` 클래스를 부여 — 입력칸 유무·시세 존재 여부와 무관하게 이 3개 열은 헤더·셀 항상 가운데 정렬로 통일(요구사항의 "헤더도 같은 정렬로 통일" 그대로 반영). 설정비율 열은 원래부터 헤더·셀 모두 `class="center"`로 이미 일치돼 있어 손대지 않음(이번 버그 대상 아님), 현재비중·필요매매·평가금액 3개 열은 입력칸이 없어 애초에 영향받지 않았으므로 기존 우측 정렬 그대로 유지. 유동 폭(수정10차, `autoSizeInput`·colgroup 확장)은 전혀 손대지 않아 그 동작은 그대로 유지됨
+- [x] Node vm 검증(신규 하네스):
+  — `checkRecoWeights()` 호출 후 settings-content가 최신 recoProfiles(예시로 서버 버전 `-1`→`-3` 갱신) 기준으로 재렌더됨을 HTML 문자열로 확인
+  — `checkRecoNow()` 호출 후 재렌더된 새 `#reco-check-result` 노드에 결과 메시지가 정상적으로 표시됨(display:inline, 텍스트 정확)과 동시에 설정 탭 카드 자체도 최신 데이터로 갱신됨을 확인 — "재렌더 전 옛 노드에 쓰기" 순서 버그가 재발하지 않았음을 함께 검증
+  — `renderTable()` 결과에서 현재가·평단가·보유수량 헤더 3개 모두 `col-center` 클래스 포함, 본문 셀(가격표시/평단가입력/수량입력) 3개 전부 `col-center` 포함, 현재비중 헤더는 `col-center` 미포함(우측 정렬 유지) 확인
+  — `node --check` 구문 오류 없음, CSS 중괄호 균형(depth 0) 확인
+- [x] `git diff`(HEAD=d9c371e 대비, 이번 세션은 별도 안전점 커밋을 안 만들어 HEAD 자체가 기준)에서 계산 함수 시그니처(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등) grep 결과 없음(무수정) 확인 — 변경분 23줄 추가/10줄 삭제가 전부 위 두 작업 범위(렌더 호출 순서 2곳, CSS 정렬 규칙 교체, 헤더·셀 class 속성 6곳)에만 있음
+- [x] sw.js CACHE_NAME rebalance-v66 → rebalance-v67
+- [ ] **실제 브라우저 확인 필요**: 새 추천 적용 후 설정 탭에서 즉시·계좌전환후·새로고침후 버전이 맞는지, 평단가·보유수량 입력칸이 실제로 헤더와 줄맞음이 되는지, 유동 폭 확장 동작이 여전히 자연스러운지 — 이번 세션은 Node vm 시뮬레이션까지만 수행
+
 ## v3 수정 10차 — 표시·확인 주기·콘솔 버전 (index.html 정식 앱) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 c36e4fd). `git fetch`로 origin이 로컬에 없는 커밋 4개 발견 — 전부 실사용 결과(가족이 실제로 fix9의 유령 프로필 제거·재배포 기능을 사용, "유령 전략 제거" 커밋 2개 + "배포: 방어형" 2개), `git diff --stat`으로 weights.json만 변경됨을 확인 후 `--ff-only` 병합. `cp index.html index_before_fix10.html` 백업(byte-for-byte 동일 확인), 안전점 `git commit --allow-empty`(`0a194c5`)
 - [x] **작업 1 — $ 변환은 미국 종목만**: `renderTable()`·`updateRows()` 양쪽의 `evalStr`/`subValStr` 계산에서 `evalCur === 'USD'` 조건에 `&& g.market === 'US'`(또는 `s.market === 'US'`)를 추가해 4곳 모두 수정 — 한국·현금 그룹은 `evalCur` 값과 무관하게 항상 원화 분기로 감. **계산은 무변경**: `val`/`subVal`(evalVal/currWeight 등 계산 함수의 결과)은 손대지 않았고, 표시 문자열을 만드는 삼항연산자 조건만 좁힘 — $ 표시일 때 나누는 `val / state.meta.fxN`도 기존 그대로(단, US 그룹에서만 이 분기를 타므로 `isCash ? s.q : val`이던 기존 코드에서 `isCash` 분기가 항상 거짓이 되어 `val`로 단순화 — 로직 동일, 표현만 정리)

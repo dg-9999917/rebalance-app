@@ -317,9 +317,12 @@
       transition: width .12s ease;
     }
     .inp-pf:focus { outline: none; border-color: var(--accent); }
-    /* 수정 10차 — 입력칸이 든 셀만 가운데 정렬해 폭이 변할 때 양옆으로 자연스럽게 커지도록 함
-       (표시 전용 숫자 셀은 기존 우측 정렬 그대로 — :has()로 입력칸이 실제 있는 셀만 골라 적용) */
-    #tbl-wrap tbody td.num:has(.inp-pf) { text-align: center; }
+    /* 수정 11차 — fix10에서 :has(.inp-pf)로 "입력칸이 있을 때만" 셀을 가운데 정렬했더니
+       헤더(#tbl-wrap thead th.num, 항상 우측 정렬)와 어긋나 보이고, 같은 열이라도 값이 있어
+       텍스트로만 보일 때(우측)와 입력칸일 때(가운데)가 서로 달라 행마다 흔들려 보이던 원인이었음.
+       현재가·평단가·보유수량 열은 헤더·셀 모두 항상 가운데 정렬로 통일(입력칸 유무와 무관) */
+    #tbl-wrap thead th.col-center { text-align: center; }
+    #tbl-wrap tbody td.col-center { text-align: center; }
 
     /* 추천 비중 배너 */
     #reco-banner {
@@ -1025,9 +1028,9 @@ function renderTable() {
     </colgroup>
     <thead><tr>
       <th>종목</th>
-      <th class="num" style="border-left:2px solid var(--border)">현재가</th>
-      <th class="num">평단가</th>
-      <th class="num">보유수량</th>
+      <th class="num col-center" style="border-left:2px solid var(--border)">현재가</th>
+      <th class="num col-center">평단가</th>
+      <th class="num col-center">보유수량</th>
       <th class="center" style="border-left:2px solid var(--border)">설정비율</th>
       <th class="num">현재비중</th>
       <th class="num" style="border-left:2px solid var(--border)">필요매매</th>
@@ -1123,8 +1126,8 @@ function renderTable() {
                     onchange="onQtyInput('${s.id}',this.value)"
                     onblur="commaBlur(this);autoSizeInput(this)">`
             }</td>`
-          : `<td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
-        <td class="num"><input class="inp-pf" type="text" inputmode="decimal"
+          : `<td class="num col-center" style="border-left:2px solid var(--border)">${priceDisplay}</td>
+        <td class="num col-center"><input class="inp-pf" type="text" inputmode="decimal"
             id="pf-in-avg-${s.id}"
             value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
             style="width:8.5ch" data-min-ch="8.5" data-max-ch="11"
@@ -1132,7 +1135,7 @@ function renderTable() {
             onfocus="commaFocus(this);autoSizeInput(this)"
             onchange="onAvgInput('${s.id}',this.value)"
             onblur="commaBlur(this);autoSizeInput(this)"></td>
-        <td class="num">
+        <td class="num col-center">
                 <input class="inp-pf" type="text" inputmode="decimal"
                 id="pf-in-q-${s.id}"
                 value="${s.q ? fmtDec(s.q, 2) : ''}"
@@ -1612,6 +1615,10 @@ async function checkRecoWeights() {
     if (!profiles.length) return;
     recoProfiles = profiles;
     evaluateRecoBanner();
+    renderSettingsTab(); // 수정 11차 — evaluateRecoBanner()는 계산기 탭 배너만 갱신함. 설정 탭이
+                          // 이미 렌더된 뒤(예: 화면 복귀·30분 주기 자동 확인) 여기서 recoProfiles가
+                          // 새로 갱신돼도 이 호출이 없으면 ④ "따르는 전략" 표시·드롭다운이 계속
+                          // 예전 값에 머물러 있었음(탭을 벗어났다 다시 들어와야만 갱신됐음)
   } catch (e) {
     // 오프라인 등 실패 시 앱 동작에 지장 없이 무시
   }
@@ -2518,13 +2525,18 @@ function onStrategySwitchSelect(profileId) {
 
 async function checkRecoNow() {
   lastRecoCheckTs = Date.now(); // 수동 확인도 자동 확인의 1분 쿨다운에 포함시킴
-  const resultEl = document.getElementById('reco-check-result');
   try {
     const data = await fetchWeightsJson();
     if (!data) throw new Error('조회 실패');
     const profiles = normalizeRecoData(data);
     if (!profiles.length) throw new Error('형식 오류');
     recoProfiles = profiles;
+    // 수정 11차 — 결과 메시지를 쓰기 전에 먼저 재렌더해 "따르는 전략"·드롭다운을 최신
+    // recoProfiles로 갱신(이전엔 이 호출이 없어 recoProfiles만 바뀌고 화면은 그대로였음).
+    // renderSettingsTab()이 #reco-check-result를 포함해 카드 전체를 새로 만들므로, 아래 메시지는
+    // 재렌더 "이후"의 새 엘리먼트를 다시 조회해서 써야 함(재렌더 전 참조는 재렌더 즉시 DOM에서 떨어져 나감)
+    renderSettingsTab();
+    const resultEl = document.getElementById('reco-check-result');
     if (resultEl) resultEl.style.display = 'inline';
     const selectedId = state.meta.selectedStrategyId;
     const profile = recoProfiles.find(p => p.id === selectedId);
@@ -2536,6 +2548,7 @@ async function checkRecoNow() {
       evaluateRecoBanner();
     }
   } catch (e) {
+    const resultEl = document.getElementById('reco-check-result');
     if (resultEl) { resultEl.textContent = '확인 실패 — 네트워크를 확인하세요.'; resultEl.style.color = 'var(--negative)'; resultEl.style.display = 'inline'; }
   }
 }
