@@ -79,7 +79,7 @@
       padding: 0 20px; height: 46px;
       border: none; border-bottom: 2px solid transparent;
       background: none; color: var(--tab-inactive);
-      font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+      font-size: 19px; font-weight: 600; letter-spacing: 0.02em;
       transition: color .12s, border-color .12s; white-space: nowrap;
     }
     .tab-btn:hover:not(.active) { color: var(--text); }
@@ -234,9 +234,10 @@
     :root[data-theme="dark"] tr.group-hdr.group-kr   td { background: #2d1a24; color: #ff8888; }
     :root[data-theme="dark"] tr.group-hdr.group-cash td { background: #1a2d20; color: #5ecf88; }
 
-    /* 행 교차 줄무늬 */
-    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #eceef2; }
-    :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1f2229; }
+    /* 행 교차 줄무늬 — 원래 전역 셀렉터였는데 설정>고급 전략 테이블(#tbl-wrap 밖)에도 새어 들어가
+       줄무늬가 생기던 원인(v3 수정 6차의 thead th 스코프 누락과 같은 종류) — #tbl-wrap으로 스코프 */
+    #tbl-wrap tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #eceef2; }
+    :root[data-theme="dark"] #tbl-wrap tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1f2229; }
 
     /* 수정 9차 — 종목 행 클릭 선택(표시용, 줄무늬·호버보다 우선) */
     #tbl-wrap tbody tr.row-selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important; }
@@ -344,6 +345,9 @@
       border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600;
     }
     :root[data-theme="dark"] #cash-warn-banner { background: #3a2e10; color: #f0b90b; }
+    /* 수정 12차 — 설정비율 합계가 100이 아닐 때 주의 표시(현금경고 배너와 같은 주황/호박색 계열) */
+    .val-warn { color: #8a5a00; }
+    :root[data-theme="dark"] .val-warn { color: #f0b90b; }
     #reco-banner .reco-banner-close:hover { opacity: 1; background: rgba(0,0,0,.06); }
 
     /* 추천 비중 적용 확인 모달 */
@@ -484,13 +488,19 @@
           </div>
         </div>
         <div class="meta-field">
+          <span class="meta-label">설정비율 합계</span>
+          <div class="meta-input-row">
+            <span id="disp-adjrsum" class="meta-sub" style="font-size:20px;font-weight:700">—</span>
+          </div>
+        </div>
+        <div class="meta-field">
           <span class="meta-label">현재 환율</span>
           <div class="meta-input-row">
             <span id="disp-fxn" class="meta-sub" style="font-size:20px;color:var(--text);font-weight:700">—</span>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
+          <button class="btn btn-primary" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
         </div>
       </div>
 
@@ -982,6 +992,14 @@ function renderSummary() {
   }
   const fxEl = document.getElementById('disp-fxn');
   if (fxEl) fxEl.textContent = fxN ? fmtNum(fxN, 2) : '—';
+  // 수정 12차 — 설정비율(adjR) 합계: 현금 포함 전 종목의 목표비율 합이 100인지 한눈에 확인
+  const adjrEl = document.getElementById('disp-adjrsum');
+  if (adjrEl) {
+    const adjrSum = state.stocks.reduce((a, s) => a + (Number(s.adjR) || 0), 0);
+    const isOk = Math.abs(adjrSum - 100) < 0.05;
+    adjrEl.textContent = fmtDec(adjrSum, 1);
+    adjrEl.className = 'meta-sub' + (isOk ? '' : ' val-warn');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1437,6 +1455,9 @@ function renderConsolidatedView() {
   const wtEl = document.getElementById('disp-wtsum');
   const fxEl = document.getElementById('disp-fxn');
   const wrap = document.getElementById('tbl-wrap');
+  // 수정 12차 — 설정비율 합계는 개별 계좌 전용 지표(종합계좌는 어느 계좌 기준인지 모호) — 항상 "—"
+  const adjrEl = document.getElementById('disp-adjrsum');
+  if (adjrEl) { adjrEl.textContent = '—'; adjrEl.className = 'meta-sub'; }
 
   if (!data || !data.stocks.length) {
     if (wtEl) { wtEl.textContent = '—'; wtEl.className = 'meta-sub'; }
@@ -1497,22 +1518,22 @@ function renderConsolidatedView() {
       const badgeClass = s.market === 'US' ? 'badge-us' : 'badge-kr';
       html += `<tr>
         <td><span class="stock-name">${esc(s.name)}</span><span class="stock-ticker">${esc(s.ticker)}</span><span class="badge ${badgeClass}">${s.market}</span></td>
-        <td class="num" style="border-left:2px solid var(--border)">${smallDec(s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—')}</td>
+        <td class="num" style="border-left:2px solid var(--border)">${s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—'}</td>
         <td class="num">${smallDec(s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—')}</td>
-        <td class="num">${smallDec(s.q ? fmtDec(s.q, 2) : '—')}</td>
+        <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
         <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-        <td class="num">${smallDec(per1 && valOk ? fmtDec(wt, 2) : '—')}</td>
+        <td class="num">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
         <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-        <td class="num">${valOk ? smallDec(fmtNum(val)) + ' 원' : '—'}</td>
+        <td class="num">${valOk ? fmtNum(val) + ' 원' : '—'}</td>
       </tr>`;
     });
 
     html += `</tbody><tbody><tr class="subtotal-row">
       <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계</td>
       <td class="num">—</td>
-      <td class="num">${smallDec(per1 ? fmtDec(subWeight, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(subWeight, 2) : '—'}</td>
       <td class="num"></td>
-      <td class="num">${smallDec(fmtNum(subVal))} 원</td>
+      <td class="num">${fmtNum(subVal)} 원</td>
     </tr></tbody>`;
   });
 
@@ -1527,18 +1548,18 @@ function renderConsolidatedView() {
     </tr></tbody>`;
     html += `<tbody><tr>
       <td><span class="stock-name">현금</span><span class="badge badge-cash">CASH</span></td>
-      <td class="num center${cashNeg}" colspan="3" style="border-left:2px solid var(--border);text-align:center" title="자동 계산: 전체 자금 − 매수 원가 합계(멤버 계좌 합산)">${smallDec(fmtNum(data.cash))}</td>
+      <td class="num center${cashNeg}" colspan="3" style="border-left:2px solid var(--border);text-align:center" title="자동 계산: 전체 자금 − 매수 원가 합계(멤버 계좌 합산)">${fmtNum(data.cash)}</td>
       <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-      <td class="num">${smallDec(per1 ? fmtDec(cashWt, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
       <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-      <td class="num${cashNeg}">${smallDec(fmtNum(data.cash))} 원</td>
+      <td class="num${cashNeg}">${fmtNum(data.cash)} 원</td>
     </tr></tbody>`;
     html += `<tbody><tr class="subtotal-row">
       <td colspan="4" style="text-align:right;padding-right:10px">현금 합계</td>
       <td class="num">—</td>
-      <td class="num">${smallDec(per1 ? fmtDec(cashWt, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
       <td class="num"></td>
-      <td class="num">${smallDec(fmtNum(data.cash))} 원</td>
+      <td class="num">${fmtNum(data.cash)} 원</td>
     </tr></tbody>`;
   }
 
@@ -2853,7 +2874,9 @@ async function deleteStrategyFromGithub(id) {
     await deployProfilesWithRetry(profiles => profiles.filter(p => p.id !== id), `전략 제거: ${s.name}`);
     appData.strategies = (appData.strategies || []).filter(x => x.id !== id);
     saveState();
-    invalidateGhostProfilesCache();
+    // 수정 12차 — confirmStrategyDeploy()와 같은 이유로 제거: 방금 우리가 지운 전략은 이미 로컬
+    // strategies에서도 빠졌으니 유령이 될 수 없고, 다른 전략들의 lastDeployedVersion도 이 PUT과
+    // 무관해 재조회가 필요 없음(PUT 직후 즉시 GET하면 아직 반영 전 내용을 읽어와 되돌릴 위험만 있음)
     const overlay = document.getElementById('strategy-delete-overlay');
     if (overlay) overlay.remove();
     renderSettingsTab();
@@ -2985,7 +3008,15 @@ async function confirmStrategyDeploy(strategyId) {
     acc.state.meta.selectedStrategyName = s.name;
     acc.state.meta.appliedRecoVersion = payload.version;
     saveState();
-    invalidateGhostProfilesCache();
+    // 수정 12차 버그 수정 — 여기서 invalidateGhostProfilesCache()를 부르면(고급 섹션이 열려있는
+    // 상태라 항상 그럼) 곧바로 배경에서 loadGhostProfiles()가 weights.json을 다시 GET해
+    // reconcileStrategiesWithRemote()를 돌리는데, PUT 직후의 GET이 아직 반영 전(구버전) 내용을
+    // 받아오면 방금 정확히 세팅한 s.lastDeployedVersion/lastDeployedStocks를 도로 구버전으로
+    // 덮어써버림 — 배지가 ✅로 잠깐 바뀌었다가 다시 🔶로 되돌아가고, 다음 배포도 같은 버전
+    // 번호를 재사용하던 원인이었음(실측: weights.json 커밍 이력에 같은 버전 라벨이 서로 다른
+    // 내용으로 두 번씩 찍혀있었음). 방금 우리가 직접 배포한 내 전략은 유령일 수 없으므로(항상
+    // 로컬 strategies에 존재) 유령 목록은 이 배포로 전혀 바뀌지 않음 — 캐시 무효화·재조회 모두 불필요해
+    // 호출 자체를 제거(기존 ghostProfilesCache는 그대로 유효하므로 건드리지 않음)
 
     showResult('배포 완료 — 반영까지 1~2분 걸릴 수 있습니다', false);
     renderSettingsTab();

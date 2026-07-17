@@ -1,5 +1,28 @@
 # 구현 진행 상황
 
+## v3 수정 12차 — 표시 다듬기 + 배포 상태 버그 (index.html 정식 앱) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 fcd220c). `git fetch`로 origin에 로컬에 없는 커밋 7개 발견 — "배포: 방어형 2026-07-17-2/-2/-3/-3/-4/-4"(버전 라벨이 쌍으로 중복!)와 "배포: 공격형 2026-07-17-2" — `git diff --stat`으로 weights.json만 변경(8줄)됨을 확인 후 `--ff-only` 병합. **이 중복 버전 라벨 패턴 자체가 작업6 진단의 핵심 실물 증거**(아래 참고)
+  — **⚠️ 절차 재발**: 병합 직후 바로 작업6 진단(코드 수정)에 들어가버려 `cp index.html index_before_fix12.html` 백업이 늦어짐 — `git show HEAD:index.html > index_before_fix12.html`로 세션 시작 시점(작업6 코드 수정 직전) 파일을 정확히 복원해 뒤늦게 백업 확보 후 안전점 커밋(`807a423`)
+- [x] **작업 6 진단(먼저 수행)** — **(a) 파일은 갱신됨 + 배지만 🔶(표시/저장 버그)로 확정**:
+  — `git diff <이전-배포-커밋> <다음-배포-커밋> -- weights.json`으로 직접 확인: "방어형" 프로필이 같은 버전 라벨(예: `2026-07-17-2`)로 **서로 다른 내용**(TSM r 4→6, SNDK r 2→0, 메모 변경)으로 두 번 커밋된 것을 실측 확인 — 즉 GitHub PUT은 매번 정상 실행돼 파일이 실제로 갱신되고 있었음(= 배포 실행 자체는 문제 없음, (b) 아님). 문제는 **버전 번호가 다음 숫자로 전진하지 못하고 매번 재사용**되는 것과, 그로 인해 배지가 계속 🔶로 보이는 것
+  — **정확한 원인 위치**: `confirmStrategyDeploy()`(`index.html`) 안의 `saveState();` 바로 다음 줄 `invalidateGhostProfilesCache();` — `advancedOpen`이 true일 때(배포 버튼 자체가 고급 섹션 안에만 있으므로 항상 참) 이 호출이 **배경에서 `loadGhostProfiles()`(비동기 GET)를 즉시 재실행**하고, 그 결과로 `reconcileStrategiesWithRemote(profiles)`(수정10차에서 추가한 "로드 시 자가 보정" 기능)가 곧바로 실행됨. 방금 끝난 PUT 직후의 이 GET이 GitHub 쪽에서 아직 반영 전(구버전) 내용을 돌려주면, 바로 앞줄에서 정확히 세팅해둔 `s.lastDeployedVersion`/`lastDeployedStocks`를 자가 보정 로직이 "파일 기준"이라며 **구버전으로 도로 덮어쓰고 재렌더**해버림 — 화면엔 배포 완료 직후 잠깐 ✅가 보였다가(2991행 `renderSettingsTab()`) 배경 GET이 끝나는 순간(`loadGhostProfiles()`의 `finally`에서도 `renderSettingsTab()` 호출) 다시 🔶로 되돌아가는 정확한 재현 경로. 다음 배포 시도는 되돌려진(구버전) `lastDeployedVersion`을 기준으로 `nextStrategyVersion()`이 같은 번호를 다시 계산해 파일에 같은 라벨로 재기록 — 위에서 확인한 실제 git 이력의 중복 라벨 패턴과 정확히 일치
+  — **비교 로직 자체(과제가 짚은 "정규화" 가능성)는 점검 후 정상으로 확인**: `getCoupledAccountStocks()`와 `buildStrategyDeployPayload()`가 만드는 두 스냅샷 모두 필드 구성이 `{name,ticker,market,r}`로 완전히 동일하고, `diffStockLists()`는 배열 순서에 의존하지 않고 ticker+market으로 매칭하며 `+existing.r !== +ns.r`로 숫자형 강제 변환까지 이미 하고 있어 형식 불일치로 인한 오탐 요소는 없었음(레이스 컨디션이 유일한 원인)
+  — **수정**: `confirmStrategyDeploy()`와 (같은 구조라 동일 위험이 있던) `deleteStrategyFromGithub()`의 성공 경로에서 `invalidateGhostProfilesCache()` 호출을 제거 — 방금 우리가 직접 배포/삭제한 "내 전략"은 정의상 로컬 strategies에 있으므로(배포는 원래 있던 것, 삭제는 이미 로컬에서도 지운 뒤) 유령 목록에 전혀 영향이 없어 이 재조회가 애초에 불필요했음(부작용만 있었음). 기존 `ghostProfilesCache`는 그대로 유효하므로 건드리지 않음(다음에 고급 섹션을 여닫을 때 자연스럽게 최신화됨) — `saveGhToken()`/`deleteStrategyLocalOnly()`/`removeGhostProfileConfirmed()`의 `invalidateGhostProfilesCache()`는 유지(각각 토큰 변경·"콘솔에서만 삭제"로 진짜 유령이 생기는 경우·유령 자체 제거라 재조회가 실제로 필요한 경우들)
+- [x] **작업 1 — 종합계좌 뷰 소수 축소는 평단가만**: `renderConsolidatedView()`에서 `smallDec()` 래핑을 평단가(`s.avg`) 한 곳만 남기고 현재가·보유수량·현재비중·평가금액·그룹합계·현금·현금합계 전부 원래 `fmtNum`/`fmtDec` 결과 그대로 복구(계산값 자체는 애초에 손댄 적 없음, 표시 래핑만 되돌림)
+- [x] **작업 2 — 탭 글자 확대**: `.tab-btn` 기본 `font-size` 14px → 19px(요구 범위 18~20px). fix10에서 만든 `--tab-active`(#111318)/`--tab-inactive`(#454b57)/활성탭 `font-weight:800`은 무수정
+- [x] **작업 3 — 전략 표 줄무늬 제거**: 짝수 행 배경 규칙(`tbody tr:nth-child(even)...`)이 원래 전역 셀렉터라 `#tbl-wrap` 밖의 설정>고급 전략 테이블에도 새어 들어가고 있었음(v3 수정 6차의 `thead th` 스코프 누락과 같은 종류의 문제) — `#tbl-wrap`으로 스코프해 메인 포트폴리오·종합계좌 표에는 줄무늬 유지, 전략 테이블은 단일 배경이 되도록 수정
+- [x] **작업 4 — 시세 새로고침 버튼 파란색**: `#btn-fetch-prices`에 `btn-primary` 클래스 추가(다른 주요 버튼과 동일 파란 채움). 크기 규칙(`#btn-fetch-prices{padding:8px 16px;font-size:14px}`)은 별도 유지되고 있어 무수정 — 크기 그대로 색만 변경됨. 코드에 남아있던 `btn-fetch-prices-settings`(JS의 방어적 id 목록)는 실제 마크업에 대응 요소가 없는 죽은 참조로 확인, 이번 범위 밖이라 그대로 둠
+- [x] **작업 5 — 설정비율 합계**: 상단 기준 영역에 "현재 비중 합계"와 "현재 환율" 사이 신규 `<span id="disp-adjrsum">` 필드 추가(동일한 `.meta-field`/`.meta-sub` 20px 스타일 재사용). `renderSummary()`(개별 계좌)에 `state.stocks.reduce((a,s)=>a+(Number(s.adjR)||0),0)`(현금 포함 전 종목, 계산 함수 아닌 단순 합산이라 "계산 함수 수정 금지"에 저촉 없음) 계산 추가 — 100.0과 오차 0.05 이내면 기본색, 아니면 신규 `.val-warn`(라이트 #8a5a00/다크 #f0b90b — 기존 현금경고 배너와 동일 주황·호박색 계열 재사용) 클래스로 주의 표시. `renderConsolidatedView()`에는 이 필드가 개별 계좌 전용 지표(종합계좌는 "어느 계좌 기준"인지 모호)라는 이유로 항상 "—" 고정(데이터 없음 조기 반환 경로 포함 양쪽 다 처리)
+- [x] Node vm 검증(신규 하네스 — GitHub Contents API를 흉내 내는 mock에 "PUT 직후 한 GET 사이클은 아직 구버전을 반환"하는 레이스 상황을 실제로 재현):
+  — 작업6: 배포 전 🔶 상태 확인 → `confirmStrategyDeploy()` 실행 → 로컬 `lastDeployedVersion`이 새 버전으로 유지됨(되돌려지지 않음), `lastDeployedStocks`가 현재 값과 일치, `strategyStatus()`가 즉시 ✅로 판정, GitHub 호출이 PUT 1회 + GET 1회(배포 자체에 필요한 사전 조회 딱 1번, 예전처럼 배포 직후 추가로 자가보정용 GET이 또 나가지 않음)만 발생함을 확인
+  — 작업1: 현재가·평단가·수량을 전부 소수 있는 값(100.5/90.5/10.25)으로 설정해 렌더 후 셀별로 확인 — 평단가 셀만 `dec-sm` 포함, 현재가·수량·현재비중·평가금액 셀은 전부 미포함
+  — 작업5: 종목 adjR 합 100.0일 때 기본색, 110.0일 때 `val-warn` 클래스로 전환됨을 확인, 종합계좌 뷰에서는 항상 "—"
+  — 작업2·3·4는 순수 CSS/마크업 변경이라 grep으로 직접 대조 확인(19px 폰트, `#tbl-wrap` 스코프, `btn-primary` 클래스)
+  — `node --check` 구문 오류 없음, CSS 중괄호 균형(depth 0) 확인
+- [x] `git diff`(안전점 `807a423` 대비)에서 계산 함수 시그니처(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등) grep 결과 없음(무수정) 확인 — 변경분 49줄 추가/18줄 삭제가 전부 위 6개 작업 범위에만 있음
+- [x] sw.js CACHE_NAME rebalance-v67 → rebalance-v68
+- [ ] **실제 브라우저 확인 필요**: 계좌 수정 → 배포 1회로 GitHub 파일 갱신 + 배지 ✅ + 콘솔 버전·메모가 정말 한 번에 갱신되는지(특히 GitHub 쪽 read-after-write 타이밍은 이번 세션에서 mock으로만 재현했고 실제 API 지연 폭은 다를 수 있음), 탭 글자·줄무늬 제거·파란 버튼·설정비율 합계 색상 변화가 실제로 원하는 대로 보이는지 — 이번 세션은 Node vm 시뮬레이션까지만 수행
+
 ## v3 수정 11차 — 적용 버전 표시 갱신 + 입력 열 정렬 (index.html 정식 앱) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 d9c371e, origin과 0/0 동기화 확인, 작업 트리 깨끗함). **⚠️ 절차 누락**: fix11.md가 요구한 "커밋으로 안전점 확보"(빈 커밋) 단계를 건너뛰고 바로 진단·수정에 들어감 — d9c371e 자체가 이미 push된 깨끗한 롤백 지점이라 실질적 위험은 없었지만, 지시된 절차를 그대로 안 따른 점 사용자에게 별도 보고
 - [x] **작업 1 진단 — 적용 버전 표시 갱신 안 됨**:
