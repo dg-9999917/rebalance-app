@@ -909,6 +909,13 @@ function toggleEvalCurrency() {
   renderTable();
 }
 
+// 종목 그룹 표시 순서·라벨 — renderTable()과 updateRows()의 소계 재계산이 공유(그룹 정의가 어긋나 소계가 엇갈리는 일을 방지)
+const STOCK_GROUPS = [
+  { label: '미국 (USD)', market: 'US'   },
+  { label: '한국 (KRW)', market: 'KR'   },
+  { label: '현금',       market: 'CASH' },
+];
+
 function renderTable() {
   syncCashAmount();
   const wrap = document.getElementById('tbl-wrap');
@@ -916,11 +923,7 @@ function renderTable() {
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
   const evalCur = getEvalCurrency();
 
-  const groups = [
-    { label: '미국 (USD)', market: 'US'   },
-    { label: '한국 (KRW)', market: 'KR'   },
-    { label: '현금',       market: 'CASH' },
-  ];
+  const groups = STOCK_GROUPS;
 
   let html = `<table style="table-layout:fixed">
     <colgroup>
@@ -1072,11 +1075,11 @@ function renderTable() {
       ? (hasFxN ? '$' + fmtNum(subVal / state.meta.fxN, 2) : '—')
       : (showUsWarn ? '—' : fmtNum(subVal) + ' 원');
     html += `<tbody><tr class="subtotal-row">
-      <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
-      <td class="num">${fmtDec(subAdjR, 2)}%</td>
-      <td class="num ${subWtCls}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight, 2)}</td>
+      <td colspan="4" style="text-align:right;padding-right:10px" id="sub-label-${g.market}">${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}</td>
+      <td class="num" id="sub-adjr-${g.market}">${fmtDec(subAdjR, 2)}%</td>
+      <td class="num ${subWtCls}" id="sub-wt-${g.market}">${showUsWarn || !per1 ? '—' : fmtDec(subWeight, 2)}</td>
       <td class="num"></td>
-      <td class="num">${subValStr}</td>
+      <td class="num" id="sub-val-${g.market}">${subValStr}</td>
     </tr></tbody>`;
   });
 
@@ -1160,6 +1163,32 @@ function updateRows() {
         : (isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—'));
       if (isAutoCash) evalEl.className = 'num' + (s.q < 0 ? ' val-neg' : '');
     }
+  });
+
+  // 그룹 소계(subtotal) 갱신 — renderTable()과 동일하게 evalVal/currWeight의 합만 사용(재파싱·별도 수식 없음)
+  STOCK_GROUPS.forEach(g => {
+    const stocks = state.stocks.filter(s => s.market === g.market);
+    if (!stocks.length) return;
+    let subVal = 0, subWeight = 0, subAdjR = 0;
+    stocks.forEach(s => {
+      subVal    += evalVal(s);
+      subWeight += currWeight(s);
+      subAdjR   += (s.adjR || 0);
+    });
+    const subWtCls   = subWeight > 0 ? 'val-pos' : '';
+    const showUsWarn = g.market === 'US' && !hasFxN;
+    const subValStr  = evalCur === 'USD'
+      ? (hasFxN ? '$' + fmtNum(subVal / state.meta.fxN, 2) : '—')
+      : (showUsWarn ? '—' : fmtNum(subVal) + ' 원');
+
+    const labelEl = document.getElementById(`sub-label-${g.market}`);
+    const adjrEl  = document.getElementById(`sub-adjr-${g.market}`);
+    const subWtEl = document.getElementById(`sub-wt-${g.market}`);
+    const subValEl = document.getElementById(`sub-val-${g.market}`);
+    if (labelEl) labelEl.innerHTML = `${g.label} 합계${showUsWarn ? '<span style="margin-left:8px;font-size:11px;font-weight:400;color:var(--text-muted)">환율 미입력</span>' : ''}`;
+    if (adjrEl) adjrEl.textContent = fmtDec(subAdjR, 2) + '%';
+    if (subWtEl) { subWtEl.textContent = showUsWarn || !per1 ? '—' : fmtDec(subWeight, 2); subWtEl.className = 'num ' + subWtCls; }
+    if (subValEl) subValEl.textContent = subValStr;
   });
 }
 

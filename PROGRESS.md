@@ -1,5 +1,20 @@
 # 구현 진행 상황
 
+## v3 수정 5차 — 그룹 합계 행 계산 버그 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 83d1b1f). 백업본은 지시에 없어 생성하지 않음(계산 함수 무변경 재검증으로 안전점 확보)
+- [x] **원인 특정**: `renderTable()`(919~1080행)의 그룹 소계(subtotal-row)는 개별 행과 완전히 같은 `evalVal(s)`/`currWeight(s)`의 합으로 정확히 계산됨 — 계산식 자체는 처음부터 문제 없었음. 진짜 원인은 `updateRows()`(1115~1167행, 주석: "파생 열만 갱신 — 입력 커서 유지용")가 **개별 행 셀(`pf-wt-*`/`pf-eval-*`/`pf-need-*`/`pf-q-*`)만 갱신하고 소계 행(`subtotal-row`)은 전혀 건드리지 않던 것**. `onPriceInput`/`onAvgInput`/`onQtyInput`/`onAdjRInput`(590~608행)은 전부 `renderDerived()`→`updateRows()`만 호출해 소계가 최초 `renderTable()` 시점 값에 그대로 박제(stale)됨. 반면 `onAdjRChange`(± 버튼, 600~604행)·`addStockFromForm`·`deleteStock`·`fetchPrices`(→`renderCalcView`)는 전체 `renderTable()`을 다시 돌려 소계가 그때만 정상으로 보임
+- [x] **왜 미국·현금만 깨졌는지**: 사용자가 평단가·현재가를 손으로 입력하는 흐름(`onAvgInput`/`onPriceInput`)이 정확히 위 stale 경로다. 캡처의 시나리오상 미국 종목(엔비디아·TSMC) 평단·현재가를 입력한 게 마지막 조작이라 미국 소계가 입력 이전 시점 값에 고정되어 있었고, 현금은 `computeCashAmount()`가 "전체 자금 − (CASH 제외) 전 종목 매수원가 합"이라 **어떤 종목의 평단/수량이 바뀌어도 함께 값이 바뀌는 종목**이라 마찬가지로 stale 소계가 실제 값과 크게 어긋남. 한국(삼성전자)은 캡처 시점에 그 이후로 값을 더 건드리지 않아 "마지막 전체 렌더 때 계산된 소계"와 "현재 행 값"이 우연히 같아 정상으로 보였을 뿐 — 즉 세 그룹 다 같은 stale 버그를 안고 있었고, 한국만 마침 값이 그대로라 티가 안 났던 것
+- [x] Node vm으로 구코드(git HEAD, fix5 이전) 재현 스크립트 작성: 초기 렌더(평단·현재가 0) 후 `onAvgInput`/`onPriceInput`으로 값 입력 → 소계 행 DOM 문자열이 값 입력 전후로 **완전히 동일**(0.00%/0원, 현금 100.00%/10,000,000원에 고정)함을 확인해 버그 재현 성공. 개별 행(registry로 갱신되는 `pf-eval-NVDA` 등)은 입력값대로 정상 갱신됨을 대조 확인
+- [x] **수정**: 계산 함수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight)는 전혀 손대지 않음. ① `renderTable()`의 그룹 정의를 최상단 `STOCK_GROUPS` 상수로 추출해 `renderTable()`/`updateRows()`가 동일한 그룹 정의를 공유(그룹 목록이 두 곳에서 따로 놀아 어긋나는 일 원천 차단). ② 소계 행 4개 셀에 `id="sub-label-${market}"`/`sub-adjr-${market}`/`sub-wt-${market}`/`sub-val-${market}` 부여. ③ `updateRows()` 끝에 `STOCK_GROUPS.forEach`로 그룹별 소계를 **개별 행과 동일하게 evalVal/currWeight의 합만으로** 재계산해 해당 id 엘리먼트에 반영 — `renderTable()`의 소계 산출 코드(포맷·₩/$ 분기·환율미입력 처리 포함)와 완전히 동일한 로직을 그대로 복제, 화면 표시 문자열을 재파싱하는 방식은 전혀 사용하지 않음
+- [x] Node vm 시나리오 검증(수정 후): ① ₩ 모드에서 `onAvgInput`/`onPriceInput`으로 US/KR 값을 입력한 뒤 `updateRows()`가 기록한 소계와, 동일 state로 전체 `renderTable()`을 다시 돌린 "정답" 소계가 미국·한국·현금 3그룹 모두 `wt`/`val`/`adjr` 완전 일치(PASS) — 개별 행 evalVal/currWeight 합산 직접 계산값과도 일치(미국 9.20%/920,390원, 한국 2.10%/210,000원, 현금 89.09%/8,909,300원, 설계값 표(9.38/89.09)와 동일한 정상 범위로 회귀, 버그 상태였던 765.94/-694.75류의 수치는 재현되지 않음)
+- [x] $ 모드 전환 후 동일 검증(US만 재수정) — updateRows 소계와 전체 재렌더 소계 3그룹 모두 일치(PASS), $ 환산은 "원화 합계 → 마지막에 ÷fxN 1회"만 수행(지시 원칙 그대로 유지, 새로 만든 코드가 아니라 기존 renderTable 로직 복제라 자동 충족)
+- [x] 종합계좌 뷰(`renderConsolidatedView`/`buildConsolidatedData`, 무수정) 소계 검산: 2계좌(NVDA 1주 + 삼성전자 2주, 계좌별 현금 자동계산) 합산 시 미국 소계(2.08%/311,745원)=개별 NVDA 행과 일치, 한국 소계(1.40%/210,000원)=개별 삼성전자 행과 일치, 현금 소계(96.69%/14,503,100원)=계좌1 현금(9,703,100)+계좌2 현금(4,800,000) 직접 계산값과 일치 — 애초에 종합 뷰는 입력 UI가 없어 매번 전체 재빌드라 이번 stale 버그의 대상이 아니었음을 확인
+- [x] 계산 함수 전수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight/computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/sanitizeLoadedAppData/migrateAccountFromV2/migrateStockFromV2) git HEAD(83d1b1f) 대비 byte-for-byte 동일 재검증(자동 diff 스크립트) — 전부 OK, 개별 행 값도 수정 전후 완전 동일
+- [x] index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v56 → rebalance-v57
+- [ ] (미수행) 실제 브라우저에서 시세 새로고침 없이 손으로 평단·현재가를 입력해 소계가 즉시 갱신되는지 육안 확인 — 이번 세션은 코드 변경과 Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 디자인 2차 — 버튼·폼·설정 다듬기 + 종합계좌 참조 정리 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인, `v3_before_design2.html` 백업 생성(직전 커밋 2e2f51c 상태와 byte-for-byte 동일 확인) — index.html은 시작부터 무수정 확인(git diff 없음)
 - [x] 1. 시세 새로고침 버튼: `#btn-fetch-prices` 전용 규칙 신규 추가(기존 `.btn` 12.5px/5px 12px → 14px/8px 16px), 다른 `.btn` 요소(설정 탭 버튼 등)는 영향 없음
