@@ -3,9 +3,9 @@
     {
       "id": "s_mrojlp7cagkj",
       "name": "방어형",
-      "version": "2026-07-17-2",
+      "version": "2026-07-17-3",
       "date": "2026-07-17",
-      "memo": "TSMC 샌디스크 test",
+      "memo": "TSMC_샌디스크_TEST_01",
       "stocks": [
         {
           "name": "엔비디아",
@@ -17,13 +17,13 @@
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 6
+          "r": 4
         },
         {
           "name": "샌디스크",
           "ticker": "SNDK",
           "market": "US",
-          "r": 0
+          "r": 2
         },
         {
           "name": "마벨테크놀로지",
