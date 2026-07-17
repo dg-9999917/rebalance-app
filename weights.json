@@ -3,15 +3,15 @@
     {
       "id": "s_mrojlp7cagkj",
       "name": "방어형",
-      "version": "2026-07-17-5",
+      "version": "2026-07-17-6",
       "date": "2026-07-17",
-      "memo": "TSMC 샌디스크 TEST 02",
+      "memo": "100 TEST",
       "stocks": [
         {
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 6
+          "r": 7
         },
         {
           "name": "TSMC",
