@@ -1,5 +1,23 @@
 # 구현 진행 상황
 
+## v3 디자인 5차 — 종합계좌·추천 비중 섹션 다듬기 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 2b57749), `v3_before_design5.html` 백업 생성(byte-for-byte 동일 확인)
+- [x] **작업1 — ② 종합계좌 체크박스 목록 확대**: `buildConsolidatedSectionV3()`의 `memberCheckboxes`(멤버 선택용, "기본 계좌"·"삼성증권" 등이 뜨는 그 목록) 라벨 15px→16px, `<input type="checkbox">`에 `width:18px;height:18px` 인라인 추가, 라벨 내부 gap 6→8px, 체크박스 목록 컨테이너(`#cons-member-checkboxes-v3`) 항목 간 gap 6→9px(요구 범위 8~10px 충족). 종합계좌 이름 입력칸(`#new-cons-name-v3`)은 이미 `class="inp"`만 쓰고 있어 `#settings-content .inp`(fix7에서 만든 15px/38px 기준) 그대로 적용되고 있음을 확인 — 별도 인라인 오버라이드가 없어 "같은 급" 요구가 이미 충족된 상태라 추가 수정 없음
+- [x] **작업2 — ④ 추천 비중 섹션 확대**: "따르는 전략" 줄은 기존부터 16px(수정 없음). `.meta-label`이 `#settings-content .meta-label{font-size:13px}`로 전역 스코프돼 있어 "전략 변경" 라벨만 인라인 `font-size:16px`로 개별 오버라이드. 드롭다운(`#strategy-switch-select`)은 `class="inp"`만으로는 `#settings-content .inp`(15px/38px)에 묶여 있어, 신규 CSS 규칙 `#settings-content #strategy-switch-select{font-size:16px;min-height:39px}`을 추가(id 이중 스코프라 특이도가 `#settings-content .inp`보다 높아 정상 override) — `<select>` 요소 자체에 font-size를 직접 지정하는 방식이라 펼친 네이티브 option 목록도 같은 크기로 렌더됨(브라우저가 select의 자체 font-size만 option 렌더링에 반영, 부모/클래스 상속 경로가 아니라 이 규칙이 select 태그에 직접 매치되는 것이 핵심)
+- [x] **작업3 — [지금 확인] 버튼**: 문구 "지금 확인"→"업데이트 확인", 클래스 `class="btn"` → `class="btn btn-primary btn-sm"`("+ 계좌 추가"/"📁 종합계좌 만들기"와 동일 클래스 조합, 파란 채움+동급 크기)
+- [x] **작업4 — 대상 계좌 표시 + 계좌 전환 시 갱신**: `buildRecoSection()`에 `대상 계좌: <strong>{appData.activeAccountId 기준 계좌명}</strong>` 줄을 "따르는 전략" 줄 위에 추가(16px, 이름 굵게). **원인 확인**: `onAccountChange()`가 계좌 전환 시 `renderAll()`/`evaluateRecoBanner()`는 호출하지만 `renderSettingsTab()`은 호출하지 않아 설정 탭이 열려 있는 상태로 상단 드롭다운을 바꾸면 ④ 추천 비중 섹션(대상 계좌·따르는 전략·적용 버전)이 이전 계좌 기준으로 고정돼 있었음(개별 계좌 분기·동일계좌 재선택 분기·종합계좌 전환 분기 3곳 전부 동일 문제). **수정**: 3개 분기 모두에 `renderSettingsTab()` 호출 추가(`#settings-content`는 탭 비활성 시에도 DOM에 항상 존재하는 컨테이너라 다른 탭이 보이는 중에 호출해도 안전 — 파일 내 기존 관례(전략 적용/편집/삭제 등 수십 곳)와 동일한 패턴)
+- [x] Node vm 검증(신규 하네스, 인라인 스크립트 전체를 vm 컨텍스트에 로드 후 top-level `let` 바인딩을 `globalThis.__exports`로 브리지해 접근):
+  — `buildRecoSection()` 출력에 "대상 계좌: TEST_001"·"방어형"·"업데이트 확인"·`class="btn btn-primary btn-sm"` 버튼 마크업 전부 포함 확인
+  — `activateAccount('acc_2')`(선택된 전략 없음)로 전환 후 재호출 시 "TEST_002"만 표시되고 "TEST_001"은 사라짐, "따르는 전략: 없음" 확인
+  — `onAccountChange('acc_1')` 호출 후 `#settings-content` 목(mock) 엘리먼트의 innerHTML을 직접 검사해 "대상 계좌: TEST_001"로 즉시 갱신됨을 확인(핵심 검증 포인트 — 수정 전 코드 기준으로는 이 갱신이 없었을 시나리오)
+  — `buildConsolidatedSectionV3()` 출력에서 체크박스 라벨 16px·체크박스 18×18px·컨테이너 gap 9px·계좌명 2개 모두 정상 렌더 확인
+  — `node --check`로 인라인 스크립트 전체 구문 오류 없음 확인
+- [x] `diff v3_before_design5.html v3.html` 전체 검토 — 변경분이 위 4개 작업 범위(CSS 규칙 1개 추가, `onAccountChange` 3곳에 `renderSettingsTab()` 추가, `buildRecoSection`/`buildConsolidatedSectionV3` 템플릿 문자열)에 정확히 국한됨을 확인, 계산 함수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등)·`computeCashAmount`·`buildConsolidatedData`·`restoreFromDrive`·`sanitizeLoadedAppData`·마이그레이션 함수는 diff에 전혀 등장하지 않음(무수정)
+- [x] index.html 무수정 확인(git diff 없음), weights.json도 무수정
+- [x] sw.js CACHE_NAME rebalance-v61 → rebalance-v62
+- [ ] (미수행) 실제 브라우저에서 체크박스·드롭다운·버튼 육안 크기 확인, 계좌 전환 시 "대상 계좌"·"따르는 전략" 실시간 갱신 확인 — 이번 세션은 코드 변경과 Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 디자인 4차 — 설정 탭 배치 개선 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 0314f2f), `v3_before_design4.html` 백업 생성(byte-for-byte 동일 확인)
 - [x] **원인**: `#settings-content`가 `display:grid; grid-template-columns:1fr 1fr;`(행 정렬)이라 CSS Grid 특성상 같은 행에 놓인 두 카드가 행 높이를 공유함 — ①계좌관리가 길어지면 그 행의 높이 자체가 늘어나 옆의 ②종합계좌 칸도 강제로 같이 늘어나고, 그 밑의 ④추천비중이 밀려 내려가는 구조였음(CSS Grid 자체의 근본 한계라 grid 안에서는 해결 불가 — Grid Level 3의 masonry는 브라우저 지원 미비)

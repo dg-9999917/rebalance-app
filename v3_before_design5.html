@@ -405,9 +405,6 @@
     #settings-content .inp { font-size: 15px; padding: 9px 12px; min-height: 38px; box-sizing: border-box; }
     #settings-content select.inp { min-height: 38px; }
     #settings-content .meta-label { font-size: 13px; }
-    /* 전략 변경 드롭다운(디자인 5차) — id 이중 스코프로 #settings-content .inp(15px/38px)보다 우선 적용,
-       select 요소 자체에 font-size를 줘야 펼친 option 글자도 같은 크기로 렌더됨 */
-    #settings-content #strategy-switch-select { font-size: 16px; min-height: 39px; }
 
     /* 드래그 SortableJS 피드백 */
     .sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
@@ -914,16 +911,14 @@ function onAccountChange(id) {
     appData.activeConsolidatedId = id;
     saveState();
     renderAll();
-    renderSettingsTab();
     return;
   }
   if (appData.activeConsolidatedId) appData.activeConsolidatedId = null;
-  if (id === appData.activeAccountId) { renderAll(); renderSettingsTab(); return; }
+  if (id === appData.activeAccountId) { renderAll(); return; }
   activateAccount(id);
   saveState();
   renderAll();
   evaluateRecoBanner();
-  renderSettingsTab();
 }
 
 function renderMeta() {
@@ -2422,7 +2417,6 @@ function buildRecoSection() {
   const savedName = state && state.meta ? state.meta.selectedStrategyName : null;
   const applied = state && state.meta ? state.meta.appliedRecoVersion : null;
   const selectedProfile = recoProfiles.find(p => p.id === selectedId);
-  const targetAccountName = appData.accounts.find(a => a.id === appData.activeAccountId)?.name || '—';
 
   // 화면에는 항상 이름만 노출(id 금지) — 파일에서 찾을 수 있으면 최신 이름 우선, 못 찾으면 마지막으로 저장해둔 이름
   let followingText;
@@ -2435,7 +2429,7 @@ function buildRecoSection() {
   ).join('');
   const switchDropdown = recoProfiles.length
     ? `<div style="margin-bottom:12px">
-        <span class="meta-label" style="margin-right:6px;font-size:16px">전략 변경</span>
+        <span class="meta-label" style="margin-right:6px">전략 변경</span>
         <select class="inp" id="strategy-switch-select" style="width:auto;display:inline-block" onchange="onStrategySwitchSelect(this.value)">
           <option value="">선택...</option>
           ${switchOptions}
@@ -2444,10 +2438,9 @@ function buildRecoSection() {
     : '';
 
   return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
-    <div style="font-size:16px;color:var(--text-sub);margin-bottom:8px">대상 계좌: <strong style="color:var(--text)">${esc(targetAccountName)}</strong></div>
     <div style="font-size:16px;color:var(--text-sub);margin-bottom:14px">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
     ${switchDropdown}
-    <button class="btn btn-primary btn-sm" onclick="checkRecoNow()">업데이트 확인</button>
+    <button class="btn" onclick="checkRecoNow()">지금 확인</button>
     <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
   </div>`;
 }
@@ -2933,8 +2926,8 @@ function renderSettingsTab() {
 function buildConsolidatedSectionV3() {
   const cons = appData.consolidated || [];
   const memberCheckboxes = appData.accounts.map(a =>
-    `<label style="font-size:16px;display:flex;align-items:center;gap:8px">
-      <input type="checkbox" value="${esc(a.id)}" style="width:18px;height:18px"> ${esc(a.name)}
+    `<label style="font-size:15px;display:flex;align-items:center;gap:6px">
+      <input type="checkbox" value="${esc(a.id)}"> ${esc(a.name)}
     </label>`
   ).join('');
 
@@ -2959,7 +2952,7 @@ function buildConsolidatedSectionV3() {
 
   html += `<div class="settings-add-row" style="flex-direction:column;align-items:flex-start;gap:10px">
     <input class="inp" id="new-cons-name-v3" placeholder="예: 전체 종합" style="max-width:220px">
-    <div id="cons-member-checkboxes-v3" style="display:flex;flex-direction:column;gap:9px">${memberCheckboxes}</div>
+    <div id="cons-member-checkboxes-v3" style="display:flex;flex-direction:column;gap:6px">${memberCheckboxes}</div>
     <button class="btn btn-primary btn-sm" onclick="addConsolidatedV3()">📁 종합계좌 만들기</button>
   </div>
   </div>`;
