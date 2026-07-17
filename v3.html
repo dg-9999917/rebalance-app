@@ -157,11 +157,15 @@
       background: var(--surface);
       isolation: isolate; /* 헤더 sticky 레이어를 별도 스택 컨텍스트로 분리 — 스크롤 시 아래 행 비침 방지 */
     }
-    table {
+    /* 아래 table/thead th 규칙은 #tbl-wrap(메인 포트폴리오·종합계좌 표) 전용으로 스코프.
+       예전엔 전역 셀렉터라 #tbl-wrap 밖의 다른 <table>(예: 설정>고급 전략 테이블)에도
+       position:sticky가 새어 들어가 헤더가 페이지 스크롤 중 엉뚱한 위치에 고정되며
+       그 아래 행(버튼 등)을 가리는 버그의 원인이었음 — v3 수정 6차에서 스코프 수정 */
+    #tbl-wrap table {
       width: 100%; border-collapse: collapse;
       font-size: 16px; table-layout: auto;
     }
-    thead th {
+    #tbl-wrap thead th {
       position: sticky; top: 46px; z-index: 50; /* 앱 헤더(46px) 높이만큼 내려서 고정 — 페이지 스크롤 기준 */
       background-color: var(--surface2);
       box-shadow: 0 1px 0 var(--border);
@@ -170,12 +174,12 @@
       white-space: nowrap;
     }
     /* border-collapse 경계의 1px 이음매로 아래 행이 비쳐 보이는 것을 막는 마감선 */
-    thead th::after {
+    #tbl-wrap thead th::after {
       content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
       height: 2px; background-color: var(--surface2);
     }
-    thead th.num { text-align: right; }
-    thead th.center { text-align: center; }
+    #tbl-wrap thead th.num { text-align: right; }
+    #tbl-wrap thead th.center { text-align: center; }
 
     /* 원/$ 토글 스위치 (index.html ccy-switch 원본 그대로) */
     .ccy-switch {
@@ -710,6 +714,7 @@ function migrateAccountFromV2(acc) {
   // v3 백업 재복원 시 전략 팔로우 상태가 사라지지 않도록 보존(v2 원본에는 애초에 없는 필드라 v2→v3 최초 이관 시엔 그냥 없음)
   if (acc.state.meta.appliedRecoVersion) meta.appliedRecoVersion = acc.state.meta.appliedRecoVersion;
   if (acc.state.meta.selectedStrategyId) meta.selectedStrategyId = acc.state.meta.selectedStrategyId;
+  if (acc.state.meta.selectedStrategyName) meta.selectedStrategyName = acc.state.meta.selectedStrategyName;
   return {
     id: acc.id,
     name: acc.name,
@@ -1488,12 +1493,33 @@ function hideRecoBanner() {
   if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
 }
 
+// [배포]는 GitHub API로 저장소에 직접 쓰는데, 가족쪽이 상대경로 './weights.json'으로 읽으면
+// (로컬 개발 서버 등에서) 로컬에 있던 옛 파일을 읽어버려 쓰기·읽기가 다른 파일을 보는
+// 동기화 불일치가 생긴다 — 정식 배포 절대 주소로 통일하고, 그게 실패할 때만(오프라인 등)
+// 상대 경로로 1회 폴백한다.
+const WEIGHTS_JSON_ABS_URL = 'https://dg-9999917.github.io/rebalance-app/weights.json';
+
+async function fetchWeightsJson() {
+  const ts = Date.now();
+  async function tryFetch(url) {
+    try {
+      const res = await fetch(url + '?ts=' + ts, { cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+  const abs = await tryFetch(WEIGHTS_JSON_ABS_URL);
+  if (abs) return abs;
+  return await tryFetch('./weights.json'); // 절대 주소 실패 시 1회 폴백
+}
+
 // 앱 로드 시(및 계좌 전환 시) 1회 조회 — 실패해도 조용히 무시
 async function checkRecoWeights() {
   try {
-    const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await fetchWeightsJson();
+    if (!data) return;
     const profiles = normalizeRecoData(data);
     if (!profiles.length) return;
     recoProfiles = profiles;
@@ -1513,6 +1539,7 @@ function evaluateRecoBanner() {
   // 하위호환 마이그레이션: selectedStrategyId 없고 프로필이 1개뿐이면 그 전략으로 자동 연결(여럿이면 미선택 상태 유지)
   if (!state.meta.selectedStrategyId && recoProfiles.length === 1) {
     state.meta.selectedStrategyId = recoProfiles[0].id;
+    state.meta.selectedStrategyName = recoProfiles[0].name;
     saveState();
   }
 
@@ -1538,8 +1565,9 @@ function evaluateRecoBanner() {
   // Case C: 선택했던 전략이 파일에서 사라짐(관리자가 GitHub에서도 내림) — 데이터는 자동 변경하지 않음
   if (!profile) {
     if (dismissedMap[selectedId + '::gone'] === 'true') { hideRecoBanner(); return; }
+    const goneName = state.meta.selectedStrategyName || '선택하신 추천';
     banner.innerHTML = `
-      <span>⚠️ 선택하신 추천이 종료되었습니다 — 다른 전략을 선택해 주세요</span>
+      <span>⚠️ "${esc(goneName)}" 추천이 종료되었습니다 — 다른 전략을 선택해 주세요</span>
       <div class="reco-banner-actions">
         <button class="btn btn-primary btn-sm" onclick="openStrategySelectScreen()">전략 선택</button>
         <button class="reco-banner-close" onclick="dismissGonePrompt('${esc(selectedId)}')" title="닫기">✕</button>
@@ -1710,6 +1738,7 @@ function confirmApplyReco() {
 
   state.meta.appliedRecoVersion = activeRecoProfile.version;
   state.meta.selectedStrategyId = activeRecoProfile.id; // 최초 선택·설정에서의 전략 변경 공용 처리
+  state.meta.selectedStrategyName = activeRecoProfile.name; // id 노출 방지용 — 표시는 항상 이름으로
   saveState();
 
   closeRecoModal(); // activeRecoProfile=null 처리 + 설정 탭 재렌더까지 포함
@@ -2345,12 +2374,14 @@ function buildDriveSection() {
 
 function buildRecoSection() {
   const selectedId = state && state.meta ? state.meta.selectedStrategyId : null;
+  const savedName = state && state.meta ? state.meta.selectedStrategyName : null;
   const applied = state && state.meta ? state.meta.appliedRecoVersion : null;
   const selectedProfile = recoProfiles.find(p => p.id === selectedId);
 
+  // 화면에는 항상 이름만 노출(id 금지) — 파일에서 찾을 수 있으면 최신 이름 우선, 못 찾으면 마지막으로 저장해둔 이름
   let followingText;
   if (selectedProfile) followingText = `${esc(selectedProfile.name)} (적용 버전 ${esc(applied || '—')})`;
-  else if (selectedId) followingText = `${esc(selectedId)} <span style="color:var(--negative)">(추천 종료됨)</span>`;
+  else if (selectedId) followingText = `${esc(savedName || '알 수 없음')} <span style="color:var(--negative)">(추천 종료됨)</span>`;
   else followingText = '없음';
 
   const switchOptions = recoProfiles.map(p =>
@@ -2386,9 +2417,8 @@ function onStrategySwitchSelect(profileId) {
 async function checkRecoNow() {
   const resultEl = document.getElementById('reco-check-result');
   try {
-    const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = await fetchWeightsJson();
+    if (!data) throw new Error('조회 실패');
     const profiles = normalizeRecoData(data);
     if (!profiles.length) throw new Error('형식 오류');
     recoProfiles = profiles;
@@ -2722,6 +2752,7 @@ async function confirmStrategyDeploy(strategyId) {
     s.lastDeployedStocks = payload.stocks.map(x => ({ ...x }));
     // 배포 원본 계좌는 이미 이 버전을 그대로 반영한 상태이므로 자기 자신에게 배너가 뜨지 않도록 동기화
     acc.state.meta.selectedStrategyId = s.id;
+    acc.state.meta.selectedStrategyName = s.name;
     acc.state.meta.appliedRecoVersion = payload.version;
     saveState();
 
@@ -2815,6 +2846,7 @@ function resetCurrentAccountV3() {
   state.meta.p0 = 0; state.meta.fx0 = 0; state.meta.fxN = 0;
   delete state.meta.appliedRecoVersion;
   delete state.meta.selectedStrategyId;
+  delete state.meta.selectedStrategyName;
   state.stocks = [];
   saveState();
   renderAll();

@@ -1,5 +1,26 @@
 # 구현 진행 상황
 
+## v3 수정 6차 — weights 읽기 주소 통일 + 콘솔 표 렌더링 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 df6da63). 백업본은 지시에 없어 생성하지 않음(계산 함수 무변경 재검증으로 안전점 확보)
+- [x] **원인1(콘솔 표 잘림) — DOM에서 특정**: `#tbl-wrap` 밖에서는 전혀 스코프되지 않은 전역 셀렉터 `table`/`thead th`/`thead th::after`/`thead th.num`/`thead th.center`(v3.html 160~178행, "v3 수정 3차"에서 메인 포트폴리오 표 전용으로 만든 규칙)가 원인. 특히 `thead th { position:sticky; top:46px; z-index:50; background-color:...; box-shadow:...; }`가 6단계에서 설정>고급에 새로 추가한 전략 테이블(`buildAdvancedSection()`, 원래 2766행 근처 `<table>`)에도 그대로 적용됨 — 이 표는 `#tbl-wrap`(스크롤 격리용 `isolation:isolate` 포함) 밖, `.settings-card` 안에 있는데도 헤더 행이 페이지 스크롤 기준으로 sticky가 되어 46px 지점에 고정되면서 그 아래(위) 행의 배포/편집/삭제 버튼과 겹쳐 잘려 보이는 것이었음. `renderSettingsTab()`은 매번 `container.innerHTML = ...`로 완전 교체라 "이전 렌더 잔재가 남는 문제"는 배제됨(직접 확인)
+- [x] **수정1**: 위 5개 규칙 전부 `#tbl-wrap table`/`#tbl-wrap thead th`/`#tbl-wrap thead th::after`/`#tbl-wrap thead th.num`/`#tbl-wrap thead th.center`로 스코프(메인 포트폴리오 표(`renderTable()`)·종합계좌 표(`renderConsolidatedView()`) 둘 다 `#tbl-wrap`에 렌더되므로 기존 sticky 헤더 동작은 그대로 유지, 그 외 `<table>`은 문서 전체에 전략 테이블 하나뿐이라 정확히 그것만 배제됨을 grep으로 확인)
+- [x] **원인2(전략 목록·배너에 "기본"만 보이거나 id 노출)**: [배포]는 GitHub Contents API로 저장소에 직접 쓰는데, 가족 쪽 fetch는 상대경로 `./weights.json`이라 로컬 서버가 서빙하는 옛 파일을 읽고 있었음(원인 문서에 명시된 그대로 확인) — 쓰기·읽기가 다른 파일을 보는 구조
+- [x] **수정2**: 신규 `fetchWeightsJson()` — 정식 배포 절대 주소 `https://dg-9999917.github.io/rebalance-app/weights.json?ts=...`(`cache:'no-store'` 유지)로 우선 조회, 실패(네트워크 예외 또는 non-ok 응답) 시에만 상대경로 `./weights.json`로 1회 폴백, 그것도 실패하면 null 반환(조용히 무시, 기존 동작). `checkRecoWeights()`/`checkRecoNow()` 둘 다 이 공용 함수로 교체(중복 fetch 로직 제거). sw.js 캐시 우회 규칙 검증: `if (url.origin !== self.location.origin) return` 이 크로스오리진 요청 전체를 SW 캐시 로직 밖으로 빼주고(로컬 개발 시나리오), 배포 환경처럼 앱이 `dg-9999917.github.io`에서 서빙돼 절대 URL이 동일 오리진이 되는 경우엔 `url.pathname.includes('weights.json')` 규칙이 여전히 캐시를 우회시킴 — 두 경우 모두 문제 없음을 코드 검토로 확인, sw.js 로직 자체는 무수정
+- [x] **선택 전략 id 노출 버그**: `buildRecoSection()`의 "따르는 전략" 표시가 `else if (selectedId) followingText = ...esc(selectedId)...`로 **id를 그대로** 보여주고 있던 게 실제 원인(2418행 근처, 스크린샷의 "s_mro855v65fw3 (추천 종료됨)"과 정확히 일치) — `confirmApplyReco()`에 `state.meta.selectedStrategyName = activeRecoProfile.name` 저장을 추가하고, 표시 코드는 파일에서 프로필을 찾으면 최신 이름을, 못 찾으면 저장해둔 이름을 사용하도록 수정(`esc(selectedId)` → `esc(savedName || '알 수 없음')`). "전략 종료" 배너 문구에도 이름을 포함(`"${이름}" 추천이 종료되었습니다`)하도록 추가. 관리자 자기 배포 동기화(`confirmStrategyDeploy`)·`migrateAccountFromV2`(드라이브 백업 왕복)·`resetCurrentAccountV3`에도 `selectedStrategyName` 반영/보존/삭제 동반 수정 — 화면에는 항상 이름만 노출, onclick 핸들러 인자로 id가 들어가는 것은 다른 버튼들(`activateConsolidatedV3(id)` 등)과 동일한 기존 관례라 그대로 유지
+- [x] Node vm 시나리오 검증(mock GitHub API + weights.json 절대/상대 두 경로를 구분 응답하는 신규 하네스):
+  — 절대 주소가 항상 먼저(그리고 성공 시 유일하게) 호출되고 그 파일 내용을 받아옴을 확인
+  — 절대 주소를 실패시키면 정확히 그 다음에 상대 경로로 1회만 폴백해 그 파일 내용을 받아옴을 확인
+  — "따르는 전략" 표시에 id 문자열이 전혀 포함되지 않고 저장된 이름만 노출됨을 확인
+  — 전략 종료 배너의 사용자 노출 텍스트(`<span>` 안)에도 id 없이 이름만 포함됨을 확인(onclick 인자의 id는 별개로 정상 존재)
+  — 전략 선택/설정 변경 적용 시 `selectedStrategyName`이 함께 저장됨을 확인
+  — 콘솔 전략 테이블 마크업이 전략 0/1/2개 상태 모두에서 `<thead>` 1개·`<tbody>` 1개·`<tr>` 개수가 정확히 (헤더1 + 전략수)로 나와 유령 행이 없음을 확인, 접기→펼치기→전략 추가 반복 후에도 매번 완전 재생성(누적 아님)됨을 확인
+  — v3 6단계 완료조건 1~6 전체 시나리오 재실행 — 전부 PASS(회귀 없음)
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) + computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/sanitizeLoadedAppData/migrateStockFromV2 git HEAD(df6da63) 대비 byte-for-byte 동일 재검증 — 전부 OK. `migrateAccountFromV2`만 의도된 추가(selectedStrategyName 보존)
+- [x] index.html 무수정 확인(git diff 없음), 레포의 실제 weights.json도 무수정(이번 세션 전부 mock/코드검토로 검증, 실제 GitHub·GitHub Pages 요청 없었음)
+- [x] sw.js CACHE_NAME rebalance-v58 → rebalance-v59
+- [ ] (미수행) 실제 브라우저에서 고급 콘솔을 펼쳐 표가 스크롤 중에도 잘리지 않는지, 실제 GitHub Pages 배포본의 weights.json이 절대주소로 정상 조회되는지 라이브 확인 — 이번 세션은 코드 검토·Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 6단계 — 전략별 비중 배포 (관리자 콘솔 + 가족) (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 79039c9), `v3_before_step6.html` 백업 생성(byte-for-byte 동일 확인)
 - [x] **데이터 구조**: `appData.strategies=[{id,name,coupledAccountId,lastDeployedVersion,lastDeployedStocks}]` 신규(loadState 3경로 모두 기본값 세팅). 계좌별 `state.meta.selectedStrategyId`(가족이 따르는 전략)·기존 `appliedRecoVersion`(그 전략에서 적용한 버전) 재사용. `sanitizeLoadedAppData`(드라이브 복원)에 strategies 필드 보존 추가, `migrateAccountFromV2`에 `selectedStrategyId`/`appliedRecoVersion` meta 보존 추가 — **계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight)는 완전 무수정**, 이 두 함수는 데이터 이관용이라 "계산 함수" 범주 밖이지만 그래도 자동 diff로 변경 여부를 매번 확인함
