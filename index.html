@@ -238,6 +238,9 @@
     tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #f5f6f8; }
     :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1f2229; }
 
+    /* 수정 9차 — 종목 행 클릭 선택(표시용, 줄무늬·호버보다 우선) */
+    #tbl-wrap tbody tr.row-selected { background: color-mix(in srgb, var(--accent) 15%, var(--surface)) !important; }
+
     /* 종합행 */
     tr.subtotal-row td {
       background: var(--surface2); font-weight: 700;
@@ -901,7 +904,7 @@ function renderAccountDropdown() {
   const sel = document.getElementById('account-select');
   if (!sel) return;
   let html = appData.accounts.map(a =>
-    `<option value="${esc(a.id)}"${!appData.activeConsolidatedId && a.id === appData.activeAccountId ? ' selected' : ''}>${esc(a.name)}</option>`
+    `<option value="${esc(a.id)}"${!appData.activeConsolidatedId && a.id === appData.activeAccountId ? ' selected' : ''}>${isAccountCoupled(a.id) ? '💍 ' : ''}${esc(a.name)}</option>`
   ).join('');
   const cons = appData.consolidated || [];
   if (cons.length) {
@@ -1947,7 +1950,7 @@ function buildAccountsSection() {
     const canDelete = appData.accounts.length > 1;
     html += `<div class="settings-list-row${isActive ? ' active-row' : ''}">
       <div class="settings-list-info">
-        <span class="settings-list-name">${esc(acc.name)}${isActive ? '<span class="settings-badge-active">현재</span>' : ''}</span>
+        <span class="settings-list-name">${isAccountCoupled(acc.id) ? '💍 ' : ''}${esc(acc.name)}${isActive ? '<span class="settings-badge-active">현재</span>' : ''}</span>
         <span class="settings-list-sub">종목 ${getAccountStockCount(acc)}개</span>
       </div>
       <div class="settings-list-actions">
@@ -2500,9 +2503,56 @@ async function checkRecoNow() {
 
 let advancedOpen = false;
 
+// 수정 9차 — weights.json에는 있으나 로컬 strategies에는 없는 "유령 프로필" 감지 캐시.
+// null=아직 조회 안 함, []=조회했지만 없음(또는 토큰 없음/실패), [...]=조회된 유령 목록.
+// 네트워크 GET이 필요해 고급 섹션을 펼칠 때만(그리고 목록이 바뀌는 동작 뒤에) 비동기로 채운다.
+let ghostProfilesCache = null;
+let ghostProfilesLoading = false;
+
 function toggleAdvanced() {
   advancedOpen = !advancedOpen;
+  if (advancedOpen && ghostProfilesCache === null && !ghostProfilesLoading) loadGhostProfiles();
   renderSettingsTab();
+}
+
+async function loadGhostProfiles() {
+  if (!getGhToken()) { ghostProfilesCache = []; return; }
+  ghostProfilesLoading = true;
+  try {
+    const { profiles } = await fetchRemoteProfiles();
+    const localIds = new Set((appData.strategies || []).map(s => s.id));
+    ghostProfilesCache = profiles.filter(p => !localIds.has(p.id));
+  } catch (e) {
+    ghostProfilesCache = []; // 조회 실패는 조용히 무시(고급 섹션의 나머지 렌더링을 막지 않음)
+  } finally {
+    ghostProfilesLoading = false;
+    renderSettingsTab();
+  }
+}
+
+// weights.json이 실제로 바뀌었을 수 있는 동작(토큰 변경·배포·삭제·유령 제거) 뒤에 호출 —
+// 캐시를 비우고 고급 섹션이 열려 있으면 즉시 재조회
+function invalidateGhostProfilesCache() {
+  ghostProfilesCache = null;
+  if (advancedOpen) loadGhostProfiles();
+}
+
+function removeGhostProfile(profileId) {
+  const p = (ghostProfilesCache || []).find(x => x.id === profileId);
+  if (!p) return;
+  if (!getGhToken()) { alert('먼저 GitHub 토큰을 저장해 주세요.'); return; }
+  if (!confirm(`"${p.name}" 프로필을 GitHub weights.json에서 완전히 제거하시겠습니까?\n이 전략을 따르던 가족에게는 "추천이 종료되었습니다" 안내가 뜹니다.`)) return;
+  removeGhostProfileConfirmed(profileId, p.name);
+}
+
+async function removeGhostProfileConfirmed(profileId, name) {
+  try {
+    await deployProfilesWithRetry(profiles => profiles.filter(p => p.id !== profileId), `유령 전략 제거: ${name}`);
+    invalidateGhostProfilesCache();
+    renderSettingsTab();
+  } catch (e) {
+    alert(e.message || '제거 실패');
+  }
 }
 
 // ── GitHub 토큰 (appData와 분리된 별도 localStorage 키 — 드라이브 백업(appData)·weights.json 어디에도 포함되지 않음) ──
@@ -2518,12 +2568,14 @@ function saveGhToken() {
   const token = input ? input.value.trim() : '';
   if (!token) { alert('토큰을 입력해 주세요.'); return; }
   localStorage.setItem(GH_TOKEN_KEY, token);
+  invalidateGhostProfilesCache();
   renderSettingsTab();
 }
 
 function deleteGhToken() {
   if (!confirm('저장된 GitHub 토큰을 삭제하시겠습니까?')) return;
   localStorage.removeItem(GH_TOKEN_KEY);
+  ghostProfilesCache = null;
   renderSettingsTab();
 }
 
@@ -2567,8 +2619,35 @@ async function putRemoteProfiles(profiles, sha, message) {
     body: JSON.stringify(body),
   });
   if (res.status === 401 || res.status === 403) throw new Error('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요');
+  if (res.status === 409) { const err = new Error('다른 배포와 겹쳤습니다'); err.status = 409; throw err; }
   if (!res.ok) throw new Error(`배포 실패 (상태 코드 ${res.status})`);
   return res.json();
+}
+
+// weights.json에 대한 GET(최신 내용+sha)→mergeFn으로 병합→PUT을 한 번에 수행.
+// 409(다른 배포와 충돌) 시 0.5~1초 대기 후 "내용까지 새로 GET"부터 다시 시작 — 낡은 내용으로
+// 재시도해 다른 전략을 덮어쓰는 일이 없도록 매 시도마다 mergeFn을 최신 profiles에 다시 적용한다.
+// 최대 2회 재시도(총 3회 시도) 후에도 충돌하면 사용자에게 안내 메시지로 실패를 알린다.
+async function deployProfilesWithRetry(mergeFn, message, maxRetries = 2) {
+  for (let attempt = 0; ; attempt++) {
+    const { profiles, sha } = await fetchRemoteProfiles();
+    const nextProfiles = mergeFn(profiles);
+    try {
+      return await putRemoteProfiles(nextProfiles, sha, message);
+    } catch (e) {
+      if (e.status === 409 && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+        continue;
+      }
+      if (e.status === 409) throw new Error('다른 배포와 겹쳤습니다 — 잠시 후 다시 시도해 주세요');
+      throw e;
+    }
+  }
+}
+
+// 수정 9차 — 이 계좌가 어떤 전략의 커플링 계좌로 지정돼 있는지(💍 표시용)
+function isAccountCoupled(accountId) {
+  return (appData.strategies || []).some(s => s.coupledAccountId === accountId);
 }
 
 function getCoupledAccountStocks(strategy) {
@@ -2600,6 +2679,7 @@ function createStrategyV3() {
   appData.strategies.push({ id, name, coupledAccountId: accountId, lastDeployedVersion: null, lastDeployedStocks: [] });
   saveState();
   renderSettingsTab();
+  renderAccountDropdown();
 }
 
 function openStrategyEditModal(id) {
@@ -2642,6 +2722,7 @@ function saveStrategyEditV3(id) {
   const overlay = document.getElementById('strategy-edit-overlay');
   if (overlay) overlay.remove();
   renderSettingsTab();
+  renderAccountDropdown();
 }
 
 function deleteStrategyV3(id) {
@@ -2658,6 +2739,7 @@ function deleteStrategyV3(id) {
       <div style="font-size:16px;font-weight:700;margin-bottom:10px">"${esc(s.name)}" 전략 삭제</div>
       <div style="font-size:13px;color:var(--text-sub);line-height:1.7;margin-bottom:14px">
         <b>콘솔에서만 삭제</b>: 이 목록에서만 사라지고 GitHub의 weights.json은 그대로 유지됩니다(따르는 가족은 계속 기존 버전을 받습니다).<br>
+        <span style="color:var(--negative)">⚠️ 가족의 "전략 변경" 목록에는 계속 보입니다 — 이 콘솔의 [고급]에 "파일에만 존재"로 다시 나타나며, 완전히 지우려면 그때 [GitHub에서 내리기]를 눌러야 합니다.</span><br>
         <b style="color:var(--negative)">GitHub에서도 내리기</b>: weights.json에서 이 프로필을 완전히 제거합니다. 이 전략을 따르던 가족에게는 "추천이 종료되었습니다" 안내가 뜨게 됩니다.
       </div>
       <div id="strategy-delete-result" style="font-size:12px;margin-bottom:10px;display:none"></div>
@@ -2673,9 +2755,12 @@ function deleteStrategyV3(id) {
 function deleteStrategyLocalOnly(id) {
   appData.strategies = (appData.strategies || []).filter(s => s.id !== id);
   saveState();
+  // 콘솔에서만 지운 전략은 GitHub weights.json에 그대로 남아 "파일에만 존재" 상태가 되므로 재확인
+  invalidateGhostProfilesCache();
   const overlay = document.getElementById('strategy-delete-overlay');
   if (overlay) overlay.remove();
   renderSettingsTab();
+  renderAccountDropdown();
 }
 
 async function deleteStrategyFromGithub(id) {
@@ -2686,14 +2771,14 @@ async function deleteStrategyFromGithub(id) {
   const showResult = (msg, isErr) => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; resultEl.style.color = isErr ? 'var(--negative)' : 'var(--positive)'; } };
   showResult('GitHub에서 제거하는 중...', false);
   try {
-    const { profiles, sha } = await fetchRemoteProfiles();
-    const nextProfiles = profiles.filter(p => p.id !== id);
-    await putRemoteProfiles(nextProfiles, sha, `전략 제거: ${s.name}`);
+    await deployProfilesWithRetry(profiles => profiles.filter(p => p.id !== id), `전략 제거: ${s.name}`);
     appData.strategies = (appData.strategies || []).filter(x => x.id !== id);
     saveState();
+    invalidateGhostProfilesCache();
     const overlay = document.getElementById('strategy-delete-overlay');
     if (overlay) overlay.remove();
     renderSettingsTab();
+    renderAccountDropdown();
   } catch (e) {
     showResult(e.message || '실패', true);
   }
@@ -2798,12 +2883,12 @@ async function confirmStrategyDeploy(strategyId) {
   if (btn) { btn.disabled = true; btn.textContent = '배포 중...'; }
 
   try {
-    // GET: 현재 weights.json을 읽어 다른 프로필은 그대로 보존
-    const { profiles, sha } = await fetchRemoteProfiles();
-    const idx = profiles.findIndex(p => p.id === s.id);
-    if (idx >= 0) profiles[idx] = payload; else profiles.push(payload);
-    // PUT: 이 프로필만 교체/추가한 전체 목록을 다시 씀
-    await putRemoteProfiles(profiles, sha, `배포: ${s.name} ${payload.version}`);
+    // GET(항상 최신 sha·내용)→이 프로필만 교체/추가→PUT, 409면 자동 재시도(다른 배포는 그대로 보존)
+    await deployProfilesWithRetry(profiles => {
+      const idx = profiles.findIndex(p => p.id === s.id);
+      if (idx >= 0) profiles[idx] = payload; else profiles.push(payload);
+      return profiles;
+    }, `배포: ${s.name} ${payload.version}`);
 
     s.lastDeployedVersion = payload.version;
     s.lastDeployedStocks = payload.stocks.map(x => ({ ...x }));
@@ -2812,6 +2897,7 @@ async function confirmStrategyDeploy(strategyId) {
     acc.state.meta.selectedStrategyName = s.name;
     acc.state.meta.appliedRecoVersion = payload.version;
     saveState();
+    invalidateGhostProfilesCache();
 
     showResult('배포 완료 — 반영까지 1~2분 걸릴 수 있습니다', false);
     renderSettingsTab();
@@ -2843,6 +2929,22 @@ function buildAdvancedSection() {
     </tr>`;
   }).join('');
 
+  // 수정 9차 — weights.json에는 있으나 로컬 strategies엔 없는 "유령" 프로필을 회색 행으로 별도 표시
+  const ghostRows = (ghostProfilesCache || []).map(p => `<tr style="border-bottom:1px solid var(--border);color:var(--text-sub)">
+      <td style="padding:10px 10px">${esc(p.name)} <span style="font-size:11px;background:var(--btn-bg);padding:1px 6px;border-radius:3px;margin-left:4px">파일에만 존재</span></td>
+      <td style="padding:10px 10px">—</td>
+      <td style="padding:10px 10px">${esc(p.version || '—')}</td>
+      <td style="padding:10px 10px">—</td>
+      <td style="padding:10px 10px;white-space:nowrap">
+        <button class="btn btn-sm btn-danger" onclick="removeGhostProfile('${esc(p.id)}')">GitHub에서 내리기</button>
+      </td>
+    </tr>`).join('');
+  const ghostStatus = ghostProfilesLoading
+    ? `<div style="font-size:12px;color:var(--text-sub);margin-top:6px">파일에만 남은 전략 확인 중...</div>`
+    : (ghostProfilesCache === null && !hasGhToken
+        ? `<div style="font-size:12px;color:var(--text-sub);margin-top:6px">GitHub 토큰을 저장하면 파일에만 남은 전략을 확인합니다.</div>`
+        : '');
+
   const accOptions = appData.accounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
 
   return `<div class="settings-card">
@@ -2856,9 +2958,10 @@ function buildAdvancedSection() {
             <th style="padding:10px 10px">전략</th><th style="padding:10px 10px">커플링 계좌</th>
             <th style="padding:10px 10px">배포된 버전</th><th style="padding:10px 10px">상태</th><th style="padding:10px 10px">동작</th>
           </tr></thead>
-          <tbody>${rows || `<tr><td colspan="5" style="padding:14px 10px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
+          <tbody>${(rows + ghostRows) || `<tr><td colspan="5" style="padding:14px 10px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
         </table>
       </div>
+      ${ghostStatus}
 
       <div class="settings-add-row" style="flex-direction:column;align-items:flex-start;gap:10px;margin-top:14px">
         <input class="inp" id="new-strategy-name" placeholder="전략 이름 (예: 방어형)" style="max-width:220px">
@@ -2990,5 +3093,19 @@ initGoogleDrive();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+
+// ── 종목 행 클릭 선택 토글(수정 9차, index_v2.html 방식 그대로) — 표시용일 뿐 계산·저장과 무관,
+// 단일 선택(다른 행 클릭 시 이전 선택 해제, 같은 행 재클릭 시 해제). 입력칸·버튼·드래그핸들
+// 클릭은 선택 토글에서 제외해 기존 조작과 충돌하지 않게 함
+function handleTableRowClick(e) {
+  const tr = e.target.closest('#tbl-wrap tbody tr');
+  if (!tr) return;
+  if (tr.classList.contains('group-hdr') || tr.classList.contains('subtotal-row')) return;
+  if (e.target.closest('input, button, select, .drag-handle')) return;
+  const wasSelected = tr.classList.contains('row-selected');
+  document.querySelectorAll('#tbl-wrap .row-selected').forEach(el => el.classList.remove('row-selected'));
+  if (!wasSelected) tr.classList.add('row-selected');
+}
+document.addEventListener('click', handleTableRowClick);
 </script>
 </body></html>
