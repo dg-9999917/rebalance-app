@@ -1,5 +1,20 @@
 # 구현 진행 상황
 
+## v3 수정 13차 — 시세 버튼 스타일 + 설정비율 합계 즉시 갱신 (index.html 정식 앱) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 bd3b65a). `git fetch`로 origin에 로컬에 없는 커밋 3개 발견 — "배포: 방어형 2026-07-17-5"가 또 두 번 찍혀있었음(수정12차 배포 직후 push 이전에 사용자가 테스트했거나 캐시된 구버전으로 테스트했을 가능성 — 이번 세션 지시 범위 밖이라 별도 조치는 하지 않음, 필요시 후속 확인 권장). `git diff --stat`으로 weights.json만 변경(8줄)됨을 확인 후 `--ff-only` 병합
+- [x] **지시대로 순서 엄수**: 병합 직후 코드를 전혀 건드리지 않고 **`cp index.html index_before_fix13.html`부터 먼저 실행**(byte-for-byte 동일 확인) → 그 다음 안전점 커밋(`8d57e0e`) → 그 이후에만 진단·수정 시작(지난 두 세션의 "작업 후 백업" 재발 방지)
+- [x] **작업 1 — 시세 새로고침 버튼 스타일**: `#btn-fetch-prices`에 `background: transparent; border-color: var(--negative); color: var(--negative);` 신규 추가(크기 규칙 `padding:8px 16px;font-size:14px`는 같은 선택자 안에 그대로 유지) + `:hover` 시 옅은 빨강 배경(`.btn-danger:hover`와 동일한 `rgba(211,47,47,.08)`) 추가. 마크업의 `class="btn btn-primary"` → `class="btn"`로 변경(파란 채움 근거였던 `btn-primary` 제거, 이제 outline 스타일은 전용 `#btn-fetch-prices` 규칙이 담당). **참고**: "🔄" 아이콘은 이모지라 CSS `color`로 색이 안 바뀌는 게 정상(플랫폼이 정해둔 고유 색으로 렌더됨) — 테두리·"시세 새로고침" 글자는 빨간색으로 바뀜
+- [x] **작업 2 진단 — 설정비율 합계가 ±/직접입력 후 안 바뀌던 원인**: grep으로 adjR을 바꾸는 모든 함수와 `renderSummary()`(설정비율 합계를 실제로 갱신하는 함수) 호출 여부를 전수 대조
+  — `onAdjRChange(id, delta)`(± 버튼): `saveState(); renderTable();`만 호출하고 `renderSummary()`를 부르지 않음 — **이게 실제 원인**(renderTable()은 표 자체만 다시 그리고 상단 기준 영역은 건드리지 않음)
+  — `onAdjRInput(id, raw)`(직접 입력): `renderDerived()`(=`renderSummary()`+`updateRows()`)를 이미 호출하고 있어 원래부터 정상 — Node vm으로 직접 실행해 실제로 즉시 갱신됨을 재확인(사용자 보고에는 "± + 직접입력" 둘 다 언급됐지만, 코드상 직접입력 경로는 이상 없었음 — 아마 ± 버튼 쪽 경험이 대표적으로 각인된 것으로 추정)
+  — 완료조건이 명시한 "종목 추가/삭제" 경로도 같은 방식으로 점검: `deleteStock()`·`addStockFromForm()` 둘 다 `renderTable()`만 호출하고 `renderSummary()` 누락 확인(추가는 새 종목이 adjR=0으로 시작해 합계 숫자 자체는 안 바뀌지만, 표시 엘리먼트를 재동기화해두는 게 맞아 함께 수정). "추천 적용"(`confirmApplyReco`)·"계좌 전환"(`onAccountChange`→`renderAll()`→`renderSummary()`)은 이미 `renderSummary()`를 호출하고 있어 원래부터 정상이었음(점검만 하고 무수정)
+  — **수정**: `onAdjRChange()`·`deleteStock()`·`addStockFromForm()` 세 곳에 `renderSummary();` 호출 추가(계산 함수는 무수정, 렌더 호출만 추가)
+- [x] **작업 2 — 색 규칙 단순화**: `renderSummary()`의 설정비율 합계 판정을 "0.05 오차 이내면 기본색" 1단계 방식에서 완료조건이 요구한 3단계 단일색으로 교체 — `Math.round(adjrSum*10)/10`(표시값과 동일한 소수1자리 반올림 기준)이 100 초과면 항상 `val-neg`(빨강, 단일 톤), 100 미만이면 `val-warn`(주황, 수정12차에서 만든 클래스 재사용), 정확히 100.0이면 클래스 없음(기본색) — 그라데이션·점진 변화 요소는 애초에 없었지만(수정12차부터 단일 톤 클래스만 썼음) 요구사항대로 3단계로 명확히 분리
+- [x] Node vm 검증(신규 하네스): 초기 설정비율 합 100.0(기본색) 확인 → `onAdjRChange(+5)`로 105.0/`val-neg`(빨강) 즉시 반영 확인 → `onAdjRChange(-15)`로 90.0/`val-warn`(주황) 즉시 반영 확인 → `onAdjRInput('60')`으로 100.0/기본색 복귀 확인 → `deleteStock()`로 60.0/`val-warn` 즉시 반영 확인 → `addStockFromForm()` 호출 후에도 엘리먼트가 (값 불변이지만) 정상적으로 재렌더됨 확인 — 6단계 시나리오 전부 PASS. `node --check` 구문 오류 없음, CSS 중괄호 균형(depth 0) 확인
+- [x] `git diff`(안전점 `8d57e0e` 대비)에서 계산 함수 시그니처(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등) grep 결과 없음(무수정) 확인 — 변경분 13줄 추가/5줄 삭제가 전부 위 2개 작업 범위(CSS 2줄, 마크업 1곳, 함수 3곳에 렌더 호출 추가, 색 판정 로직 교체)에만 있음
+- [x] sw.js CACHE_NAME rebalance-v68 → rebalance-v69
+- [ ] **실제 브라우저 확인 필요**: 시세 새로고침 버튼이 실제로 투명 배경+빨간 테두리/글자로 보이는지, ± 버튼·직접입력 각각 클릭/입력 즉시 상단 숫자·색이 바뀌는지 — 이번 세션은 Node vm 시뮬레이션까지만 수행
+
 ## v3 수정 12차 — 표시 다듬기 + 배포 상태 버그 (index.html 정식 앱) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 fcd220c). `git fetch`로 origin에 로컬에 없는 커밋 7개 발견 — "배포: 방어형 2026-07-17-2/-2/-3/-3/-4/-4"(버전 라벨이 쌍으로 중복!)와 "배포: 공격형 2026-07-17-2" — `git diff --stat`으로 weights.json만 변경(8줄)됨을 확인 후 `--ff-only` 병합. **이 중복 버전 라벨 패턴 자체가 작업6 진단의 핵심 실물 증거**(아래 참고)
   — **⚠️ 절차 재발**: 병합 직후 바로 작업6 진단(코드 수정)에 들어가버려 `cp index.html index_before_fix12.html` 백업이 늦어짐 — `git show HEAD:index.html > index_before_fix12.html`로 세션 시작 시점(작업6 코드 수정 직전) 파일을 정확히 복원해 뒤늦게 백업 확보 후 안전점 커밋(`807a423`)

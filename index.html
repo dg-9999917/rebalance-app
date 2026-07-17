@@ -97,7 +97,9 @@
     .btn-sm { padding: 3px 8px; font-size: 12px; }
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
-    #btn-fetch-prices { padding: 8px 16px; font-size: 14px; }
+    /* 수정 13차 — 채우기 없는 빨간 테두리/글자(outline) 스타일로 변경. 크기·위치는 그대로 */
+    #btn-fetch-prices { padding: 8px 16px; font-size: 14px; background: transparent; border-color: var(--negative); color: var(--negative); }
+    #btn-fetch-prices:hover { background: rgba(211,47,47,.08); }
     .btn-danger { border-color: var(--negative); color: var(--negative); }
     .btn-danger:hover { background: rgba(211,47,47,.08); }
     button:disabled { opacity: 0.38; cursor: not-allowed; }
@@ -500,7 +502,7 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
+          <button class="btn" id="btn-fetch-prices" onclick="fetchPrices()">🔄 시세 새로고침</button>
         </div>
       </div>
 
@@ -681,6 +683,7 @@ function onAdjRChange(id, delta) {
   const s = state.stocks.find(s => s.id === id); if (!s) return;
   s.adjR = Math.max(0, +((s.adjR + delta).toFixed(2)));
   saveState(); renderTable();
+  renderSummary(); // 수정 13차 — renderTable()은 상단 "설정비율 합계"를 갱신하지 않아 ± 버튼 후 표시가 안 바뀌던 원인
 }
 function onAdjRInput(id, raw) {
   const s = state.stocks.find(s => s.id === id); if (!s) return;
@@ -877,6 +880,7 @@ function deleteStock(id) {
   if (!confirm('종목을 삭제하시겠습니까?')) return;
   state.stocks = state.stocks.filter(s => s.id !== id);
   saveState(); renderTable();
+  renderSummary(); // 수정 13차 — 종목 삭제로 설정비율 합계가 바뀔 수 있으므로 즉시 갱신
 }
 
 function addStockFromForm() {
@@ -891,6 +895,7 @@ function addStockFromForm() {
   document.getElementById('add-name').value = '';
   document.getElementById('add-ticker').value = '';
   saveState(); renderTable();
+  renderSummary(); // 수정 13차 — 종목 추가로 설정비율 합계가 바뀔 수 있으므로 즉시 갱신
 }
 
 let sortableInstances = [];
@@ -992,13 +997,16 @@ function renderSummary() {
   }
   const fxEl = document.getElementById('disp-fxn');
   if (fxEl) fxEl.textContent = fxN ? fmtNum(fxN, 2) : '—';
-  // 수정 12차 — 설정비율(adjR) 합계: 현금 포함 전 종목의 목표비율 합이 100인지 한눈에 확인
+  // 설정비율(adjR) 합계: 현금 포함 전 종목의 목표비율 합이 100인지 한눈에 확인
+  // 수정 13차 — 색 규칙을 그라데이션 없는 3단계 단일색으로 단순화: 정확히 100.0(반올림 표시값
+  // 기준)이면 기본색, 100 초과는 항상 같은 빨강(val-neg), 100 미만은 주황(val-warn)
   const adjrEl = document.getElementById('disp-adjrsum');
   if (adjrEl) {
     const adjrSum = state.stocks.reduce((a, s) => a + (Number(s.adjR) || 0), 0);
-    const isOk = Math.abs(adjrSum - 100) < 0.05;
+    const adjrRounded = Math.round(adjrSum * 10) / 10; // 표시값(소수 1자리)과 동일한 기준으로 100 여부 판정
     adjrEl.textContent = fmtDec(adjrSum, 1);
-    adjrEl.className = 'meta-sub' + (isOk ? '' : ' val-warn');
+    const adjrCls = adjrRounded > 100 ? 'val-neg' : adjrRounded < 100 ? 'val-warn' : '';
+    adjrEl.className = 'meta-sub' + (adjrCls ? ' ' + adjrCls : '');
   }
 }
 
