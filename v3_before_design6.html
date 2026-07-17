@@ -212,13 +212,8 @@
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--row-hover); }
     tbody td { padding: 10px 10px; vertical-align: middle; white-space: nowrap; }
-    /* 디자인 6차 — 숫자 셀 18px로 확대하되 상하 padding을 줄여 행 높이는 유지(이름 열이
-       기존부터 배지·삭제버튼 등으로 ~10px+10px 기준 행 높이를 이미 만들고 있어 그 기준에 맞춤) */
-    tbody td.num { text-align: right; font-size: 18px; padding: 8px 10px; }
+    tbody td.num { text-align: right; }
     tbody td.center { text-align: center; }
-    /* 설정비율 입력칸(±버튼+숫자칸) 셀만 별도 — data-stock-id가 있는 개별계좌 행에만 적용되어
-       종합계좌 뷰(읽기전용 "—" 표시, data-stock-id 없음)는 건드리지 않음 */
-    tbody tr[data-stock-id] td.center { padding: 8px 10px; }
 
     /* 그룹 헤더 행 */
     tr.group-hdr td {
@@ -241,7 +236,7 @@
     /* 종합행 */
     tr.subtotal-row td {
       background: var(--surface2); font-weight: 700;
-      font-size: 18px; padding: 8px 10px; border-top: 1px solid var(--border);
+      font-size: 16px; border-top: 1px solid var(--border);
     }
 
     /* ± ratio 셀 */
@@ -253,10 +248,10 @@
     }
     .ratio-cell .pm-btn:hover { background: var(--btn-hover); }
     .ratio-cell .inp-r {
-      width: 54px; text-align: right;
+      width: 52px; text-align: right;
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
-      padding: 4px 6px; font-size: 18px; line-height: 1;
+      padding: 2px 6px; font-size: 13px;
     }
     .ratio-cell .inp-r:focus { outline: none; border-color: var(--accent); }
 
@@ -302,12 +297,11 @@
     .val-neg { color: var(--negative); }
     .val-dim { color: var(--text-sub); opacity: 0.85; }
 
-    /* 표 입력칸 — 디자인 6차: 18px로 확대. line-height:1로 고정해 body의 1.5 상속을 끊어야
-       td.num의 8px 상하 padding과 합쳐도 행 높이(이름 열 기준 ~44px)를 넘지 않음 */
+    /* 표 입력칸 */
     .inp-pf {
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
-      padding: 4px 6px; font-size: 18px; line-height: 1; text-align: right;
+      padding: 3px 6px; font-size: 13px; text-align: right;
     }
     .inp-pf:focus { outline: none; border-color: var(--accent); }
 
@@ -994,14 +988,14 @@ function renderTable() {
 
   let html = `<table style="table-layout:fixed">
     <colgroup>
-      <col style="width:190px"><!-- 종목(현재 크기 유지) -->
-      <col style="width:110px"><!-- 현재가 -->
-      <col style="width:105px"> <!-- 평단가 -->
-      <col style="width:95px"> <!-- 보유수량 -->
-      <col style="width:130px"><!-- 설정비율 -->
-      <col style="width:90px"> <!-- 현재비중 -->
-      <col style="width:100px"> <!-- 필요매매 -->
-      <col style="width:135px"><!-- 평가금액 -->
+      <col style="width:190px"><!-- 종목 -->
+      <col style="width:100px"><!-- 현재가 -->
+      <col style="width:95px"> <!-- 평단가 -->
+      <col style="width:85px"> <!-- 보유수량 -->
+      <col style="width:115px"><!-- 설정비율 -->
+      <col style="width:80px"> <!-- 현재비중 -->
+      <col style="width:90px"> <!-- 필요매매 -->
+      <col style="width:120px"><!-- 평가금액 -->
     </colgroup>
     <thead><tr>
       <th>종목</th>
@@ -1073,7 +1067,7 @@ function renderTable() {
           ? (s.market === 'US' ? '$' : '') + fmtNum(s.price, s.price % 1 ? 2 : 0)
           : `<input class="inp-pf" type="text" inputmode="decimal"
               value="" placeholder="직접 입력"
-              style="width:80px"
+              style="width:70px"
               onfocus="commaFocus(this)"
               onchange="onPriceInput('${s.id}',this.value)"
               onblur="commaBlur(this)">`);
@@ -1095,7 +1089,7 @@ function renderTable() {
                 : `<input class="inp-pf" type="text" inputmode="decimal"
                     id="pf-in-q-${s.id}"
                     value="${s.q ? fmtDec(s.q, 2) : ''}"
-                    style="width:72px;text-align:center"
+                    style="width:65px;text-align:center"
                     onfocus="commaFocus(this)"
                     onchange="onQtyInput('${s.id}',this.value)"
                     onblur="commaBlur(this)">`
@@ -1104,7 +1098,7 @@ function renderTable() {
         <td class="num"><input class="inp-pf" type="text" inputmode="decimal"
             id="pf-in-avg-${s.id}"
             value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
-            style="width:85px"
+            style="width:75px"
             onfocus="commaFocus(this)"
             onchange="onAvgInput('${s.id}',this.value)"
             onblur="commaBlur(this)"></td>
@@ -1112,7 +1106,7 @@ function renderTable() {
                 <input class="inp-pf" type="text" inputmode="decimal"
                 id="pf-in-q-${s.id}"
                 value="${s.q ? fmtDec(s.q, 2) : ''}"
-                style="width:72px"
+                style="width:65px"
                 onfocus="commaFocus(this)"
                 onchange="onQtyInput('${s.id}',this.value)"
                 onblur="commaBlur(this)">
@@ -1430,9 +1424,9 @@ function renderConsolidatedView() {
   let html = `<div style="padding:8px 16px;font-size:11px;color:var(--text-muted)">* 시세 새로고침은 마지막으로 선택했던 개별 계좌 기준으로 동작합니다</div>
   <table style="table-layout:fixed">
     <colgroup>
-      <col style="width:190px"><col style="width:110px"><col style="width:105px">
-      <col style="width:95px"><col style="width:130px"><col style="width:90px">
-      <col style="width:100px"><col style="width:135px">
+      <col style="width:190px"><col style="width:100px"><col style="width:95px">
+      <col style="width:85px"><col style="width:115px"><col style="width:80px">
+      <col style="width:90px"><col style="width:120px">
     </colgroup>
     <thead><tr>
       <th>종목</th>
@@ -2439,11 +2433,9 @@ function buildRecoSection() {
   const switchOptions = recoProfiles.map(p =>
     `<option value="${esc(p.id)}" ${p.id === selectedId ? 'disabled' : ''}>${esc(p.name)}</option>`
   ).join('');
-  // 디자인 6차: "따르는 전략" 줄과 같은 행 우측에 배치(섹션 상단으로 올려 버튼과의
-  // 수직 거리를 벌림 — 네이티브 select 팝업이 펼쳐져도 아래 [업데이트 확인] 버튼을 가리지 않음)
   const switchDropdown = recoProfiles.length
-    ? `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        <span class="meta-label" style="font-size:16px">전략 변경</span>
+    ? `<div style="margin-bottom:12px">
+        <span class="meta-label" style="margin-right:6px;font-size:16px">전략 변경</span>
         <select class="inp" id="strategy-switch-select" style="width:auto;display:inline-block" onchange="onStrategySwitchSelect(this.value)">
           <option value="">선택...</option>
           ${switchOptions}
@@ -2453,12 +2445,10 @@ function buildRecoSection() {
 
   return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
     <div style="font-size:16px;color:var(--text-sub);margin-bottom:8px">대상 계좌: <strong style="color:var(--text)">${esc(targetAccountName)}</strong></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-      <div style="font-size:16px;color:var(--text-sub)">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
-      ${switchDropdown}
-    </div>
+    <div style="font-size:16px;color:var(--text-sub);margin-bottom:14px">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
+    ${switchDropdown}
     <button class="btn btn-primary btn-sm" onclick="checkRecoNow()">업데이트 확인</button>
-    <span id="reco-check-result" style="margin-left:10px;font-size:16px;font-weight:600;display:none"></span>
+    <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
   </div>`;
 }
 
@@ -2484,13 +2474,13 @@ async function checkRecoNow() {
     const profile = recoProfiles.find(p => p.id === selectedId);
     const applied = state.meta.appliedRecoVersion;
     if (selectedId && profile && profile.version === applied) {
-      if (resultEl) { resultEl.textContent = '이미 최신입니다.'; resultEl.style.color = 'var(--positive)'; }
+      if (resultEl) resultEl.textContent = '이미 최신입니다.';
     } else {
-      if (resultEl) { resultEl.textContent = '변경 사항이 있습니다 — 계산기 탭에서 배너를 확인하세요.'; resultEl.style.color = 'var(--accent)'; }
+      if (resultEl) resultEl.textContent = '변경 사항이 있습니다 — 계산기 탭에서 배너를 확인하세요.';
       evaluateRecoBanner();
     }
   } catch (e) {
-    if (resultEl) { resultEl.textContent = '확인 실패 — 네트워크를 확인하세요.'; resultEl.style.color = 'var(--negative)'; resultEl.style.display = 'inline'; }
+    if (resultEl) { resultEl.textContent = '확인 실패 — 네트워크를 확인하세요.'; resultEl.style.display = 'inline'; }
   }
 }
 

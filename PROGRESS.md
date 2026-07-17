@@ -1,5 +1,26 @@
 # 구현 진행 상황
 
+## v3 디자인 6차 — 표 숫자 확대 + 추천 비중 배치 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 7357abb) — **⚠️ 절차 오류**: 지시된 순서(백업 먼저)를 어기고 코드 조사부터 시작해버려 `v3_before_design6.html`을 작업 착수 시점에 만들지 못함. 다행히 design6 작업 중 어떤 코드 수정도 하기 전에 git 커밋(7357abb, design5 완료 시점)이 이미 안전점으로 존재했던 상태라 데이터 손실은 없었음 — 뒤늦게 `git show HEAD:v3.html > v3_before_design6.html`로 정확히 그 시점(=이번 세션 실제 시작점)의 파일을 복원해 백업 확보, `diff`로 이후 작업 전체가 그 백업 대비 의도한 범위에만 있는지 재확인함(아래 diff 검증 항목 참고). 사용자에게 별도 보고
+- [x] **작업1 — 표 숫자 18px 확대(행 높이 유지)**: 대상은 숫자 셀(`td.num`)·설정비율 입력칸 셀(`td.center`, 개별계좌 행만)·표 입력칸(`.inp-pf`, `.inp-r`) — 종목명 열(`.stock-name` 등)은 무수정
+  — `tbody td.num`(기존엔 `text-align:right`만 있던 규칙)에 `font-size:18px; padding:8px 10px`(기존 상속값 `10px 10px`에서 축소) 추가 — 이름 열(배지·삭제버튼·드래그핸들 등으로 이미 ~10px+10px 기준 행 높이를 만들고 있음)에 맞춰 숫자 셀 자체 높이가 그 기준을 넘지 않게 산정(18px 텍스트 line-height 1.5 상속 기준 27px + padding 16px = 43px ≈ 기존 44px 행 높이와 거의 동일)
+  — 신규 `tbody tr[data-stock-id] td.center { padding: 8px 10px }` — 설정비율(±버튼+입력칸) 셀만 별도 축소(종합계좌 뷰는 `data-stock-id`가 없는 읽기전용 행이라 이 규칙 밖, 기존 "—" 표시 그대로 무수정)
+  — `.inp-pf`/`.inp-r`(현재가 직접입력·평단가·보유수량·설정비율 입력칸) `font-size:18px`로 확대 + `line-height:1` 신규 추가(body의 전역 `line-height:1.5` 상속을 끊어야 td padding과 합쳐도 행 높이를 넘지 않음, 실측 근사치로 계산: 18px×line-height1 + padding(4px×2=8) + border(2) = 28px, td.num의 8px×2=16px padding과 합쳐 44px ≈ 이름 열 기준과 일치) + padding 3px→4px(요구된 "3~4px 이상" 충족)
+  — `tr.subtotal-row td`(그룹 합계 행) `font-size` 16→18px + 신규 `padding:8px 10px`(기존엔 이 규칙에 padding 오버라이드가 없어 `tbody td`의 10px 10px를 그대로 썼음 — 18px로 커지며 그대로 두면 행이 굵어지므로 다른 숫자 셀과 동일 기준으로 축소)
+  — **표 폭(table-layout:fixed + colgroup 고정 px)**: 개별계좌·종합계좌 두 표 모두 `<colgroup>`이 절대 px 폭을 지정하고 있어, 폰트만 18px로 키우면 열 폭이 좁아 값이 셀 밖으로 밀려날 위험이 있음을 발견 — 종목열(190px)만 유지하고 숫자 열 6개를 폰트 확대 비율(18/16=1.125)에 맞춰 함께 확대(현재가100→110, 평단가95→105, 보유수량85→95, 설정비율115→130, 현재비중80→90, 필요매매90→100, 평가금액120→135). 입력칸 자체 width도 비례 확대(현재가 직접입력 70→80, 평단가 75→85, 보유수량 65→72, 설정비율 `.inp-r` 52→54) — 이 폭 조정은 "행 높이 유지" 조건과 무관한 가로 방향 변경이라 완료조건에 저촉 없음, "종목 이름 열은 현재 크기 유지" 조건은 190px·폰트 모두 무수정으로 충족
+  — ₩/$ 토글·종합계좌 뷰 둘 다 같은 `#tbl-wrap` 안에서 렌더되고 위 규칙들이 모두 이 스코프 내에 있어 자동으로 동일 적용됨(원본 파일의 기존 스코프링 관례와 동일)
+- [x] **작업2 — ④ 추천 비중 배치**: "전략 변경" 드롭다운을 "따르는 전략: …" 줄과 같은 행으로 옮기고 `justify-content:space-between`으로 우측 배치(기존엔 따르는 전략 줄 아래 별도 줄에 있어 버튼과 수직으로 더 가까웠음 — 같은 행으로 합치며 섹션 상단으로 올라가 버튼과의 거리가 벌어짐, 네이티브 select 팝업이 열려도 아래 버튼을 덜 가리는 방향). `#reco-check-result`(지금 확인 결과 메시지) 기본 스타일 12px/`--text-sub` 고정 → 16px/`font-weight:600`으로 확대(색은 JS에서 상태별로 동적 지정: "이미 최신입니다" `var(--positive)`(초록 계열, 라이트 #0f9d58/다크 #3ecf8e), 변경 있음 `var(--accent)`, 확인 실패 `var(--negative)`) — 세 메시지 모두 같은 크기(16px)로 통일
+- [x] Node vm 검증(신규 하네스, top-level `let` 바인딩을 `globalThis.__exports`로 브리지):
+  — `renderTable()` 출력에 신규 colgroup 폭(110px 등)·입력칸 신규 width(85/72px)·`.inp-r`·subtotal-row 3개(미국/한국/현금)·`data-stock-id` 행 3개·`stock-name` 클래스 모두 정상 확인
+  — `buildRecoSection()` 출력에서 "따르는 전략" → "전략 변경" → "업데이트 확인" 순서(같은 wrapper 안에서 label이 dropdown보다 앞, 그 아래 버튼)와 `justify-content:space-between` 플렉스 래퍼, 결과 메시지 span의 `font-size:16px;font-weight:600` 확인
+  — `checkRecoNow()` 세 분기(최신/변경있음/네트워크실패) 각각 mock fetch로 실행해 텍스트+색상(`var(--positive)`/`var(--accent)`/`var(--negative)`) 정확히 매핑됨을 확인
+  — `node --check`로 인라인 스크립트 구문 오류 없음, CSS 중괄호 균형(depth 0) 확인
+- [x] `diff v3_before_design6.html v3.html`(뒤늦게 재구성한 백업 기준) 전체 검토 — 변경분이 위 작업1·2 범위(CSS 6곳, colgroup 폭 2곳, 입력칸 inline width 4곳, `buildRecoSection`/`checkRecoNow` 템플릿·로직)에 정확히 국한됨을 확인, 계산 함수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등)·`computeCashAmount`·`buildConsolidatedData`·`restoreFromDrive`·`sanitizeLoadedAppData`·마이그레이션 함수·onAccountChange 등은 diff에 전혀 등장하지 않음(무수정)
+- [x] index.html 무수정 확인(git diff 없음), weights.json도 무수정
+- [x] sw.js CACHE_NAME rebalance-v62 → rebalance-v63
+- [ ] (미수행) 실제 브라우저에서 행 높이가 정말 그대로인지(특히 `line-height:1` 트릭이 브라우저마다 폼 요소 기본 line-height 처리가 조금씩 달라 오차가 있을 수 있음), 확대된 열 폭에서 큰 숫자(예: 평가금액 7자리 이상)가 안 밀리는지, 드롭다운이 펼쳐졌을 때 실제로 버튼을 안 가리는지 육안 확인 — 이번 세션은 코드 변경과 Node vm 구조 검증까지만 수행(픽셀 단위 행 높이 일치는 실제 브라우저 렌더링에서만 확정 가능)
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 디자인 5차 — 종합계좌·추천 비중 섹션 다듬기 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 2b57749), `v3_before_design5.html` 백업 생성(byte-for-byte 동일 확인)
 - [x] **작업1 — ② 종합계좌 체크박스 목록 확대**: `buildConsolidatedSectionV3()`의 `memberCheckboxes`(멤버 선택용, "기본 계좌"·"삼성증권" 등이 뜨는 그 목록) 라벨 15px→16px, `<input type="checkbox">`에 `width:18px;height:18px` 인라인 추가, 라벨 내부 gap 6→8px, 체크박스 목록 컨테이너(`#cons-member-checkboxes-v3`) 항목 간 gap 6→9px(요구 범위 8~10px 충족). 종합계좌 이름 입력칸(`#new-cons-name-v3`)은 이미 `class="inp"`만 쓰고 있어 `#settings-content .inp`(fix7에서 만든 15px/38px 기준) 그대로 적용되고 있음을 확인 — 별도 인라인 오버라이드가 없어 "같은 급" 요구가 이미 충족된 상태라 추가 수정 없음
