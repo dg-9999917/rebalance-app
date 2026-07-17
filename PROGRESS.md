@@ -1,5 +1,49 @@
 # 구현 진행 상황
 
+## v3 6단계 — 전략별 비중 배포 (관리자 콘솔 + 가족) (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 79039c9), `v3_before_step6.html` 백업 생성(byte-for-byte 동일 확인)
+- [x] **데이터 구조**: `appData.strategies=[{id,name,coupledAccountId,lastDeployedVersion,lastDeployedStocks}]` 신규(loadState 3경로 모두 기본값 세팅). 계좌별 `state.meta.selectedStrategyId`(가족이 따르는 전략)·기존 `appliedRecoVersion`(그 전략에서 적용한 버전) 재사용. `sanitizeLoadedAppData`(드라이브 복원)에 strategies 필드 보존 추가, `migrateAccountFromV2`에 `selectedStrategyId`/`appliedRecoVersion` meta 보존 추가 — **계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight)는 완전 무수정**, 이 두 함수는 데이터 이관용이라 "계산 함수" 범주 밖이지만 그래도 자동 diff로 변경 여부를 매번 확인함
+- [x] **weights.json 신형식**: `{profiles:[{id,name,version,date,memo,stocks}]}`. `normalizeRecoData()`가 구형식(단일 `{version,stocks,...}`)을 `id:'default', name:'기본'` 프로필 1개로 변환해 하위호환(가족 앱 기준) — 관리자 쓰기(GET/PUT) 쪽은 설계문서 5절대로 "기존 단일 배포 이력은 버려도 됨"이라 구형식이 남아있으면 그냥 버리고 `{profiles:[]}`에서 새로 시작
+- [x] **가족쪽 흐름**: `recoProfiles`(정규화된 배열) + `activeRecoProfile`(현재 미리보기 대상)로 전면 교체. `evaluateRecoBanner()`가 3케이스 분기 — ① `selectedStrategyId` 없음→"따를 전략을 선택해 주세요" 배너→`openStrategySelectScreen()`(프로필 1개면 선택화면 생략하고 바로 진행) ② 선택된 전략의 버전≠적용버전→그 전략 이름 포함 배너 ③ 선택된 전략이 파일에서 사라짐→"추천이 종료되었습니다" 배너(데이터 자동 변경 없음, 그저 안내만). 배너 닫기(dismiss)는 전략별로 분리(`v3_dismissedReco`에 JSON 맵: `{[profileId]:version, '__select__':signature, '<id>::gone':'true'}`)
+- [x] **2단계 적용 로직 재사용**(지시사항 핵심): `buildRecoDiff()`/`openRecoModal()`/`closeRecoModal()`/`confirmApplyReco()`는 원본 그대로 두고 `recoData`→`activeRecoProfile`로만 스왑. diff 알고리즘은 `diffStockLists(oldList,newList)`로 추출해 가족쪽(`state.stocks` vs 프로필)과 관리자쪽 배포 미리보기(`lastDeployedStocks` vs 현재 커플링 계좌)가 하나의 비교 규칙을 공유(각자 새로 안 짬). `confirmApplyReco()`는 최초 선택·설정에서의 전략 변경을 모두 처리하도록 `state.meta.selectedStrategyId = activeRecoProfile.id` 한 줄만 추가, `closeRecoModal()`이 `renderSettingsTab()`을 호출해 취소 시 드롭다운이 자동 원복(별도 pending 상태 변수 불필요)
+- [x] **설정 ④ 추천 비중**: "따르는 전략: {이름} (적용 버전 X)" 표시 + 전략 변경 드롭다운(`onStrategySwitchSelect` → 기존 reco-modal 재사용해 미리보기 → 적용/취소). `checkRecoNow()`를 `normalizeRecoData` 기반으로 갱신
+- [x] **설정 ⑤ 고급 → 관리자 콘솔**: 기존 단일 배포 UI(메모+배포 버튼) 완전 교체. 전략 테이블(전략/커플링계좌/배포된버전/상태/동작), `strategyStatus()`가 `lastDeployedStocks` vs 커플링 계좌 현재 (ticker,market,adjR)를 `diffStockLists`로 비교해 🔶(표시용일 뿐 자동 동작 없음)/✅/미배포 판정, 계좌 삭제된 커플링은 "⚠️ 재지정 필요"(별도 저장 플래그 없이 렌더 시점에 계좌 존재 여부로 실시간 판정). `[+ 전략 만들기]`/`[편집]`(이름+계좌 재지정)/`[삭제]`(콘솔에서만 삭제 vs GitHub에서도 내리기 2択 모달) 구현
+- [x] **배포(GET-merge-PUT)**: `fetchRemoteProfiles()`(GET, 구형식/파싱실패/404는 `{profiles:[]}`로 취급)·`putRemoteProfiles()`(PUT, UTF-8 안전 base64는 기존 TextEncoder 패턴 그대로+디코드용 TextDecoder 신규 추가) 공용 헬퍼로 배포·GitHub삭제 양쪽이 공유. `openStrategyDeployModal()`이 메모 입력+`diffStockLists(lastDeployedStocks, 현재계좌)`로 변경 미리보기 표시 → `[확정]`을 눌러야만 `confirmStrategyDeploy()`가 실제로 GET→해당 프로필만 교체/추가(다른 프로필 배열 그대로 보존)→PUT 실행 — **배포는 오직 이 확정 버튼 클릭 시에만 발생**(전략 생성·편집·±조정·미리보기 열람은 전부 로컬 상태만 건드림, Node 시뮬레이션에서 PUT 호출 횟수가 명시적 확정 액션 수와 정확히 일치함을 확인). 성공 시 `strategy.lastDeployedVersion/lastDeployedStocks` + 커플링 계좌의 `selectedStrategyId/appliedRecoVersion` 갱신(자기 자신에게 방금 배포한 버전의 배너가 뜨지 않도록). `[JSON 복사]`는 배포 모달 안에 전략별 예비 수단으로 유지
+- [x] **Node vm 시나리오 검증**(mock GitHub API로 GET/PUT을 가로채는 하네스 신규 작성, `./weights.json` 정적 조회와 Contents API를 같은 mock 저장소로 시뮬레이션) — 완료조건 1~6 전부 PASS:
+  1. 전략 2개(방어형→acc_A, 공격형→acc_B) 생성 후 방어형만 배포 → 파일에 방어형만 존재 확인 → 공격형 배포 후 둘 다 존재(먼저 배포한 방어형 프로필이 보존됐는지) 확인
+  2. 방어형 배포자 본인 계좌(acc_A)는 배너 없음(자기 배포 버전 자동 동기화), 방어형을 팔로우하며 구버전 적용상태인 계좌(acc_B)는 정확히 "방어형" 이름이 포함된 배너 노출
+  3. acc_A의 NVDA adjR을 8→15로 수정 후 관리자 콘솔에 🔶 배지 노출 확인 + 그 전후 mock weights.json 내용이 문자열 그대로 완전 동일(1바이트도 안 바뀜)함을 확인
+  4. 신규계좌(미선택)→선택 유도 배너+선택화면 오픈, 카드선택→적용 후 selectedStrategyId 반영, 설정 드롭다운으로 전략 변경 시 "미리보기 연 직후(적용 전)"엔 selectedStrategyId 불변→`[적용]`후에만 변경, 취소 시 원복 확인, 관리자가 GitHub에서 전략을 완전히 내린 뒤 그 전략을 따르던 계좌에 "추천이 종료되었습니다" 배너 노출 확인
+  5. 구형식(`{version,stocks,...}`) mock 파일 주입 → `recoProfiles`가 `id:'default',name:'기본'` 단일 프로필로 정규화되고 정상적으로 배너·적용까지 동작
+  6. `JSON.stringify(appData)`(드라이브 백업 대상)에 `"strategies"` 필드 포함 + 토큰 문자열/키 이름 모두 미포함 확인, 추가로 `sanitizeLoadedAppData()`(드라이브 복원 경로)를 통과시켜도 strategies·selectedStrategyId·appliedRecoVersion이 그대로 왕복 보존됨을 별도 확인
+  - PUT 호출 총 3회(방어형 배포·공격형 배포·공격형 GitHub 삭제) = 시나리오 중 명시적 확정 액션 수와 정확히 일치 — 전략 생성 2회·adjR 수정·미리보기 열람 다수·드롭다운 취소 등 나머지 조작은 전부 0회의 네트워크 쓰기로 확인됨
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) + computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/migrateStockFromV2 git HEAD(79039c9) 대비 byte-for-byte 동일 재검증(자동 diff 스크립트) — 전부 OK. `sanitizeLoadedAppData`/`migrateAccountFromV2`만 의도된 변경(위 사유) 있음
+- [x] index.html 무수정 확인(git diff 없음), 레포의 실제 `weights.json` 파일도 무수정(이번 세션 전부 mock으로 검증, 실제 GitHub API 호출 없었음)
+- [x] sw.js CACHE_NAME rebalance-v57 → rebalance-v58
+- [ ] (미수행) 실제 GitHub 토큰으로 브라우저에서 전략 생성→배포→가족 계좌에서 배너 확인까지의 라이브 흐름 — 이번 세션은 Node vm mock 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
+### weights.json 최종 형식 예시
+```json
+{
+  "profiles": [
+    { "id": "s_mro811r82ga7", "name": "방어형", "version": "2026-07-17-1",
+      "date": "2026-07-17", "memo": "반도체 확대",
+      "stocks": [
+        { "name": "엔비디아", "ticker": "NVDA", "market": "US", "r": 8 },
+        { "name": "현금", "ticker": "CASH", "market": "CASH", "r": 0 }
+      ] },
+    { "id": "s_mro811r9tfbb", "name": "공격형", "version": "2026-07-17-1",
+      "date": "2026-07-17", "memo": "성장주 확대",
+      "stocks": [ { "name": "삼성전자", "ticker": "005930", "market": "KR", "r": 20 } ] }
+  ]
+}
+```
+### 특이사항
+- 저장소의 기존 `weights.json`(구형식, 초기 배포 29종목)은 이번 세션에서 실제로 GitHub에 배포하지 않았으므로 여전히 구형식 그대로 남아있음 — 다음에 관리자가 실제 브라우저에서 첫 전략을 배포하는 순간 새 `{profiles:[...]}` 형식으로 교체되며, 그 이전까지는 가족 앱이 `normalizeRecoData()`로 이를 "기본" 전략 1개로 계속 정상 인식함(하위호환 경로로 실제 검증됨)
+- 관리자 배포 시 "배포 원본 계좌"(coupledAccountId)의 `selectedStrategyId`/`appliedRecoVersion`도 함께 갱신하도록 설계문서에 명시되지 않은 부분을 판단해 추가함(관리자가 방금 배포한 자신의 계좌에 굳이 자기 자신의 배너가 뜨는 것을 막기 위함, 기존 단일배포 버전의 `state.meta.appliedRecoVersion = payload.version` 동작을 그대로 계승한 것)
+- 전략 삭제의 "콘솔에서만 삭제"를 택하면 로컬 UI에서만 사라지고 GitHub 파일은 그대로 — 이 경우 그 전략을 팔로우하는 가족은 계속 예전 버전을 받는 상태로 남는다는 것을 삭제 확인 모달에 명시함
+
 ## v3 수정 5차 — 그룹 합계 행 계산 버그 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 83d1b1f). 백업본은 지시에 없어 생성하지 않음(계산 함수 무변경 재검증으로 안전점 확보)
 - [x] **원인 특정**: `renderTable()`(919~1080행)의 그룹 소계(subtotal-row)는 개별 행과 완전히 같은 `evalVal(s)`/`currWeight(s)`의 합으로 정확히 계산됨 — 계산식 자체는 처음부터 문제 없었음. 진짜 원인은 `updateRows()`(1115~1167행, 주석: "파생 열만 갱신 — 입력 커서 유지용")가 **개별 행 셀(`pf-wt-*`/`pf-eval-*`/`pf-need-*`/`pf-q-*`)만 갱신하고 소계 행(`subtotal-row`)은 전혀 건드리지 않던 것**. `onPriceInput`/`onAvgInput`/`onQtyInput`/`onAdjRInput`(590~608행)은 전부 `renderDerived()`→`updateRows()`만 호출해 소계가 최초 `renderTable()` 시점 값에 그대로 박제(stale)됨. 반면 `onAdjRChange`(± 버튼, 600~604행)·`addStockFromForm`·`deleteStock`·`fetchPrices`(→`renderCalcView`)는 전체 `renderTable()`을 다시 돌려 소계가 그때만 정상으로 보임

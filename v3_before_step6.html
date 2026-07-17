@@ -328,13 +328,6 @@
     .reco-diff-title { font-weight: 700; margin-bottom: 2px; }
     .reco-diff-block { margin-bottom: 12px; }
 
-    /* 전략 선택 카드 (신규 — 가족쪽 여러 전략 중 선택) */
-    .strategy-select-card {
-      border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
-      cursor: pointer; transition: background .12s, border-color .12s;
-    }
-    .strategy-select-card:hover { background: var(--btn-hover); border-color: var(--accent); }
-
     /* 준비 중 플레이스홀더 */
     .placeholder {
       color: var(--text-sub); text-align: center; padding: 56px 24px;
@@ -477,7 +470,7 @@
   <!-- ══════════════ 추천 비중 적용 확인 모달 ══════════════ -->
   <div id="reco-modal-overlay" onclick="if(event.target===this) closeRecoModal()">
     <div id="reco-modal">
-      <div class="reco-modal-header" id="reco-modal-header">추천 비중 적용 확인</div>
+      <div class="reco-modal-header">추천 비중 적용 확인</div>
       <div class="reco-modal-body" id="reco-modal-body"></div>
       <div class="reco-modal-footer">
         <button class="btn" onclick="closeRecoModal()">취소</button>
@@ -701,20 +694,16 @@ function migrateStockFromV2(s) {
   };
 }
 function migrateAccountFromV2(acc) {
-  const meta = {
-    p0: acc.state.meta.p0 || 0,
-    fx0: acc.state.meta.fx0 || 0,
-    fxN: acc.state.meta.fxN || 0,
-    priceMode: acc.state.meta.priceMode || 'curr',
-  };
-  // v3 백업 재복원 시 전략 팔로우 상태가 사라지지 않도록 보존(v2 원본에는 애초에 없는 필드라 v2→v3 최초 이관 시엔 그냥 없음)
-  if (acc.state.meta.appliedRecoVersion) meta.appliedRecoVersion = acc.state.meta.appliedRecoVersion;
-  if (acc.state.meta.selectedStrategyId) meta.selectedStrategyId = acc.state.meta.selectedStrategyId;
   return {
     id: acc.id,
     name: acc.name,
     state: {
-      meta,
+      meta: {
+        p0: acc.state.meta.p0 || 0,
+        fx0: acc.state.meta.fx0 || 0,
+        fxN: acc.state.meta.fxN || 0,
+        priceMode: acc.state.meta.priceMode || 'curr',
+      },
       stocks: (acc.state.stocks || []).map(migrateStockFromV2),
     },
   };
@@ -743,7 +732,6 @@ function loadState() {
         appData = parsed;
         if (!Array.isArray(appData.consolidated)) appData.consolidated = [];
         if (!('activeConsolidatedId' in appData)) appData.activeConsolidatedId = null;
-        if (!Array.isArray(appData.strategies)) appData.strategies = [];
         healConsolidatedMembers();
         const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
           ? appData.activeAccountId : appData.accounts[0].id;
@@ -761,7 +749,6 @@ function loadState() {
           accounts: v2.accounts.map(migrateAccountFromV2),
           consolidated: [],
           activeConsolidatedId: null,
-          strategies: [],
         };
         const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
           ? appData.activeAccountId : appData.accounts[0].id;
@@ -772,14 +759,14 @@ function loadState() {
     }
     // ③ 완전 초기 (v2도 v3도 없음)
     const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE_V3) };
-    appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null, strategies: [] };
+    appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null };
     activateAccount('acc_1');
     saveState();
   } catch(e) {
     console.error('로드 실패:', e);
     if (!appData || !state) {
       const fresh = { id: 'acc_1', name: '기본 계좌', state: deepClone(DEFAULT_STATE_V3) };
-      appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null, strategies: [] };
+      appData = { activeAccountId: 'acc_1', accounts: [fresh], consolidated: [], activeConsolidatedId: null };
       activateAccount('acc_1');
     }
   }
@@ -1455,38 +1442,11 @@ function renderConsolidatedView() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  추천 비중 배포 시스템 (weights.json) — v3 6단계: 전략(profile) 다중화
+//  추천 비중 배포 시스템 (weights.json)
 // ═══════════════════════════════════════════════════════════════════
 
-// weights.json을 항상 { profiles:[{id,name,version,date,memo,stocks}, ...] } 형태로 정규화
-// 구형식({version,stocks,...} 단일)은 id:'default' 이름:'기본' 프로필 1개로 해석(하위 호환)
-function normalizeRecoData(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw.profiles)) {
-    return raw.profiles.filter(p => p && p.id && p.name && Array.isArray(p.stocks));
-  }
-  if (raw.version && Array.isArray(raw.stocks)) {
-    return [{ id: 'default', name: '기본', version: raw.version, date: raw.date || '', memo: raw.memo || '', stocks: raw.stocks }];
-  }
-  return [];
-}
-
-const DISMISSED_RECO_KEY = 'v3_dismissedReco'; // { [profileId]: version, '__select__': signature, '<id>::gone': 'true' }
-let recoProfiles = [];        // 최근 조회한 weights.json의 정규화된 프로필 목록
-let activeRecoProfile = null; // 현재 미리보기 모달(reco-modal)에 띄워진 프로필(가족쪽 적용 대상)
-
-function getDismissedMap() {
-  try { return JSON.parse(localStorage.getItem(DISMISSED_RECO_KEY) || '{}'); } catch (e) { return {}; }
-}
-function setDismissedMap(map) {
-  try { localStorage.setItem(DISMISSED_RECO_KEY, JSON.stringify(map)); } catch (e) {}
-}
-function recoSignature(profiles) { return profiles.map(p => p.id + ':' + p.version).sort().join(','); }
-
-function hideRecoBanner() {
-  const banner = document.getElementById('reco-banner');
-  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
-}
+const DISMISSED_RECO_KEY = 'v3_dismissedRecoVersion';
+let recoData = null;
 
 // 앱 로드 시(및 계좌 전환 시) 1회 조회 — 실패해도 조용히 무시
 async function checkRecoWeights() {
@@ -1494,9 +1454,8 @@ async function checkRecoWeights() {
     const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
-    const profiles = normalizeRecoData(data);
-    if (!profiles.length) return;
-    recoProfiles = profiles;
+    if (!data || !data.version || !Array.isArray(data.stocks)) return;
+    recoData = data;
     evaluateRecoBanner();
   } catch (e) {
     // 오프라인 등 실패 시 앱 동작에 지장 없이 무시
@@ -1507,147 +1466,57 @@ function evaluateRecoBanner() {
   const banner = document.getElementById('reco-banner');
   if (!banner) return;
   // 종합계좌 모드에서는 추천 적용 대상(개별 계좌)이 모호하므로 배너를 띄우지 않음
-  if (appData.activeConsolidatedId) { hideRecoBanner(); return; }
-  if (!recoProfiles.length) { hideRecoBanner(); return; }
+  if (appData.activeConsolidatedId) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  if (!recoData) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
 
-  // 하위호환 마이그레이션: selectedStrategyId 없고 프로필이 1개뿐이면 그 전략으로 자동 연결(여럿이면 미선택 상태 유지)
-  if (!state.meta.selectedStrategyId && recoProfiles.length === 1) {
-    state.meta.selectedStrategyId = recoProfiles[0].id;
-    saveState();
-  }
-
-  const selectedId = state.meta.selectedStrategyId;
-  const dismissedMap = getDismissedMap();
-
-  // Case A: 아직 따르는 전략이 없음 — 선택 화면으로 유도
-  if (!selectedId) {
-    const sig = recoSignature(recoProfiles);
-    if (dismissedMap['__select__'] === sig) { hideRecoBanner(); return; }
-    banner.innerHTML = `
-      <span>📢 추천 비중 도착 — 따를 전략을 선택해 주세요</span>
-      <div class="reco-banner-actions">
-        <button class="btn btn-primary btn-sm" onclick="openStrategySelectScreen()">적용하기</button>
-        <button class="reco-banner-close" onclick="dismissSelectPrompt()" title="닫기">✕</button>
-      </div>`;
-    banner.style.display = 'flex';
-    return;
-  }
-
-  const profile = recoProfiles.find(p => p.id === selectedId);
-
-  // Case C: 선택했던 전략이 파일에서 사라짐(관리자가 GitHub에서도 내림) — 데이터는 자동 변경하지 않음
-  if (!profile) {
-    if (dismissedMap[selectedId + '::gone'] === 'true') { hideRecoBanner(); return; }
-    banner.innerHTML = `
-      <span>⚠️ 선택하신 추천이 종료되었습니다 — 다른 전략을 선택해 주세요</span>
-      <div class="reco-banner-actions">
-        <button class="btn btn-primary btn-sm" onclick="openStrategySelectScreen()">전략 선택</button>
-        <button class="reco-banner-close" onclick="dismissGonePrompt('${esc(selectedId)}')" title="닫기">✕</button>
-      </div>`;
-    banner.style.display = 'flex';
-    return;
-  }
-
-  // Case B: 선택된 전략의 새 버전
   const applied = state.meta.appliedRecoVersion;
-  if (profile.version === applied || dismissedMap[profile.id] === profile.version) {
-    hideRecoBanner();
+  const dismissed = localStorage.getItem(DISMISSED_RECO_KEY);
+  if (recoData.version === applied || recoData.version === dismissed) {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
     return;
   }
 
   banner.innerHTML = `
-    <span>📢 ${esc(profile.date || '')} "${esc(profile.name)}" 추천 갱신 — "${esc(profile.memo || '')}"</span>
+    <span>📢 ${esc(recoData.date || '')} 추천 비중 도착 — "${esc(recoData.memo || '')}"</span>
     <div class="reco-banner-actions">
-      <button class="btn btn-primary btn-sm" onclick="startApplyReco('${esc(profile.id)}')">적용하기</button>
-      <button class="reco-banner-close" onclick="dismissRecoBanner('${esc(profile.id)}','${esc(profile.version)}')" title="닫기">✕</button>
+      <button class="btn btn-primary btn-sm" onclick="openRecoModal()">적용하기</button>
+      <button class="reco-banner-close" onclick="dismissRecoBanner()" title="닫기">✕</button>
     </div>`;
   banner.style.display = 'flex';
 }
 
-function dismissSelectPrompt() {
-  const map = getDismissedMap();
-  map['__select__'] = recoSignature(recoProfiles);
-  setDismissedMap(map);
-  hideRecoBanner();
-}
-function dismissGonePrompt(profileId) {
-  const map = getDismissedMap();
-  map[profileId + '::gone'] = 'true';
-  setDismissedMap(map);
-  hideRecoBanner();
-}
-function dismissRecoBanner(profileId, version) {
-  const map = getDismissedMap();
-  map[profileId] = version;
-  setDismissedMap(map);
-  hideRecoBanner();
+function dismissRecoBanner() {
+  if (recoData) localStorage.setItem(DISMISSED_RECO_KEY, recoData.version);
+  const banner = document.getElementById('reco-banner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
 }
 
-// 전략이 여럿이면 선택 카드 화면, 1개뿐이면 바로 그 전략으로 진행
-function openStrategySelectScreen() {
-  if (!recoProfiles.length) return;
-  if (recoProfiles.length === 1) { startApplyReco(recoProfiles[0].id); return; }
-  const existing = document.getElementById('strategy-select-overlay');
-  if (existing) existing.remove();
-  const overlay = document.createElement('div');
-  overlay.id = 'strategy-select-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;display:flex;align-items:center;justify-content:center;';
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
-  const cards = recoProfiles.map(p => `
-    <div class="strategy-select-card" onclick="document.getElementById('strategy-select-overlay').remove();startApplyReco('${esc(p.id)}')">
-      <div style="font-weight:700;font-size:15px">${esc(p.name)}</div>
-      <div style="font-size:12px;color:var(--text-sub);margin-top:4px">${esc(p.date || '')}${p.memo ? ' · ' + esc(p.memo) : ''}</div>
-    </div>`).join('');
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:420px;padding:20px">
-      <div style="font-size:16px;font-weight:700;margin-bottom:14px">따를 전략을 선택하세요</div>
-      <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
-      <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-sm" onclick="document.getElementById('strategy-select-overlay').remove()">취소</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-function startApplyReco(profileId) {
-  const profile = recoProfiles.find(p => p.id === profileId);
-  if (!profile) return;
-  activeRecoProfile = profile;
-  openRecoModal();
-}
-
-// 두 종목 목록(ticker+market 매칭 키)을 비교해 added/changed/excluded 구조로 반환.
-// oldList 기준에서 newList로 이동할 때의 차이 — 가족쪽 적용 미리보기(2단계 로직 그대로)와
-// 관리자쪽 배포 미리보기가 이 하나의 비교 규칙을 공유한다(각자 새 코드를 만들지 않음).
-function diffStockLists(oldList, newList) {
+// 종목 매칭 키: ticker + market
+function buildRecoDiff() {
   const added = [];
   const changed = [];
   const excluded = [];
 
-  newList.forEach(ns => {
-    const existing = oldList.find(s => s.ticker === ns.ticker && s.market === ns.market);
+  recoData.stocks.forEach(rs => {
+    const existing = state.stocks.find(s => s.ticker === rs.ticker && s.market === rs.market);
     if (!existing) {
-      added.push(ns);
-    } else if (+existing.r !== +ns.r) {
-      changed.push({ name: existing.name || ns.name, from: existing.r, to: ns.r });
+      added.push(rs);
+    } else if (+existing.r !== +rs.r) {
+      changed.push({ name: existing.name, from: existing.r, to: rs.r });
     }
   });
 
-  oldList.forEach(s => {
-    const inNew = newList.some(ns => ns.ticker === s.ticker && ns.market === s.market);
-    if (!inNew) excluded.push(s);
+  state.stocks.forEach(s => {
+    const inReco = recoData.stocks.some(rs => rs.ticker === s.ticker && rs.market === s.market);
+    if (!inReco) excluded.push(s);
   });
 
   return { added, changed, excluded };
 }
 
-// 종목 매칭 키: ticker + market (2단계 원본 그대로, diffStockLists로만 위임)
-function buildRecoDiff() {
-  return diffStockLists(state.stocks, activeRecoProfile.stocks);
-}
-
 function openRecoModal() {
-  if (!activeRecoProfile) return;
+  if (!recoData) return;
   const diff = buildRecoDiff();
   let html = '';
   if (diff.added.length) {
@@ -1664,21 +1533,17 @@ function openRecoModal() {
   }
   html += `<div style="padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-sub)">적용하면 기존 종목의 개인 조정(±)이 추천 비중으로 초기화됩니다. 추천에서 제외된 종목은 삭제되지 않고 비중만 0%가 됩니다.</div>`;
 
-  const headerEl = document.getElementById('reco-modal-header');
-  if (headerEl) headerEl.textContent = `"${activeRecoProfile.name}" 적용 확인`;
   document.getElementById('reco-modal-body').innerHTML = html;
   document.getElementById('reco-modal-overlay').style.display = 'flex';
 }
 
 function closeRecoModal() {
   document.getElementById('reco-modal-overlay').style.display = 'none';
-  activeRecoProfile = null;
-  renderSettingsTab(); // 설정 탭의 "전략 변경" 드롭다운으로 미리보기만 열었다 취소한 경우 선택값 원복
 }
 
 function confirmApplyReco() {
-  if (!activeRecoProfile) return;
-  const recoList = activeRecoProfile.stocks;
+  if (!recoData) return;
+  const recoList = recoData.stocks;
   let hasNewZeroPrice = false;
 
   // 1) 기존 종목: r/adjR을 추천 값으로 갱신 / 3) 추천에 없는 기존 종목: r/adjR=0 (행 유지)
@@ -1708,12 +1573,12 @@ function confirmApplyReco() {
     hasNewZeroPrice = true;
   });
 
-  state.meta.appliedRecoVersion = activeRecoProfile.version;
-  state.meta.selectedStrategyId = activeRecoProfile.id; // 최초 선택·설정에서의 전략 변경 공용 처리
+  state.meta.appliedRecoVersion = recoData.version;
   saveState();
 
-  closeRecoModal(); // activeRecoProfile=null 처리 + 설정 탭 재렌더까지 포함
-  hideRecoBanner();
+  closeRecoModal();
+  const banner = document.getElementById('reco-banner');
+  if (banner) { banner.style.display = 'none'; banner.innerHTML = ''; }
 
   renderMeta();
   renderSummary();
@@ -2247,12 +2112,6 @@ function sanitizeLoadedAppData(loaded) {
     accounts: (loaded.accounts || []).map(migrateAccountFromV2),
     consolidated: (loaded.consolidated || []).map(c => ({ id: c.id, name: c.name, memberIds: c.memberIds || [] })),
     activeConsolidatedId: loaded.activeConsolidatedId || null,
-    // 전략 콘솔 데이터(토큰은 별도 키라 여기 안 들어있음) — 백업에 포함, 형식만 방어적으로 정리
-    strategies: (loaded.strategies || []).map(s => ({
-      id: s.id, name: s.name, coupledAccountId: s.coupledAccountId || null,
-      lastDeployedVersion: s.lastDeployedVersion || null,
-      lastDeployedStocks: Array.isArray(s.lastDeployedStocks) ? s.lastDeployedStocks : [],
-    })),
   };
 }
 
@@ -2344,43 +2203,12 @@ function buildDriveSection() {
 // ═══════════════════════════════════════════════════════════════════
 
 function buildRecoSection() {
-  const selectedId = state && state.meta ? state.meta.selectedStrategyId : null;
   const applied = state && state.meta ? state.meta.appliedRecoVersion : null;
-  const selectedProfile = recoProfiles.find(p => p.id === selectedId);
-
-  let followingText;
-  if (selectedProfile) followingText = `${esc(selectedProfile.name)} (적용 버전 ${esc(applied || '—')})`;
-  else if (selectedId) followingText = `${esc(selectedId)} <span style="color:var(--negative)">(추천 종료됨)</span>`;
-  else followingText = '없음';
-
-  const switchOptions = recoProfiles.map(p =>
-    `<option value="${esc(p.id)}" ${p.id === selectedId ? 'disabled' : ''}>${esc(p.name)}</option>`
-  ).join('');
-  const switchDropdown = recoProfiles.length
-    ? `<div style="margin-bottom:12px">
-        <span class="meta-label" style="margin-right:6px">전략 변경</span>
-        <select class="inp" id="strategy-switch-select" style="width:auto;display:inline-block" onchange="onStrategySwitchSelect(this.value)">
-          <option value="">선택...</option>
-          ${switchOptions}
-        </select>
-      </div>`
-    : '';
-
   return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
-    <div style="font-size:14px;color:var(--text-sub);margin-bottom:12px">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
-    ${switchDropdown}
+    <div style="font-size:14px;color:var(--text-sub);margin-bottom:12px">적용된 추천: <strong style="color:var(--text)">${esc(applied || '없음')}</strong></div>
     <button class="btn" onclick="checkRecoNow()">지금 확인</button>
     <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
   </div>`;
-}
-
-// 설정 탭 드롭다운에서 다른 전략 선택 — 즉시 미리보기(reco-modal 재사용), 취소하면 closeRecoModal()이 드롭다운 원복
-function onStrategySwitchSelect(profileId) {
-  if (!profileId) return;
-  const profile = recoProfiles.find(p => p.id === profileId);
-  if (!profile) return;
-  activeRecoProfile = profile;
-  openRecoModal();
 }
 
 async function checkRecoNow() {
@@ -2389,17 +2217,14 @@ async function checkRecoNow() {
     const res = await fetch('./weights.json?ts=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const profiles = normalizeRecoData(data);
-    if (!profiles.length) throw new Error('형식 오류');
-    recoProfiles = profiles;
-    if (resultEl) resultEl.style.display = 'inline';
-    const selectedId = state.meta.selectedStrategyId;
-    const profile = recoProfiles.find(p => p.id === selectedId);
+    if (!data || !data.version || !Array.isArray(data.stocks)) throw new Error('형식 오류');
+    recoData = data;
     const applied = state.meta.appliedRecoVersion;
-    if (selectedId && profile && profile.version === applied) {
+    if (resultEl) resultEl.style.display = 'inline';
+    if (data.version === applied) {
       if (resultEl) resultEl.textContent = '이미 최신입니다.';
     } else {
-      if (resultEl) resultEl.textContent = '변경 사항이 있습니다 — 계산기 탭에서 배너를 확인하세요.';
+      if (resultEl) resultEl.textContent = '새 버전이 있습니다 — 계산기 탭에서 배너를 확인하세요.';
       evaluateRecoBanner();
     }
   } catch (e) {
@@ -2408,7 +2233,7 @@ async function checkRecoNow() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  설정 탭 — ⑤ 고급 (접이식, 기본 접힘) — 전략별 비중 배포 관리자 콘솔
+//  설정 탭 — ⑤ 고급 (접이식, 기본 접힘) — 배포 도구
 // ═══════════════════════════════════════════════════════════════════
 
 let advancedOpen = false;
@@ -2418,8 +2243,52 @@ function toggleAdvanced() {
   renderSettingsTab();
 }
 
-// ── GitHub 토큰 (appData와 분리된 별도 localStorage 키 — 드라이브 백업(appData)·weights.json 어디에도 포함되지 않음) ──
-const GH_TOKEN_KEY = 'rebalance_v3_gh_token';
+function nextRecoVersion() {
+  const today = new Date();
+  const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  const taken = new Set();
+  if (state.meta.appliedRecoVersion) taken.add(state.meta.appliedRecoVersion);
+  if (recoData && recoData.version) taken.add(recoData.version);
+  let n = 1;
+  while (taken.has(`${datePart}-${n}`)) n++;
+  return `${datePart}-${n}`;
+}
+
+// [배포용 JSON 복사]와 [GitHub로 배포]가 공유하는 payload 생성 (기존 copyDeployJson 로직 그대로 분리)
+function buildDeployPayload() {
+  const memoEl = document.getElementById('deploy-memo');
+  const memo = memoEl ? memoEl.value.trim() : '';
+  const today = new Date();
+  const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  return {
+    version: nextRecoVersion(),
+    date: datePart,
+    memo,
+    stocks: state.stocks.map(s => ({ name: s.name, ticker: s.ticker, market: s.market, r: s.adjR })),
+  };
+}
+
+function copyDeployJson() {
+  const payload = buildDeployPayload();
+  const json = JSON.stringify(payload, null, 2);
+  const resultEl = document.getElementById('deploy-copy-result');
+  const showResult = msg => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(json)
+      .then(() => showResult('복사되었습니다. GitHub의 weights.json에 붙여넣으면 배포됩니다.'))
+      .catch(() => { console.log(json); showResult('클립보드 복사 실패 — 콘솔에 출력했습니다.'); });
+  } else {
+    console.log(json);
+    showResult('클립보드 API를 사용할 수 없어 콘솔에 출력했습니다.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GitHub 원버튼 배포 (신규 — 토큰은 appData와 분리된 별도 localStorage 키에 저장,
+//  드라이브 백업(appData)·weights.json 어디에도 포함되지 않음)
+// ═══════════════════════════════════════════════════════════════════
+
+const GH_TOKEN_KEY = 'rebalance_v3_gh_token'; // appData(V3_STORAGE_KEY)와 완전히 분리된 키
 const GH_OWNER = 'dg-9999917';
 const GH_REPO = 'rebalance-app';
 const GH_BRANCH = 'main'; // git으로 확인한 기본 브랜치명
@@ -2440,356 +2309,128 @@ function deleteGhToken() {
   renderSettingsTab();
 }
 
-// UTF-8 안전 base64 디코드(GitHub Contents API의 content는 60자마다 개행 포함)
-function b64DecodeUtf8(b64) {
-  const binary = atob(b64.replace(/\n/g, ''));
-  const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-function b64EncodeUtf8(str) {
-  return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
-}
+let pendingDeployPayload = null;
 
-// weights.json GET → {profiles, sha}. 구형식/파싱실패/파일없음은 profiles:[]로 취급
-// (기존 단일 배포 이력은 새 전략 시스템의 출발점이 아니므로 그대로 버림 — 설계문서 5절)
-async function fetchRemoteProfiles() {
-  const token = getGhToken();
-  const apiBase = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/weights.json`;
-  const res = await fetch(`${apiBase}?ref=${GH_BRANCH}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-  });
-  if (res.status === 401 || res.status === 403) throw new Error('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요');
-  if (res.status === 404) return { profiles: [], sha: null };
-  if (!res.ok) throw new Error(`오류 (상태 코드 ${res.status})`);
-  const json = await res.json();
-  let parsed = null;
-  try { parsed = JSON.parse(b64DecodeUtf8(json.content)); } catch (e) { parsed = null; }
-  const profiles = parsed && Array.isArray(parsed.profiles) ? parsed.profiles : [];
-  return { profiles, sha: json.sha };
-}
-
-async function putRemoteProfiles(profiles, sha, message) {
-  const token = getGhToken();
-  const apiBase = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/weights.json`;
-  const jsonStr = JSON.stringify({ profiles }, null, 2);
-  const body = { message, content: b64EncodeUtf8(jsonStr), branch: GH_BRANCH };
-  if (sha) body.sha = sha;
-  const res = await fetch(apiBase, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401 || res.status === 403) throw new Error('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요');
-  if (!res.ok) throw new Error(`배포 실패 (상태 코드 ${res.status})`);
-  return res.json();
-}
-
-function getCoupledAccountStocks(strategy) {
-  const acc = appData.accounts.find(a => a.id === strategy.coupledAccountId);
-  if (!acc) return null;
-  return acc.state.stocks.map(s => ({ name: s.name, ticker: s.ticker, market: s.market, r: s.adjR }));
-}
-
-// 변경 감지는 표시용일 뿐 어떤 자동 동작도 하지 않음(설계문서 3절) — lastDeployedStocks vs 현재 커플링 계좌 비교
-function strategyStatus(strategy) {
-  const acc = appData.accounts.find(a => a.id === strategy.coupledAccountId);
-  if (!acc) return '⚠️ 계좌 재지정 필요';
-  if (!strategy.lastDeployedVersion) return '미배포';
-  const current = getCoupledAccountStocks(strategy) || [];
-  const diff = diffStockLists(strategy.lastDeployedStocks || [], current);
-  const changed = diff.added.length || diff.changed.length || diff.excluded.length;
-  return changed ? '🔶 미배포 변경 있음' : '✅ 최신';
-}
-
-function createStrategyV3() {
-  const nameEl = document.getElementById('new-strategy-name');
-  const accEl = document.getElementById('new-strategy-account');
-  const name = nameEl ? nameEl.value.trim() : '';
-  const accountId = accEl ? accEl.value : '';
-  if (!name) { alert('전략 이름을 입력해 주세요.'); return; }
-  if (!accountId) { alert('커플링할 계좌를 선택해 주세요.'); return; }
-  if (!appData.strategies) appData.strategies = [];
-  const id = 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  appData.strategies.push({ id, name, coupledAccountId: accountId, lastDeployedVersion: null, lastDeployedStocks: [] });
-  saveState();
-  renderSettingsTab();
-}
-
-function openStrategyEditModal(id) {
-  const s = (appData.strategies || []).find(x => x.id === id);
-  if (!s) return;
-  const existing = document.getElementById('strategy-edit-overlay');
-  if (existing) existing.remove();
-  const accOptions = appData.accounts.map(a =>
-    `<option value="${esc(a.id)}" ${a.id === s.coupledAccountId ? 'selected' : ''}>${esc(a.name)}</option>`
-  ).join('');
-  const overlay = document.createElement('div');
-  overlay.id = 'strategy-edit-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:620;display:flex;align-items:center;justify-content:center;';
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:380px;padding:20px">
-      <div style="font-size:16px;font-weight:700;margin-bottom:14px">전략 편집</div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div><div class="meta-label" style="margin-bottom:4px">이름</div><input class="inp" id="edit-strategy-name" value="${esc(s.name)}" style="width:100%"></div>
-        <div><div class="meta-label" style="margin-bottom:4px">커플링 계좌</div><select class="inp" id="edit-strategy-account" style="width:100%">${accOptions}</select></div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-        <button class="btn btn-sm" onclick="document.getElementById('strategy-edit-overlay').remove()">취소</button>
-        <button class="btn btn-primary btn-sm" onclick="saveStrategyEditV3('${esc(id)}')">저장</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-function saveStrategyEditV3(id) {
-  const s = (appData.strategies || []).find(x => x.id === id);
-  if (!s) return;
-  const nameEl = document.getElementById('edit-strategy-name');
-  const accEl = document.getElementById('edit-strategy-account');
-  const name = nameEl ? nameEl.value.trim() : '';
-  if (!name) { alert('이름을 비워둘 수 없습니다.'); return; }
-  s.name = name;
-  s.coupledAccountId = accEl ? accEl.value : s.coupledAccountId;
-  saveState();
-  const overlay = document.getElementById('strategy-edit-overlay');
-  if (overlay) overlay.remove();
-  renderSettingsTab();
-}
-
-function deleteStrategyV3(id) {
-  const s = (appData.strategies || []).find(x => x.id === id);
-  if (!s) return;
-  const existing = document.getElementById('strategy-delete-overlay');
-  if (existing) existing.remove();
-  const overlay = document.createElement('div');
-  overlay.id = 'strategy-delete-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:620;display:flex;align-items:center;justify-content:center;';
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
-  overlay.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:420px;padding:20px">
-      <div style="font-size:16px;font-weight:700;margin-bottom:10px">"${esc(s.name)}" 전략 삭제</div>
-      <div style="font-size:13px;color:var(--text-sub);line-height:1.7;margin-bottom:14px">
-        <b>콘솔에서만 삭제</b>: 이 목록에서만 사라지고 GitHub의 weights.json은 그대로 유지됩니다(따르는 가족은 계속 기존 버전을 받습니다).<br>
-        <b style="color:var(--negative)">GitHub에서도 내리기</b>: weights.json에서 이 프로필을 완전히 제거합니다. 이 전략을 따르던 가족에게는 "추천이 종료되었습니다" 안내가 뜨게 됩니다.
-      </div>
-      <div id="strategy-delete-result" style="font-size:12px;margin-bottom:10px;display:none"></div>
-      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
-        <button class="btn btn-sm" onclick="document.getElementById('strategy-delete-overlay').remove()">취소</button>
-        <button class="btn btn-sm" onclick="deleteStrategyLocalOnly('${esc(id)}')">콘솔에서만 삭제</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteStrategyFromGithub('${esc(id)}')">GitHub에서도 내리기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-function deleteStrategyLocalOnly(id) {
-  appData.strategies = (appData.strategies || []).filter(s => s.id !== id);
-  saveState();
-  const overlay = document.getElementById('strategy-delete-overlay');
-  if (overlay) overlay.remove();
-  renderSettingsTab();
-}
-
-async function deleteStrategyFromGithub(id) {
-  const s = (appData.strategies || []).find(x => x.id === id);
-  if (!s) return;
+function openGithubDeployModal() {
   if (!getGhToken()) { alert('먼저 GitHub 토큰을 저장해 주세요.'); return; }
-  const resultEl = document.getElementById('strategy-delete-result');
-  const showResult = (msg, isErr) => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; resultEl.style.color = isErr ? 'var(--negative)' : 'var(--positive)'; } };
-  showResult('GitHub에서 제거하는 중...', false);
-  try {
-    const { profiles, sha } = await fetchRemoteProfiles();
-    const nextProfiles = profiles.filter(p => p.id !== id);
-    await putRemoteProfiles(nextProfiles, sha, `전략 제거: ${s.name}`);
-    appData.strategies = (appData.strategies || []).filter(x => x.id !== id);
-    saveState();
-    const overlay = document.getElementById('strategy-delete-overlay');
-    if (overlay) overlay.remove();
-    renderSettingsTab();
-  } catch (e) {
-    showResult(e.message || '실패', true);
-  }
-}
-
-function nextStrategyVersion(strategy, datePart) {
-  let n = 1;
-  while (strategy.lastDeployedVersion === `${datePart}-${n}`) n++;
-  return `${datePart}-${n}`;
-}
-
-// 배포 모달의 메모 입력값을 반영해 이번에 GitHub에 쓸 프로필 payload 생성
-// ([배포용 JSON 복사]와 [배포 확정]이 공유 — 기존 buildDeployPayload 분리 패턴 그대로)
-function buildStrategyDeployPayload(strategyId) {
-  const s = (appData.strategies || []).find(x => x.id === strategyId);
-  if (!s) return null;
-  const acc = appData.accounts.find(a => a.id === s.coupledAccountId);
-  if (!acc) return null;
-  const memoEl = document.getElementById('strategy-deploy-memo');
-  const memo = memoEl ? memoEl.value.trim() : '';
-  const today = new Date();
-  const datePart = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  return {
-    id: s.id, name: s.name,
-    version: nextStrategyVersion(s, datePart),
-    date: datePart, memo,
-    stocks: acc.state.stocks.map(st => ({ name: st.name, ticker: st.ticker, market: st.market, r: st.adjR })),
-  };
-}
-
-function openStrategyDeployModal(strategyId) {
-  const s = (appData.strategies || []).find(x => x.id === strategyId);
-  if (!s) return;
-  const acc = appData.accounts.find(a => a.id === s.coupledAccountId);
-  if (!acc) { alert('커플링 계좌가 삭제되었습니다 — 먼저 [편집]에서 계좌를 재지정하세요.'); return; }
-  if (!getGhToken()) { alert('먼저 GitHub 토큰을 저장해 주세요.'); return; }
-
-  const existing = document.getElementById('strategy-deploy-overlay');
+  pendingDeployPayload = buildDeployPayload();
+  const existing = document.getElementById('gh-deploy-modal-overlay');
   if (existing) existing.remove();
 
-  const currentStocks = getCoupledAccountStocks(s) || [];
-  const diff = diffStockLists(s.lastDeployedStocks || [], currentStocks);
-  let diffHtml = '';
-  if (diff.added.length) diffHtml += `<div class="reco-diff-block"><div class="reco-diff-title">새로 추가</div>${diff.added.map(x => esc(x.name)).join(', ')}</div>`;
-  if (diff.changed.length) diffHtml += `<div class="reco-diff-block"><div class="reco-diff-title">비중 변경</div>${diff.changed.map(c => `${esc(c.name)} ${fmtDec(c.from, 1)} → ${fmtDec(c.to, 1)}`).join('<br>')}</div>`;
-  if (diff.excluded.length) diffHtml += `<div class="reco-diff-block"><div class="reco-diff-title">제외 (계좌에서 삭제됨)</div>${diff.excluded.map(x => esc(x.name)).join(', ')}</div>`;
-  if (!diff.added.length && !diff.changed.length && !diff.excluded.length) {
-    diffHtml += `<div class="reco-diff-block">${s.lastDeployedVersion ? '마지막 배포 대비 변경 사항이 없습니다.' : '최초 배포입니다.'}</div>`;
-  }
-
   const overlay = document.createElement('div');
-  overlay.id = 'strategy-deploy-overlay';
+  overlay.id = 'gh-deploy-modal-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:650;display:flex;align-items:center;justify-content:center;';
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
-    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:460px;padding:20px;max-height:80vh;overflow-y:auto">
-      <div style="font-size:16px;font-weight:700;margin-bottom:12px">🚀 "${esc(s.name)}" 배포</div>
-      <div style="margin-bottom:12px">
-        <div class="meta-label" style="margin-bottom:4px">메모</div>
-        <input class="inp" id="strategy-deploy-memo" placeholder="예: 반도체 확대" style="width:100%">
+    <div style="background:var(--surface);border-radius:12px;width:90%;max-width:420px;padding:20px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px">🚀 GitHub로 배포</div>
+      <div style="font-size:13px;line-height:1.9;color:var(--text)">
+        <div>버전: <b>${esc(pendingDeployPayload.version)}</b></div>
+        <div>메모: ${esc(pendingDeployPayload.memo || '(없음)')}</div>
+        <div>종목 수: ${pendingDeployPayload.stocks.length}개</div>
       </div>
-      <div style="font-size:13px;line-height:1.8;color:var(--text)">${diffHtml}</div>
-      <div id="strategy-deploy-result" style="font-size:12px;margin-top:10px;display:none"></div>
-      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="copyStrategyDeployJson('${esc(strategyId)}')">JSON 복사 (예비 수단)</button>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" onclick="document.getElementById('strategy-deploy-overlay').remove()">취소</button>
-          <button class="btn btn-primary btn-sm" id="strategy-deploy-confirm-btn" onclick="confirmStrategyDeploy('${esc(strategyId)}')">확정</button>
-        </div>
+      <div id="gh-deploy-result" style="font-size:12px;margin-top:10px;display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-sm" onclick="pendingDeployPayload=null;document.getElementById('gh-deploy-modal-overlay').remove()">취소</button>
+        <button class="btn btn-primary btn-sm" id="gh-deploy-confirm-btn" onclick="confirmGithubDeploy()">배포</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
 
-function copyStrategyDeployJson(strategyId) {
-  const payload = buildStrategyDeployPayload(strategyId);
+async function confirmGithubDeploy() {
+  const payload = pendingDeployPayload;
   if (!payload) return;
-  const json = JSON.stringify(payload, null, 2);
-  const resultEl = document.getElementById('strategy-deploy-result');
-  const showResult = msg => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-sub)'; } };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(json)
-      .then(() => showResult('복사되었습니다. GitHub의 weights.json profiles 배열에 붙여넣으면 배포됩니다.'))
-      .catch(() => { console.log(json); showResult('클립보드 복사 실패 — 콘솔에 출력했습니다.'); });
-  } else {
-    console.log(json);
-    showResult('클립보드 API를 사용할 수 없어 콘솔에 출력했습니다.');
-  }
-}
-
-// [배포] 확정 — 이 순간에만 실제로 GitHub weights.json이 바뀐다(설계문서 핵심 원칙)
-async function confirmStrategyDeploy(strategyId) {
-  const s = (appData.strategies || []).find(x => x.id === strategyId);
-  if (!s) return;
-  const acc = appData.accounts.find(a => a.id === s.coupledAccountId);
-  if (!acc) return;
-  const payload = buildStrategyDeployPayload(strategyId);
-  if (!payload) return;
-  const btn = document.getElementById('strategy-deploy-confirm-btn');
-  const resultEl = document.getElementById('strategy-deploy-result');
-  const showResult = (msg, isErr) => { if (resultEl) { resultEl.textContent = msg; resultEl.style.display = 'block'; resultEl.style.color = isErr ? 'var(--negative)' : 'var(--positive)'; } };
+  const token = getGhToken();
+  const btn = document.getElementById('gh-deploy-confirm-btn');
+  const resultEl = document.getElementById('gh-deploy-result');
+  const showResult = (msg, isErr) => {
+    if (!resultEl) return;
+    resultEl.textContent = msg;
+    resultEl.style.display = 'block';
+    resultEl.style.color = isErr ? 'var(--negative)' : 'var(--positive)';
+  };
   if (btn) { btn.disabled = true; btn.textContent = '배포 중...'; }
 
+  const apiBase = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/weights.json`;
   try {
-    // GET: 현재 weights.json을 읽어 다른 프로필은 그대로 보존
-    const { profiles, sha } = await fetchRemoteProfiles();
-    const idx = profiles.findIndex(p => p.id === s.id);
-    if (idx >= 0) profiles[idx] = payload; else profiles.push(payload);
-    // PUT: 이 프로필만 교체/추가한 전체 목록을 다시 씀
-    await putRemoteProfiles(profiles, sha, `배포: ${s.name} ${payload.version}`);
+    let sha = null;
+    const getRes = await fetch(`${apiBase}?ref=${GH_BRANCH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (getRes.status === 401 || getRes.status === 403) {
+      showResult('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요', true);
+      if (btn) { btn.disabled = false; btn.textContent = '배포'; }
+      return;
+    }
+    if (getRes.ok) {
+      sha = (await getRes.json()).sha;
+    } else if (getRes.status === 404) {
+      showResult('GitHub에 weights.json이 없습니다 — 새로 생성합니다...', false);
+    } else {
+      showResult(`오류 (상태 코드 ${getRes.status})`, true);
+      if (btn) { btn.disabled = false; btn.textContent = '배포'; }
+      return;
+    }
 
-    s.lastDeployedVersion = payload.version;
-    s.lastDeployedStocks = payload.stocks.map(x => ({ ...x }));
-    // 배포 원본 계좌는 이미 이 버전을 그대로 반영한 상태이므로 자기 자신에게 배너가 뜨지 않도록 동기화
-    acc.state.meta.selectedStrategyId = s.id;
-    acc.state.meta.appliedRecoVersion = payload.version;
-    saveState();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(jsonStr)));
+    const body = { message: `배포 ${payload.version}`, content: b64, branch: GH_BRANCH };
+    if (sha) body.sha = sha;
 
-    showResult('배포 완료 — 반영까지 1~2분 걸릴 수 있습니다', false);
-    renderSettingsTab();
-    if (appData.activeAccountId === acc.id && !appData.activeConsolidatedId) evaluateRecoBanner();
-    setTimeout(() => { const el = document.getElementById('strategy-deploy-overlay'); if (el) el.remove(); }, 1500);
+    const putRes = await fetch(apiBase, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (putRes.status === 401 || putRes.status === 403) {
+      showResult('토큰이 유효하지 않습니다 — 설정에서 토큰을 확인하세요', true);
+    } else if (putRes.ok) {
+      state.meta.appliedRecoVersion = payload.version;
+      saveState();
+      showResult('배포 완료 — 반영까지 1~2분 걸릴 수 있습니다', false);
+      renderSettingsTab();
+      setTimeout(() => { const el = document.getElementById('gh-deploy-modal-overlay'); if (el) el.remove(); }, 1500);
+    } else {
+      showResult(`배포 실패 (상태 코드 ${putRes.status})`, true);
+    }
   } catch (e) {
-    showResult(e.message || '배포 실패', true);
+    showResult('네트워크 오류: ' + e.message, true);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '확정'; }
+    pendingDeployPayload = null;
+    if (btn) { btn.disabled = false; btn.textContent = '배포'; }
   }
 }
 
 function buildAdvancedSection() {
   const hasGhToken = !!getGhToken();
-  const strategies = appData.strategies || [];
-  const rows = strategies.map(s => {
-    const acc = appData.accounts.find(a => a.id === s.coupledAccountId);
-    const accLabel = acc ? esc(acc.name) : '<span style="color:var(--negative)">⚠️ 재지정 필요</span>';
-    return `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:6px 8px">${esc(s.name)}</td>
-      <td style="padding:6px 8px">${accLabel}</td>
-      <td style="padding:6px 8px">${esc(s.lastDeployedVersion || '미배포')}</td>
-      <td style="padding:6px 8px">${strategyStatus(s)}</td>
-      <td style="padding:6px 8px;white-space:nowrap">
-        <button class="btn btn-sm" ${acc ? '' : 'disabled title="계좌를 먼저 재지정하세요"'} onclick="openStrategyDeployModal('${esc(s.id)}')">배포</button>
-        <button class="btn btn-sm" onclick="openStrategyEditModal('${esc(s.id)}')">편집</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteStrategyV3('${esc(s.id)}')">삭제</button>
-      </td>
-    </tr>`;
-  }).join('');
-
-  const accOptions = appData.accounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
-
   return `<div class="settings-card">
     <div class="settings-card-title" style="cursor:pointer;user-select:none" onclick="toggleAdvanced()">${advancedOpen ? '▾' : '▸'} 고급</div>
     ${advancedOpen ? `
     <div>
-      <div class="settings-card-subtitle">전략별 비중 배포</div>
-      <div style="overflow-x:auto">
-        <table style="border-collapse:collapse;font-size:13px;width:100%">
-          <thead><tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-sub)">
-            <th style="padding:6px 8px">전략</th><th style="padding:6px 8px">커플링 계좌</th>
-            <th style="padding:6px 8px">배포된 버전</th><th style="padding:6px 8px">상태</th><th style="padding:6px 8px">동작</th>
-          </tr></thead>
-          <tbody>${rows || `<tr><td colspan="5" style="padding:12px 8px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
-        </table>
-      </div>
+      <div class="settings-card-subtitle">배포 도구</div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:420px">
+        <div>
+          <div class="meta-label" style="margin-bottom:4px">메모</div>
+          <input class="inp" id="deploy-memo" placeholder="예: 반도체 확대">
+        </div>
 
-      <div class="settings-add-row" style="flex-direction:column;align-items:flex-start;gap:10px;margin-top:14px">
-        <input class="inp" id="new-strategy-name" placeholder="전략 이름 (예: 방어형)" style="max-width:220px">
-        <select class="inp" id="new-strategy-account">${accOptions}</select>
-        <button class="btn btn-primary btn-sm" onclick="createStrategyV3()">+ 전략 만들기</button>
-      </div>
-
-      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
-        <div class="settings-card-subtitle">GitHub 연동</div>
-        <div style="display:flex;flex-direction:column;gap:10px;max-width:420px">
-          <div>
-            <div class="meta-label" style="margin-bottom:4px">GitHub 토큰</div>
-            <div style="display:flex;gap:6px">
-              <input class="inp" type="password" id="gh-token-input" placeholder="${hasGhToken ? '변경하려면 새 토큰 입력' : 'ghp_... 또는 github_pat_...'}" style="flex:1">
-              <button class="btn btn-sm" onclick="saveGhToken()">토큰 저장</button>
-              ${hasGhToken ? `<button class="btn btn-sm btn-danger" onclick="deleteGhToken()">삭제</button>` : ''}
-            </div>
-            <div style="font-size:11px;color:${hasGhToken ? 'var(--positive)' : 'var(--text-sub)'};margin-top:4px">${hasGhToken ? '토큰 저장됨 ●●●' : '토큰 미저장'}</div>
+        <div>
+          <div class="meta-label" style="margin-bottom:4px">GitHub 토큰</div>
+          <div style="display:flex;gap:6px">
+            <input class="inp" type="password" id="gh-token-input" placeholder="${hasGhToken ? '변경하려면 새 토큰 입력' : 'ghp_... 또는 github_pat_...'}" style="flex:1">
+            <button class="btn btn-sm" onclick="saveGhToken()">토큰 저장</button>
+            ${hasGhToken ? `<button class="btn btn-sm btn-danger" onclick="deleteGhToken()">삭제</button>` : ''}
           </div>
+          <div style="font-size:11px;color:${hasGhToken ? 'var(--positive)' : 'var(--text-sub)'};margin-top:4px">${hasGhToken ? '토큰 저장됨 ●●●' : '토큰 미저장'}</div>
+        </div>
+
+        <button class="btn btn-primary btn-sm" onclick="openGithubDeployModal()" style="align-self:flex-start" ${hasGhToken ? '' : 'disabled title="먼저 토큰을 저장하세요"'}>🚀 GitHub로 배포</button>
+
+        <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px">
+          <button class="btn btn-sm" onclick="copyDeployJson()" style="align-self:flex-start">배포용 JSON 복사 (예비 수단)</button>
+          <div id="deploy-copy-result" style="font-size:12px;color:var(--text-sub);display:none;margin-top:6px"></div>
         </div>
       </div>
     </div>` : ''}
@@ -2814,7 +2455,6 @@ function resetCurrentAccountV3() {
   if (!confirm(`"${accName}"의 종목·보유수량·원금을 모두 비웁니다.\n되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
   state.meta.p0 = 0; state.meta.fx0 = 0; state.meta.fxN = 0;
   delete state.meta.appliedRecoVersion;
-  delete state.meta.selectedStrategyId;
   state.stocks = [];
   saveState();
   renderAll();
