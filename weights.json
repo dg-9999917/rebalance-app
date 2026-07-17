@@ -3,21 +3,21 @@
     {
       "id": "s_mrojlp7cagkj",
       "name": "방어형",
-      "version": "2026-07-17-2",
+      "version": "2026-07-17-1",
       "date": "2026-07-17",
-      "memo": "2026-07-17-2",
+      "memo": "2026-07-17-3",
       "stocks": [
         {
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 4
+          "r": 5
         },
         {
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 5
+          "r": 4
         },
         {
           "name": "샌디스크",
