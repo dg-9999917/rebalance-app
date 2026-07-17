@@ -97,7 +97,6 @@
     .btn-sm { padding: 3px 8px; font-size: 12px; }
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: .88; background: var(--accent); }
-    #btn-fetch-prices { padding: 8px 16px; font-size: 14px; }
     .btn-danger { border-color: var(--negative); color: var(--negative); }
     .btn-danger:hover { background: rgba(211,47,47,.08); }
     button:disabled { opacity: 0.38; cursor: not-allowed; }
@@ -284,8 +283,8 @@
     }
     .add-stock-form .meta-field { min-width: 100px; }
     .add-stock-form .meta-field.narrow { min-width: 70px; }
-    .add-stock-form .meta-label { font-size: 16px; }
-    .add-stock-form .inp { font-size: 16px; padding: 7px 10px; }
+    .add-stock-form .meta-label { font-size: 12px; }
+    .add-stock-form .inp { font-size: 15px; padding: 7px 10px; }
     .add-stock-form .btn { font-size: 15px; padding: 7px 14px; }
 
     /* 숫자 하이라이트 */
@@ -348,15 +347,15 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         align-items: start;
-        gap: 20px 36px;
+        gap: 20px;
       }
     }
     .settings-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 10px; padding: 18px 20px;
     }
-    .settings-card-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
-    .settings-card-subtitle { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text-sub); }
+    .settings-card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .settings-card-subtitle { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-sub); }
     .settings-list-row {
       display: flex; align-items: center; gap: 12px; padding: 10px 0;
       border-bottom: 1px solid var(--border); flex-wrap: wrap;
@@ -367,8 +366,8 @@
       border-radius: 6px; padding-left: 8px; padding-right: 8px; margin: 0 -8px;
     }
     .settings-list-info { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 2px; }
-    .settings-list-name { font-weight: 700; font-size: 15px; }
-    .settings-list-sub { font-size: 13px; color: var(--text-sub); }
+    .settings-list-name { font-weight: 700; font-size: 14px; }
+    .settings-list-sub { font-size: 12px; color: var(--text-sub); }
     .settings-badge-active {
       font-size: 11px; background: var(--accent); color: #fff;
       padding: 1px 7px; border-radius: 3px; font-weight: 700; margin-left: 6px;
@@ -378,8 +377,6 @@
       display: flex; gap: 10px; align-items: center; margin-top: 14px;
       padding-top: 14px; border-top: 1px dashed var(--border); flex-wrap: wrap;
     }
-    #settings-content .btn { font-size: 13.5px; }
-    #settings-content .btn-sm { font-size: 13px; }
 
     /* 드래그 SortableJS 피드백 */
     .sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
@@ -709,19 +706,6 @@ function migrateAccountFromV2(acc) {
   };
 }
 
-// 종합계좌 멤버 목록 중 존재하지 않는 계좌 id를 제거 (로드 시 1회 자가 치유)
-function healConsolidatedMembers() {
-  let changed = false;
-  (appData.consolidated || []).forEach(c => {
-    const validIds = (c.memberIds || []).filter(id => appData.accounts.some(a => a.id === id));
-    if (validIds.length !== (c.memberIds || []).length) {
-      c.memberIds = validIds;
-      changed = true;
-    }
-  });
-  if (changed) saveState();
-}
-
 function loadState() {
   try {
     // ① v3 신형 키
@@ -732,7 +716,6 @@ function loadState() {
         appData = parsed;
         if (!Array.isArray(appData.consolidated)) appData.consolidated = [];
         if (!('activeConsolidatedId' in appData)) appData.activeConsolidatedId = null;
-        healConsolidatedMembers();
         const validId = appData.accounts.find(a => a.id === appData.activeAccountId)
           ? appData.activeAccountId : appData.accounts[0].id;
         activateAccount(validId);
@@ -786,13 +769,15 @@ function addStockFromForm() {
   const name   = document.getElementById('add-name').value.trim();
   const ticker = document.getElementById('add-ticker').value.trim().toUpperCase();
   const market = document.getElementById('add-market').value;
+  const c0raw  = document.getElementById('add-c0').value.trim();
   if (!name || !ticker) { alert('종목명과 티커를 입력하세요.'); return; }
   if (state.stocks.find(s => s.id === ticker)) { alert('이미 존재하는 티커입니다: ' + ticker); return; }
   if (market === 'CASH' && state.stocks.some(s => s.market === 'CASH')) { alert('현금(CASH) 행은 계좌당 1개만 존재할 수 있습니다.'); return; }
-  const c0 = market === 'CASH' ? 1 : 0;
+  const c0 = market === 'CASH' ? 1 : (parseNum(c0raw) || 0);
   state.stocks.push({ id: ticker, name, ticker, market, c0, price: 0, r: 0, adjR: 0, q: 0, avg: 0 });
   document.getElementById('add-name').value = '';
   document.getElementById('add-ticker').value = '';
+  document.getElementById('add-c0').value = '';
   saveState(); renderTable();
 }
 
@@ -1097,6 +1082,11 @@ function renderTable() {
         <option value="US">US</option>
         <option value="CASH">CASH</option>
       </select>
+    </div>
+    <div class="meta-field">
+      <span class="meta-label">종가</span>
+      <input class="inp inp-num" id="add-c0" placeholder="0" style="width:90px"
+        onfocus="commaFocus(this)" onblur="commaBlur(this)">
     </div>
     <div class="meta-field" style="justify-content:flex-end">
       <span class="meta-label">&nbsp;</span>
@@ -1763,18 +1753,6 @@ function deleteAccountV3(id) {
     if (other) activateAccount(other.id);
   }
   appData.accounts = appData.accounts.filter(a => a.id !== id);
-
-  // 종합계좌 멤버 목록에서도 함께 제거, 멤버가 0개가 된 종합계좌는 삭제 여부 확인
-  (appData.consolidated || []).forEach(c => {
-    if (c.memberIds.includes(id)) c.memberIds = c.memberIds.filter(mid => mid !== id);
-  });
-  (appData.consolidated || []).filter(c => c.memberIds.length === 0).forEach(c => {
-    if (confirm(`멤버가 없어진 종합계좌 "${c.name}"도 삭제할까요?`)) {
-      if (appData.activeConsolidatedId === c.id) appData.activeConsolidatedId = null;
-      appData.consolidated = appData.consolidated.filter(x => x.id !== c.id);
-    }
-  });
-
   saveState();
   renderSettingsTab();
   renderAll();
@@ -2137,7 +2115,7 @@ function buildGdriveUI() {
   if (!isConnected) {
     return `
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:14px;color:var(--text-sub)">구글 드라이브에 연결하면 계좌 데이터를 백업/복원할 수 있습니다.</div>
+        <div style="font-size:13px;color:var(--text-sub)">구글 드라이브에 연결하면 계좌 데이터를 백업/복원할 수 있습니다.</div>
         <div><button class="btn btn-primary" onclick="connectGoogleDrive()">구글 드라이브 연결</button></div>
         ${email ? `<div style="font-size:11px;color:var(--text-muted)">이전 연결: ${esc(email)} (재연결 필요)</div>` : ''}
       </div>`;
@@ -2147,9 +2125,9 @@ function buildGdriveUI() {
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="color:var(--positive);font-weight:700">✅ 연결됨</span>
-        <span style="font-size:14px;color:var(--text-sub)">${esc(email)}</span>
+        <span style="font-size:13px;color:var(--text-sub)">${esc(email)}</span>
       </div>
-      <div style="font-size:13px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
+      <div style="font-size:12px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" onclick="manualDriveBackup(event)">지금 백업하기</button>
         <button class="btn" onclick="loadFromDrive()">드라이브에서 불러오기</button>
@@ -2176,7 +2154,7 @@ function buildDriveSection() {
 function buildRecoSection() {
   const applied = state && state.meta ? state.meta.appliedRecoVersion : null;
   return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
-    <div style="font-size:14px;color:var(--text-sub);margin-bottom:12px">적용된 추천: <strong style="color:var(--text)">${esc(applied || '없음')}</strong></div>
+    <div style="font-size:13px;color:var(--text-sub);margin-bottom:12px">적용된 추천: <strong style="color:var(--text)">${esc(applied || '없음')}</strong></div>
     <button class="btn" onclick="checkRecoNow()">지금 확인</button>
     <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
   </div>`;

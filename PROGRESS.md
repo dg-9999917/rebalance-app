@@ -1,5 +1,27 @@
 # 구현 진행 상황
 
+## v3 디자인 2차 — 버튼·폼·설정 다듬기 + 종합계좌 참조 정리 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인, `v3_before_design2.html` 백업 생성(직전 커밋 2e2f51c 상태와 byte-for-byte 동일 확인) — index.html은 시작부터 무수정 확인(git diff 없음)
+- [x] 1. 시세 새로고침 버튼: `#btn-fetch-prices` 전용 규칙 신규 추가(기존 `.btn` 12.5px/5px 12px → 14px/8px 16px), 다른 `.btn` 요소(설정 탭 버튼 등)는 영향 없음
+- [x] 2. 종목 추가 폼: "종가" `<input id="add-c0">` 필드 완전 삭제(HTML+JS 양쪽) — `addStockFromForm()`에서 `c0raw` 읽기 제거, `c0`는 CASH면 1 아니면 0으로 고정(기존에도 가격 없이 추가 가능했던 로직이라 동작 자체는 그대로, 입력칸만 제거). `.add-stock-form .meta-label` 12→16px, `.inp` 15→16px
+- [x] 3. 설정 탭: 2열 그리드 `gap` 20px(고정) → `gap:20px 36px`(row 20px 유지, column만 1.8배 확대), `.settings-card-title` 15→16px, `.settings-card-subtitle` 13→14px, `.settings-list-name` 14→15px, `.settings-list-sub` 12→13px, `#settings-content .btn`/`.btn-sm` 전용 규칙 추가(12.5/12→13.5/13px) — 드라이브·추천비중 섹션의 인라인 본문 텍스트(연결 안내·이메일·마지막 백업·적용된 추천)도 13→14px, 12→13px로 동반 상향. 모달(드라이브 미리보기, GitHub 배포 확인) 내부 텍스트는 "탭" 범위 밖이라 미변경
+- [x] 4. 종합계좌 죽은 참조 정리(버그성 정리, 스크린샷에서 "(삭제됨)" 표시 확인됨):
+  — `deleteAccountV3()`: 계좌 삭제 직후 모든 종합계좌의 `memberIds`에서 해당 id 제거, 멤버가 0개가 된 종합계좌마다 개별 확인 모달("멤버가 없어진 종합계좌 ○○도 삭제할까요?") 표시 → 확인 시 삭제(활성 종합계좌였다면 `activeConsolidatedId=null`), 거절 시 0명인 채로 유지
+  — 신규 `healConsolidatedMembers()`: `loadState()` v3 키 로드 경로(①)에서 활성 계좌 결정 직전에 호출 — 존재하지 않는 계좌 id를 각 종합계좌 `memberIds`에서 걸러내고, 변경이 있었을 때만 `saveState()` 1회(1회 자가 치유). v2→v3 마이그레이션 경로(②)는 consolidated가 항상 빈 배열로 시작해 해당 없음
+  — `buildConsolidatedData()`는 무수정(로직 자체가 아니라 입력되는 memberIds만 정리하는 방식), "(삭제됨)" 폴백 텍스트(2443행)는 방어 코드로 유지 — 정상 흐름에서는 더 이상 노출되지 않음을 테스트로 확인
+  — drive 복원(`restoreFromDrive`/`sanitizeLoadedAppData`)은 이번 지시 범위("로드 시"=앱 부팅 시 loadState) 밖이라 미변경, 두 함수 모두 byte-for-byte 무수정 재검증
+- [x] Node vm으로 v3.html 인라인 스크립트 전체 로드 후 시나리오 검증(신규 스크립트, 레거시 run_verify*.js 없음 — 이번 세션에서 작성):
+  — TEST A: 종가 입력칸 없이 `addStockFromForm()` 호출 시 종목이 `price=0, c0=0`으로 정상 추가
+  — TEST B: 계좌 삭제 → 계속 멤버가 남는 종합계좌(A)는 해당 id만 제거, 멤버 0개가 된 종합계좌(B)는 확인 모달에서 "예" 선택 시 삭제됨을 확인
+  — TEST B2: 같은 상황에서 확인 모달 "아니오" 선택 시 종합계좌가 멤버 0개인 채로 남고 `activeConsolidatedId`도 그대로 유지됨을 확인(강제 해제 안 함)
+  — TEST C: localStorage에 유령 계좌 id를 포함한 종합계좌 데이터를 심어두고 `loadState()` 호출 → 메모리 상 `memberIds`와 localStorage 저장값 양쪽 모두 유령 id가 제거됨을 확인(1회 자가 치유)
+  — TEST D: 전체 부트스트랩(`loadState()+renderAll()+renderSettingsTab()`)이 예외 없이 완료되는 것을 종목 2개(US+CASH) 있는 계좌로 스모크 테스트
+- [x] 계산 함수 전수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight/computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/sanitizeLoadedAppData/migrateAccountFromV2/migrateStockFromV2) git HEAD(2e2f51c) 대비 byte-for-byte 동일 재검증(자동 diff 스크립트) — 전부 OK
+- [x] index.html 무수정 확인(git diff 없음)
+- [x] sw.js CACHE_NAME rebalance-v55 → rebalance-v56
+- [ ] (미수행) 실제 브라우저에서 레이아웃 육안 확인·계좌 삭제 확인모달 실제 클릭 흐름 — 이번 세션은 코드 변경과 Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 디자인 1차 — 크기·정렬 다듬기 (v3.html) — 2026-07-16
 - [x] 시작 전 `v3_before_design1.html` 백업 생성 — 직전 커밋(0e8ddfa) 상태와 diff 없음(byte-for-byte 동일) 확인
 - [x] 1. 상단 기준 영역: `.settings-meta`에 `justify-content: space-between` 추가(기존엔 시세새로고침 버튼의 `margin-left:auto`가 나머지 4개 필드를 왼쪽에 몰아넣던 문제 — 그 inline `margin-left:auto` 제거), 값 3개(1%금액/현재비중합계/현재환율) 15px→20px, 라벨은 `.settings-meta .meta-label`로 스코프해 13px, 전체자금 입력 `#in-p0`는 19px·굵게·padding/width 확대(기존 인라인 width:140px 제거하고 CSS로 이전)
