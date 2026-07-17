@@ -46,8 +46,8 @@
       --positive:    #0f9d58;
       --negative:    #d32f2f;
       --header-bg:   #ffffff;
-      --tab-active:  #111318;
-      --tab-inactive:#454b57;
+      --tab-active:  #1a73e8;
+      --tab-inactive:#9ca3af;
       --btn-bg:      #e8eaed;
       --btn-hover:   #d8dce4;
       --input-bg:    #f9fafb;
@@ -83,7 +83,7 @@
       transition: color .12s, border-color .12s; white-space: nowrap;
     }
     .tab-btn:hover:not(.active) { color: var(--text); }
-    .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); font-weight: 800; }
+    .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
 
     .header-actions {
       display: flex; align-items: center; gap: 6px; padding: 6px 0;
@@ -235,7 +235,7 @@
     :root[data-theme="dark"] tr.group-hdr.group-cash td { background: #1a2d20; color: #5ecf88; }
 
     /* 행 교차 줄무늬 */
-    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #eceef2; }
+    tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #f5f6f8; }
     :root[data-theme="dark"] tbody tr:nth-child(even):not(.group-hdr):not(.subtotal-row) { background: #1f2229; }
 
     /* 수정 9차 — 종목 행 클릭 선택(표시용, 줄무늬·호버보다 우선) */
@@ -260,7 +260,6 @@
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 4px 6px; font-size: 18px; line-height: 1;
-      transition: width .12s ease;
     }
     .ratio-cell .inp-r:focus { outline: none; border-color: var(--accent); }
 
@@ -305,8 +304,6 @@
     .val-pos { color: var(--positive); }
     .val-neg { color: var(--negative); }
     .val-dim { color: var(--text-sub); opacity: 0.85; }
-    /* 수정 10차 — 종합계좌 뷰 숫자의 소수부만 살짝 작게(smallDec() 헬퍼가 감싸는 대상) */
-    .dec-sm { font-size: 0.78em; }
 
     /* 표 입력칸 — 디자인 6차: 18px로 확대. line-height:1로 고정해 body의 1.5 상속을 끊어야
        td.num의 8px 상하 padding과 합쳐도 행 높이(이름 열 기준 ~44px)를 넘지 않음 */
@@ -314,12 +311,8 @@
       background: var(--input-bg); color: var(--text);
       border: 1px solid var(--border); border-radius: 4px;
       padding: 4px 6px; font-size: 18px; line-height: 1; text-align: right;
-      transition: width .12s ease;
     }
     .inp-pf:focus { outline: none; border-color: var(--accent); }
-    /* 수정 10차 — 입력칸이 든 셀만 가운데 정렬해 폭이 변할 때 양옆으로 자연스럽게 커지도록 함
-       (표시 전용 숫자 셀은 기존 우측 정렬 그대로 — :has()로 입력칸이 실제 있는 셀만 골라 적용) */
-    #tbl-wrap tbody td.num:has(.inp-pf) { text-align: center; }
 
     /* 추천 비중 배너 */
     #reco-banner {
@@ -674,16 +667,6 @@ function onAdjRInput(id, raw) {
   s.adjR = Math.max(0, parseNum(raw)); saveState(); renderDerived();
 }
 
-// 수정 10차 — 표 입력칸 유동 폭: 값 길이에 맞춰 ch 단위로 넓혔다 줄임(가운데 정렬 CSS와 합쳐
-// 양옆으로 자연스럽게 커지는 효과). data-min-ch/data-max-ch(최소=기존 고정폭, 최대=열 폭 이내)로
-// 제한. width만 바꾸므로 커서 위치·선택 범위에는 영향 없음
-function autoSizeInput(el) {
-  const minCh = parseFloat(el.dataset.minCh) || 0;
-  const maxCh = parseFloat(el.dataset.maxCh) || 999;
-  const len = (el.value || '').length;
-  el.style.width = Math.max(minCh, Math.min(maxCh, len + 1.5)) + 'ch';
-}
-
 // ── 입력칸 콤마 포매터 (index.html 원본 그대로 복사) ─────────────────
 function commaFocus(el) {
   el.value = el.value.replace(/,/g, '');
@@ -1015,10 +998,10 @@ function renderTable() {
   let html = `<table style="table-layout:fixed">
     <colgroup>
       <col style="width:190px"><!-- 종목(현재 크기 유지) -->
-      <col style="width:125px"><!-- 현재가(수정10차: 입력칸 유동폭 여유분 확보) -->
-      <col style="width:125px"> <!-- 평단가(수정10차) -->
-      <col style="width:115px"> <!-- 보유수량(수정10차) -->
-      <col style="width:150px"><!-- 설정비율(수정10차) -->
+      <col style="width:110px"><!-- 현재가 -->
+      <col style="width:105px"> <!-- 평단가 -->
+      <col style="width:95px"> <!-- 보유수량 -->
+      <col style="width:130px"><!-- 설정비율 -->
       <col style="width:90px"> <!-- 현재비중 -->
       <col style="width:100px"> <!-- 필요매매 -->
       <col style="width:135px"><!-- 평가금액 -->
@@ -1085,20 +1068,18 @@ function renderTable() {
       }
 
       const cashNegCls = isAutoCash && s.q < 0 ? ' val-neg' : '';
-      // 수정 10차 — $ 표시는 미국 그룹에만 적용(내부 계산은 항상 원화, 표시만 분기)
-      const evalStr = (evalCur === 'USD' && g.market === 'US')
-        ? (hasFxN ? '$' + fmtNum(val / state.meta.fxN, 2) : '—')
+      const evalStr = evalCur === 'USD'
+        ? (hasFxN ? '$' + fmtNum((isCash ? s.q : val) / state.meta.fxN, 2) : '—')
         : (isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—'));
       const priceDisplay = isCash ? '—'
         : (s.price > 0
           ? (s.market === 'US' ? '$' : '') + fmtNum(s.price, s.price % 1 ? 2 : 0)
           : `<input class="inp-pf" type="text" inputmode="decimal"
               value="" placeholder="직접 입력"
-              style="width:8ch" data-min-ch="8" data-max-ch="11"
-              oninput="autoSizeInput(this)"
-              onfocus="commaFocus(this);autoSizeInput(this)"
+              style="width:80px"
+              onfocus="commaFocus(this)"
               onchange="onPriceInput('${s.id}',this.value)"
-              onblur="commaBlur(this);autoSizeInput(this)">`);
+              onblur="commaBlur(this)">`);
 
       html += `<tr data-stock-id="${s.id}">
         <td>
@@ -1117,39 +1098,36 @@ function renderTable() {
                 : `<input class="inp-pf" type="text" inputmode="decimal"
                     id="pf-in-q-${s.id}"
                     value="${s.q ? fmtDec(s.q, 2) : ''}"
-                    style="width:7ch;text-align:center" data-min-ch="7" data-max-ch="18"
-                    oninput="autoSizeInput(this)"
-                    onfocus="commaFocus(this);autoSizeInput(this)"
+                    style="width:72px;text-align:center"
+                    onfocus="commaFocus(this)"
                     onchange="onQtyInput('${s.id}',this.value)"
-                    onblur="commaBlur(this);autoSizeInput(this)">`
+                    onblur="commaBlur(this)">`
             }</td>`
           : `<td class="num" style="border-left:2px solid var(--border)">${priceDisplay}</td>
         <td class="num"><input class="inp-pf" type="text" inputmode="decimal"
             id="pf-in-avg-${s.id}"
             value="${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : ''}"
-            style="width:8.5ch" data-min-ch="8.5" data-max-ch="11"
-            oninput="autoSizeInput(this)"
-            onfocus="commaFocus(this);autoSizeInput(this)"
+            style="width:85px"
+            onfocus="commaFocus(this)"
             onchange="onAvgInput('${s.id}',this.value)"
-            onblur="commaBlur(this);autoSizeInput(this)"></td>
+            onblur="commaBlur(this)"></td>
         <td class="num">
                 <input class="inp-pf" type="text" inputmode="decimal"
                 id="pf-in-q-${s.id}"
                 value="${s.q ? fmtDec(s.q, 2) : ''}"
-                style="width:7ch" data-min-ch="7" data-max-ch="9"
-                oninput="autoSizeInput(this)"
-                onfocus="commaFocus(this);autoSizeInput(this)"
+                style="width:72px"
+                onfocus="commaFocus(this)"
                 onchange="onQtyInput('${s.id}',this.value)"
-                onblur="commaBlur(this);autoSizeInput(this)">
+                onblur="commaBlur(this)">
         </td>`
         }
         <td class="center" style="border-left:2px solid var(--border)">
           <div class="ratio-cell">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',-0.5)">−</button>
             <input class="inp-r" type="number" min="0" step="0.5"
-              value="${s.adjR}" style="width:5.5ch" data-min-ch="5.5" data-max-ch="7"
+              value="${s.adjR}"
               onchange="onAdjRInput('${s.id}',this.value)"
-              oninput="onAdjRInput('${s.id}',this.value);autoSizeInput(this)">
+              oninput="onAdjRInput('${s.id}',this.value)">
             <button class="pm-btn" onclick="onAdjRChange('${s.id}',0.5)">+</button>
           </div>
         </td>
@@ -1163,7 +1141,7 @@ function renderTable() {
 
     const subWtCls   = subWeight > 0 ? 'val-pos' : '';
     const showUsWarn = g.market === 'US' && !hasFxN;
-    const subValStr  = (evalCur === 'USD' && g.market === 'US')
+    const subValStr  = evalCur === 'USD'
       ? (hasFxN ? '$' + fmtNum(subVal / state.meta.fxN, 2) : '—')
       : (showUsWarn ? '—' : fmtNum(subVal) + ' 원');
     html += `<tbody><tr class="subtotal-row">
@@ -1200,7 +1178,6 @@ function renderTable() {
   </div>`;
 
   wrap.innerHTML = html;
-  wrap.querySelectorAll('.inp-pf, .inp-r').forEach(autoSizeInput); // 초기 렌더 시점에도 값 길이에 맞게 폭 반영
   initSortable();
 }
 
@@ -1252,8 +1229,8 @@ function updateRows() {
     }
     if (evalEl) {
       const val = evalVal(s);
-      evalEl.textContent = (evalCur === 'USD' && s.market === 'US')
-        ? (hasFxN ? '$' + fmtNum(val / state.meta.fxN, 2) : '—')
+      evalEl.textContent = evalCur === 'USD'
+        ? (hasFxN ? '$' + fmtNum((isCash ? s.q : val) / state.meta.fxN, 2) : '—')
         : (isCash ? fmtNum(s.q) + ' 원' : (valOk ? fmtNum(val) + ' 원' : '—'));
       if (isAutoCash) evalEl.className = 'num' + (s.q < 0 ? ' val-neg' : '');
     }
@@ -1271,7 +1248,7 @@ function updateRows() {
     });
     const subWtCls   = subWeight > 0 ? 'val-pos' : '';
     const showUsWarn = g.market === 'US' && !hasFxN;
-    const subValStr  = (evalCur === 'USD' && g.market === 'US')
+    const subValStr  = evalCur === 'USD'
       ? (hasFxN ? '$' + fmtNum(subVal / state.meta.fxN, 2) : '—')
       : (showUsWarn ? '—' : fmtNum(subVal) + ' 원');
 
@@ -1412,13 +1389,6 @@ function deactivateConsolidatedV3() {
   renderAll();
 }
 
-// 수정 10차 — 종합계좌 뷰 전용 표시 헬퍼: 이미 포맷된 숫자 문자열(fmtNum/fmtDec 결과)에서
-// 소수부(.xx)만 살짝 작게 감싼다. 계산값은 그대로, 이 함수를 호출한 곳(종합계좌 뷰)에만 적용되고
-// 다른 화면(개별 계좌 표 등)은 전혀 건드리지 않음. '—' 등 소수점이 없는 문자열은 그대로 반환
-function smallDec(str) {
-  return String(str).replace(/\.\d+/, m => `<span class="dec-sm">${m}</span>`);
-}
-
 // 종합계좌 읽기 전용 뷰 — 입력칸·±·×·드래그 핸들 없이 텍스트로만 표시
 function renderConsolidatedView() {
   const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
@@ -1494,22 +1464,22 @@ function renderConsolidatedView() {
       const badgeClass = s.market === 'US' ? 'badge-us' : 'badge-kr';
       html += `<tr>
         <td><span class="stock-name">${esc(s.name)}</span><span class="stock-ticker">${esc(s.ticker)}</span><span class="badge ${badgeClass}">${s.market}</span></td>
-        <td class="num" style="border-left:2px solid var(--border)">${smallDec(s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—')}</td>
-        <td class="num">${smallDec(s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—')}</td>
-        <td class="num">${smallDec(s.q ? fmtDec(s.q, 2) : '—')}</td>
+        <td class="num" style="border-left:2px solid var(--border)">${s.price ? fmtNum(s.price, s.price % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.avg ? fmtNum(s.avg, s.avg % 1 ? 2 : 0) : '—'}</td>
+        <td class="num">${s.q ? fmtDec(s.q, 2) : '—'}</td>
         <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-        <td class="num">${smallDec(per1 && valOk ? fmtDec(wt, 2) : '—')}</td>
+        <td class="num">${per1 && valOk ? fmtDec(wt, 2) : '—'}</td>
         <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-        <td class="num">${valOk ? smallDec(fmtNum(val)) + ' 원' : '—'}</td>
+        <td class="num">${valOk ? fmtNum(val) + ' 원' : '—'}</td>
       </tr>`;
     });
 
     html += `</tbody><tbody><tr class="subtotal-row">
       <td colspan="4" style="text-align:right;padding-right:10px">${g.label} 합계</td>
       <td class="num">—</td>
-      <td class="num">${smallDec(per1 ? fmtDec(subWeight, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(subWeight, 2) : '—'}</td>
       <td class="num"></td>
-      <td class="num">${smallDec(fmtNum(subVal))} 원</td>
+      <td class="num">${fmtNum(subVal)} 원</td>
     </tr></tbody>`;
   });
 
@@ -1524,18 +1494,18 @@ function renderConsolidatedView() {
     </tr></tbody>`;
     html += `<tbody><tr>
       <td><span class="stock-name">현금</span><span class="badge badge-cash">CASH</span></td>
-      <td class="num center${cashNeg}" colspan="3" style="border-left:2px solid var(--border);text-align:center" title="자동 계산: 전체 자금 − 매수 원가 합계(멤버 계좌 합산)">${smallDec(fmtNum(data.cash))}</td>
+      <td class="num center${cashNeg}" colspan="3" style="border-left:2px solid var(--border);text-align:center" title="자동 계산: 전체 자금 − 매수 원가 합계(멤버 계좌 합산)">${fmtNum(data.cash)}</td>
       <td class="center" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-      <td class="num">${smallDec(per1 ? fmtDec(cashWt, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
       <td class="num" style="border-left:2px solid var(--border)"><span class="val-dim">—</span></td>
-      <td class="num${cashNeg}">${smallDec(fmtNum(data.cash))} 원</td>
+      <td class="num${cashNeg}">${fmtNum(data.cash)} 원</td>
     </tr></tbody>`;
     html += `<tbody><tr class="subtotal-row">
       <td colspan="4" style="text-align:right;padding-right:10px">현금 합계</td>
       <td class="num">—</td>
-      <td class="num">${smallDec(per1 ? fmtDec(cashWt, 2) : '—')}</td>
+      <td class="num">${per1 ? fmtDec(cashWt, 2) : '—'}</td>
       <td class="num"></td>
-      <td class="num">${smallDec(fmtNum(data.cash))} 원</td>
+      <td class="num">${fmtNum(data.cash)} 원</td>
     </tr></tbody>`;
   }
 
@@ -1599,12 +1569,8 @@ async function fetchWeightsJson() {
   return await tryFetch('./weights.json'); // 절대 주소 실패 시 1회 폴백
 }
 
-// 앱 로드 시(및 계좌 전환 시) 조회 — 실패해도 조용히 무시. 수정 10차부터는 화면 복귀·30분
-// 주기로도 호출됨(아래 checkRecoWeightsThrottled 경유) — 마지막 호출 시각을 기록해 두어
-// 그 두 자동 트리거가 1분 이내 재확인을 생략할 수 있게 함
-let lastRecoCheckTs = 0;
+// 앱 로드 시(및 계좌 전환 시) 1회 조회 — 실패해도 조용히 무시
 async function checkRecoWeights() {
-  lastRecoCheckTs = Date.now();
   try {
     const data = await fetchWeightsJson();
     if (!data) return;
@@ -1615,13 +1581,6 @@ async function checkRecoWeights() {
   } catch (e) {
     // 오프라인 등 실패 시 앱 동작에 지장 없이 무시
   }
-}
-
-// 수정 10차 — 화면 복귀(visibilitychange)·30분 주기 자동 확인 전용 래퍼.
-// 마지막 확인(수동 확인 포함) 후 1분 이내면 과도한 요청 방지를 위해 조용히 생략
-function checkRecoWeightsThrottled() {
-  if (Date.now() - lastRecoCheckTs < 60000) return;
-  checkRecoWeights();
 }
 
 function evaluateRecoBanner() {
@@ -2376,7 +2335,6 @@ function sanitizeLoadedAppData(loaded) {
       id: s.id, name: s.name, coupledAccountId: s.coupledAccountId || null,
       lastDeployedVersion: s.lastDeployedVersion || null,
       lastDeployedStocks: Array.isArray(s.lastDeployedStocks) ? s.lastDeployedStocks : [],
-      lastDeployedMemo: s.lastDeployedMemo || '', // 수정 10차 — 콘솔 테이블 메모 열 표시용
     })),
   };
 }
@@ -2517,7 +2475,6 @@ function onStrategySwitchSelect(profileId) {
 }
 
 async function checkRecoNow() {
-  lastRecoCheckTs = Date.now(); // 수동 확인도 자동 확인의 1분 쿨다운에 포함시킴
   const resultEl = document.getElementById('reco-check-result');
   try {
     const data = await fetchWeightsJson();
@@ -2565,35 +2522,12 @@ async function loadGhostProfiles() {
     const { profiles } = await fetchRemoteProfiles();
     const localIds = new Set((appData.strategies || []).map(s => s.id));
     ghostProfilesCache = profiles.filter(p => !localIds.has(p.id));
-    reconcileStrategiesWithRemote(profiles); // 같은 조회 결과로 로컬 배포 기록도 자가 보정(수정 10차)
   } catch (e) {
     ghostProfilesCache = []; // 조회 실패는 조용히 무시(고급 섹션의 나머지 렌더링을 막지 않음)
   } finally {
     ghostProfilesLoading = false;
     renderSettingsTab();
   }
-}
-
-// 수정 10차 — 로드 시 자가 보정: weights.json의 실제 버전이 로컬 콘솔 기록과 다르면 파일 기준으로
-// 갱신(상태 배지도 자연히 재판정됨 — strategyStatus()가 매번 lastDeployedStocks 기준으로 새로 계산).
-// 과거 nextStrategyVersion() 버그처럼 어떤 이유로든 로컬이 파일보다 뒤처졌던 경우를 스스로 복구
-function reconcileStrategiesWithRemote(remoteProfiles) {
-  let changed = false;
-  (appData.strategies || []).forEach(s => {
-    const remote = remoteProfiles.find(p => p.id === s.id);
-    if (!remote) return;
-    if (remote.version !== s.lastDeployedVersion) {
-      s.lastDeployedVersion = remote.version;
-      s.lastDeployedStocks = Array.isArray(remote.stocks) ? remote.stocks.map(x => ({ ...x })) : [];
-      s.lastDeployedMemo = remote.memo || '';
-      changed = true;
-    } else if ((s.lastDeployedMemo || '') !== (remote.memo || '')) {
-      s.lastDeployedMemo = remote.memo || '';
-      changed = true;
-    }
-  });
-  if (changed) saveState();
-  return changed;
 }
 
 // weights.json이 실제로 바뀌었을 수 있는 동작(토큰 변경·배포·삭제·유령 제거) 뒤에 호출 —
@@ -2742,7 +2676,7 @@ function createStrategyV3() {
   if (!accountId) { alert('커플링할 계좌를 선택해 주세요.'); return; }
   if (!appData.strategies) appData.strategies = [];
   const id = 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  appData.strategies.push({ id, name, coupledAccountId: accountId, lastDeployedVersion: null, lastDeployedStocks: [], lastDeployedMemo: '' });
+  appData.strategies.push({ id, name, coupledAccountId: accountId, lastDeployedVersion: null, lastDeployedStocks: [] });
   saveState();
   renderSettingsTab();
   renderAccountDropdown();
@@ -2850,17 +2784,9 @@ async function deleteStrategyFromGithub(id) {
   }
 }
 
-// 수정 10차 버그 수정 — 기존 코드는 lastDeployedVersion이 정확히 "date-1"일 때만 "date-2"로
-// 한 단계 전진했고, 그 외(예: 이미 "date-2")에는 곧장 "date-1"로 되돌아갔다(while 조건이 n=1에서
-// 이미 거짓이라 한 번도 안 돌고 즉시 리턴됨) — 같은 날 3번째 배포부터 버전이 "-1"로 역행하며
-// 실제로 weights.json에도 "-1"이 다시 기록되던 원인. 현재 접미번호를 파싱해 +1 하도록 수정
 function nextStrategyVersion(strategy, datePart) {
-  const current = strategy.lastDeployedVersion || '';
   let n = 1;
-  if (current.startsWith(datePart + '-')) {
-    const suffix = parseInt(current.slice(datePart.length + 1), 10);
-    if (!isNaN(suffix)) n = suffix + 1;
-  }
+  while (strategy.lastDeployedVersion === `${datePart}-${n}`) n++;
   return `${datePart}-${n}`;
 }
 
@@ -2966,7 +2892,6 @@ async function confirmStrategyDeploy(strategyId) {
 
     s.lastDeployedVersion = payload.version;
     s.lastDeployedStocks = payload.stocks.map(x => ({ ...x }));
-    s.lastDeployedMemo = payload.memo || '';
     // 배포 원본 계좌는 이미 이 버전을 그대로 반영한 상태이므로 자기 자신에게 배너가 뜨지 않도록 동기화
     acc.state.meta.selectedStrategyId = s.id;
     acc.state.meta.selectedStrategyName = s.name;
@@ -2995,7 +2920,6 @@ function buildAdvancedSection() {
       <td style="padding:10px 10px">${esc(s.name)}</td>
       <td style="padding:10px 10px">${accLabel}</td>
       <td style="padding:10px 10px">${esc(s.lastDeployedVersion || '미배포')}</td>
-      <td style="padding:10px 10px;color:var(--text-sub)">${esc(s.lastDeployedMemo || '—')}</td>
       <td style="padding:10px 10px">${strategyStatus(s)}</td>
       <td style="padding:10px 10px;white-space:nowrap">
         <button class="btn btn-sm" ${acc ? '' : 'disabled title="계좌를 먼저 재지정하세요"'} onclick="openStrategyDeployModal('${esc(s.id)}')">배포</button>
@@ -3010,7 +2934,6 @@ function buildAdvancedSection() {
       <td style="padding:10px 10px">${esc(p.name)} <span style="font-size:11px;background:var(--btn-bg);padding:1px 6px;border-radius:3px;margin-left:4px">파일에만 존재</span></td>
       <td style="padding:10px 10px">—</td>
       <td style="padding:10px 10px">${esc(p.version || '—')}</td>
-      <td style="padding:10px 10px">${esc(p.memo || '—')}</td>
       <td style="padding:10px 10px">—</td>
       <td style="padding:10px 10px;white-space:nowrap">
         <button class="btn btn-sm btn-danger" onclick="removeGhostProfile('${esc(p.id)}')">GitHub에서 내리기</button>
@@ -3033,10 +2956,9 @@ function buildAdvancedSection() {
         <table style="border-collapse:collapse;font-size:15px;width:100%">
           <thead><tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-sub)">
             <th style="padding:10px 10px">전략</th><th style="padding:10px 10px">커플링 계좌</th>
-            <th style="padding:10px 10px">배포된 버전</th><th style="padding:10px 10px">메모</th>
-            <th style="padding:10px 10px">상태</th><th style="padding:10px 10px">동작</th>
+            <th style="padding:10px 10px">배포된 버전</th><th style="padding:10px 10px">상태</th><th style="padding:10px 10px">동작</th>
           </tr></thead>
-          <tbody>${(rows + ghostRows) || `<tr><td colspan="6" style="padding:14px 10px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
+          <tbody>${(rows + ghostRows) || `<tr><td colspan="5" style="padding:14px 10px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
         </table>
       </div>
       ${ghostStatus}
@@ -3185,11 +3107,5 @@ function handleTableRowClick(e) {
   if (!wasSelected) tr.classList.add('row-selected');
 }
 document.addEventListener('click', handleTableRowClick);
-
-// ── 추천 확인 시점 확장(수정 10차): 화면 복귀 시 + 30분 주기 자동 확인 ──
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') checkRecoWeightsThrottled();
-});
-setInterval(checkRecoWeightsThrottled, 30 * 60 * 1000);
 </script>
 </body></html>
