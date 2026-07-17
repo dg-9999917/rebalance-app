@@ -1,5 +1,31 @@
 # 구현 진행 상황
 
+## v3 수정 7차 — 현금 경고 배너 + 설정 탭 확대 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 929cfa4), `v3_before_design3.html` 백업 생성(byte-for-byte 동일 확인)
+- [x] **작업1 — 현금 음수 경고 배너**: 신규 `renderCashWarnBanner(p0, cash)` 공용 헬퍼 + 개별 계좌용 `evaluateCashWarning()`(내부에서 `computeCashAmount()`를 그대로 호출만 함, 무수정) 추가. `cash<0`일 때만 `⚠️ 전체 자금(...)이 매수 원가 합계(...)보다 작습니다 — 전체 자금을 확인해 주세요.` 문구를 콤마 포맷으로 표시, 닫기 버튼 없음. HTML에 `#reco-banner` 위에 `#cash-warn-banner` 신규(연한 주황/노랑, 다크모드 별도 색상)
+  — 반응성: `syncCashAmount()`가 호출되는 두 지점(`renderTable()`·`updateRows()`) 바로 다음에 `evaluateCashWarning()`을 붙여, 전체 렌더(`renderTable`, p0 변경 시 `onP0Input`이 호출)와 부분 렌더(`updateRows`, 평단가/수량 직접 입력 시 `onAvgInput`/`onQtyInput`/`onPriceInput`이 호출) 양쪽 경로 모두에서 즉시 반영되도록 함 — "v3 수정 5차"에서 잡았던 것과 같은 종류의 stale 버그(부분 렌더 경로가 새 UI 요소를 빠뜨리는 것)를 애초에 만들지 않기 위한 설계
+  — 종합계좌 뷰: `buildConsolidatedData()`가 이미 반환하는 합산 `p0`/`cash`(멤버별 `computeCashAmount()` 합, 무수정)를 그대로 받아 `renderConsolidatedView()`에서 동일 배너로 표시
+- [x] **작업2 — 설정 탭 확대**: 2열 그리드 구조는 그대로 유지, CSS만 조정
+  — `.settings-card` padding 18px 20px → 22px 24px, `.settings-card-title` 16→18px, `.settings-card-subtitle` 14→16px
+  — `.settings-list-row` padding 10px→14px(세로 간격), `.settings-list-name` 15→16px, `.settings-list-sub` 13→15px, `.settings-badge-active`·`.settings-add-row` 여백도 비례 확대
+  — `#settings-content .btn` 13.5px/기본패딩 → 15px/8px 18px, `.btn-sm` 13px → 14px/7px 14px
+  — 신규 `#settings-content .inp`/`select.inp` — 15px·padding 9px 12px·min-height 38px(요구 범위 36~40px 충족), `.meta-label` 11→13px(입력칸 캡션이 새 15px 입력칸 대비 너무 작아 보이지 않도록)
+  — 고급 콘솔 전략 테이블: `font-size` 13→15px, `td`/`th` padding 6px 8px → 10px 10px
+  — 구글 드라이브 섹션(`buildGdriveUI`) 본문 텍스트 14/13px → 15px, ④ 추천 비중 "따르는 전략" 표시 14→16px(드롭다운은 `.inp` 클래스 공용이라 위 스코프 규칙 자동 적용), 종합계좌 만들기의 계좌 체크박스 라벨 13→15px
+  — 모달(GitHub 배포 확인, 전략 삭제/배포 확인, 드라이브 파일목록/미리보기, 전략 선택 화면)은 "설정 탭" 자체가 아니라 그 위에 뜨는 별도 오버레이라 이번 확대 범위에서 제외(디자인2차 세션과 동일한 판단 기준 유지) — 작은 보조 힌트(11px 결과 메시지·토큰 상태 등)도 기존처럼 그대로 둠
+- [x] Node vm 시나리오 검증(신규 하네스):
+  — 전체자금 100만/원가 237만 상태에서 배너가 뜨고 문구가 예시 그대로(`전체 자금(1,000,000원)이 매수 원가 합계(2,370,400원)보다 작습니다`) 일치함을 확인
+  — 300만으로 올리면(`renderTable` 전체 재렌더 경로) 즉시 사라짐, `onP0Input`으로 다시 100만으로 내리면 즉시 재노출
+  — `onAvgInput`(부분 렌더 경로)만으로 원가를 낮춰 정상화하면 즉시 사라짐, `onQtyInput`으로 다시 초과시키면 즉시 재노출 + 갱신된 수치로 표시 — 두 입력 모두 `updateRows()`만 타는 경로인데도 정상 반응함을 확인(핵심 검증 포인트)
+  — 정상 상태(원가 < 자금)인 계좌를 새로 활성화했을 때 배너가 전혀 뜨지 않음을 확인
+  — 종합계좌 뷰: 멤버 계좌 중 하나가 원가초과라 합산 현금이 음수가 되면 배너 노출(합산 p0/원가 수치로 표시), 그 계좌의 p0를 올려 합산이 정상화되면 사라짐 확인
+  — 이전 세션들(6단계 완료조건 1~6, 수정6차 절대주소/이름표시/표 마크업 검증)을 전부 재실행해 회귀 없음 확인
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) + computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/sanitizeLoadedAppData/migrateAccountFromV2/migrateStockFromV2 git HEAD(929cfa4) 대비 byte-for-byte 동일 재검증(자동 diff 스크립트) — 이번 세션은 전부 OK(이번엔 데이터 이관 함수도 무수정)
+- [x] index.html 무수정 확인(git diff 없음), 레포의 실제 weights.json도 무수정
+- [x] sw.js CACHE_NAME rebalance-v59 → rebalance-v60
+- [ ] (미수행) 실제 브라우저에서 설정 탭 2열 레이아웃이 계산기 탭과 비슷한 크기감으로 보이는지, 현금 경고 배너가 실제 입력 흐름에서 자연스럽게 뜨고 사라지는지 육안 확인 — 이번 세션은 코드 변경과 Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 수정 6차 — weights 읽기 주소 통일 + 콘솔 표 렌더링 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 df6da63). 백업본은 지시에 없어 생성하지 않음(계산 함수 무변경 재검증으로 안전점 확보)
 - [x] **원인1(콘솔 표 잘림) — DOM에서 특정**: `#tbl-wrap` 밖에서는 전혀 스코프되지 않은 전역 셀렉터 `table`/`thead th`/`thead th::after`/`thead th.num`/`thead th.center`(v3.html 160~178행, "v3 수정 3차"에서 메인 포트폴리오 표 전용으로 만든 규칙)가 원인. 특히 `thead th { position:sticky; top:46px; z-index:50; background-color:...; box-shadow:...; }`가 6단계에서 설정>고급에 새로 추가한 전략 테이블(`buildAdvancedSection()`, 원래 2766행 근처 `<table>`)에도 그대로 적용됨 — 이 표는 `#tbl-wrap`(스크롤 격리용 `isolation:isolate` 포함) 밖, `.settings-card` 안에 있는데도 헤더 행이 페이지 스크롤 기준으로 sticky가 되어 46px 지점에 고정되면서 그 아래(위) 행의 배포/편집/삭제 버튼과 겹쳐 잘려 보이는 것이었음. `renderSettingsTab()`은 매번 `container.innerHTML = ...`로 완전 교체라 "이전 렌더 잔재가 남는 문제"는 배제됨(직접 확인)

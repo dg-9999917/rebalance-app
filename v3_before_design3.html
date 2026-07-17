@@ -317,14 +317,6 @@
       width: 22px; height: 22px; border: none; border-radius: 3px;
       background: none; color: inherit; font-size: 14px; line-height: 1; opacity: .7;
     }
-
-    /* 현금 음수 경고 배너 — 닫기 버튼 없음(조건 해소 전까지 계속 노출되는 상태 표시) */
-    #cash-warn-banner {
-      display: none; align-items: center; gap: 12px; flex-wrap: wrap;
-      padding: 10px 16px; background: #fff3cd; color: #8a5a00;
-      border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600;
-    }
-    :root[data-theme="dark"] #cash-warn-banner { background: #3a2e10; color: #f0b90b; }
     #reco-banner .reco-banner-close:hover { opacity: 1; background: rgba(0,0,0,.06); }
 
     /* 추천 비중 적용 확인 모달 */
@@ -372,12 +364,12 @@
     }
     .settings-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 22px 24px;
+      border-radius: 10px; padding: 18px 20px;
     }
-    .settings-card-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
-    .settings-card-subtitle { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--text-sub); }
+    .settings-card-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+    .settings-card-subtitle { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text-sub); }
     .settings-list-row {
-      display: flex; align-items: center; gap: 14px; padding: 14px 0;
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
       border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
     .settings-list-row:last-of-type { border-bottom: none; }
@@ -385,23 +377,20 @@
       background: color-mix(in srgb, var(--accent) 6%, transparent);
       border-radius: 6px; padding-left: 8px; padding-right: 8px; margin: 0 -8px;
     }
-    .settings-list-info { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 3px; }
-    .settings-list-name { font-weight: 700; font-size: 16px; }
-    .settings-list-sub { font-size: 15px; color: var(--text-sub); }
+    .settings-list-info { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 2px; }
+    .settings-list-name { font-weight: 700; font-size: 15px; }
+    .settings-list-sub { font-size: 13px; color: var(--text-sub); }
     .settings-badge-active {
-      font-size: 12px; background: var(--accent); color: #fff;
-      padding: 2px 8px; border-radius: 3px; font-weight: 700; margin-left: 6px;
+      font-size: 11px; background: var(--accent); color: #fff;
+      padding: 1px 7px; border-radius: 3px; font-weight: 700; margin-left: 6px;
     }
-    .settings-list-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .settings-list-actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .settings-add-row {
-      display: flex; gap: 12px; align-items: center; margin-top: 16px;
-      padding-top: 16px; border-top: 1px dashed var(--border); flex-wrap: wrap;
+      display: flex; gap: 10px; align-items: center; margin-top: 14px;
+      padding-top: 14px; border-top: 1px dashed var(--border); flex-wrap: wrap;
     }
-    #settings-content .btn { font-size: 15px; padding: 8px 18px; }
-    #settings-content .btn-sm { font-size: 14px; padding: 7px 14px; }
-    #settings-content .inp { font-size: 15px; padding: 9px 12px; min-height: 38px; box-sizing: border-box; }
-    #settings-content select.inp { min-height: 38px; }
-    #settings-content .meta-label { font-size: 13px; }
+    #settings-content .btn { font-size: 13.5px; }
+    #settings-content .btn-sm { font-size: 13px; }
 
     /* 드래그 SortableJS 피드백 */
     .sortable-chosen { background: var(--surface2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
@@ -473,9 +462,6 @@
         <span id="fetch-result" style="font-size:12px;white-space:pre-wrap;display:none"></span>
         <span style="font-size:11px;color:var(--text-muted)">* 처음 요청 시 서버 시작에 30~60초 걸릴 수 있습니다</span>
       </div>
-
-      <!-- 현금 음수 경고 배너 -->
-      <div id="cash-warn-banner"></div>
 
       <!-- 추천 비중 배너 -->
       <div id="reco-banner"></div>
@@ -604,26 +590,6 @@ function syncCashAmount() {
   if (!cash) return;
   cash.q = computeCashAmount();
   saveState();
-}
-
-// 현금 음수 경고 배너 — cash>=0(또는 값 없음)이면 숨김, 닫기 버튼 없음(조건 해소 시 자동으로 사라짐)
-// 개별 계좌·종합계좌 양쪽에서 공유(p0/cash만 다르게 넘겨줌)
-function renderCashWarnBanner(p0, cash) {
-  const banner = document.getElementById('cash-warn-banner');
-  if (!banner) return;
-  if (cash === undefined || cash === null || cash >= 0) {
-    banner.style.display = 'none';
-    banner.innerHTML = '';
-    return;
-  }
-  const costSum = (p0 || 0) - cash;
-  banner.innerHTML = `<span>⚠️ 전체 자금(${fmtNum(p0 || 0)}원)이 매수 원가 합계(${fmtNum(costSum)}원)보다 작습니다 — 전체 자금을 확인해 주세요.</span>`;
-  banner.style.display = 'flex';
-}
-
-// 개별 계좌용 — computeCashAmount()는 무수정 그대로 재사용
-function evaluateCashWarning() {
-  renderCashWarnBanner(state.meta.p0, computeCashAmount());
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -970,7 +936,6 @@ const STOCK_GROUPS = [
 
 function renderTable() {
   syncCashAmount();
-  evaluateCashWarning();
   const wrap = document.getElementById('tbl-wrap');
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
@@ -1167,7 +1132,6 @@ function renderTable() {
 // 파생 열만 갱신 (표 전체 재렌더 없이 — 입력 커서 유지용)
 function updateRows() {
   syncCashAmount();
-  evaluateCashWarning();
   const per1 = state.meta.p0 / 100;
   const hasFxN = !!(state.meta.fxN && state.meta.fxN > 0);
   const evalCur = getEvalCurrency();
@@ -1377,7 +1341,6 @@ function renderConsolidatedView() {
   const cons = (appData.consolidated || []).find(c => c.id === appData.activeConsolidatedId);
   if (!cons) { appData.activeConsolidatedId = null; renderAll(); return; }
   const data = buildConsolidatedData(cons);
-  renderCashWarnBanner(data ? data.p0 : 0, data ? data.cash : undefined);
 
   const p0El = document.getElementById('in-p0');
   if (p0El) { p0El.value = data && data.p0 ? fmtNum(data.p0) : ''; p0El.readOnly = true; }
@@ -2373,7 +2336,7 @@ function buildGdriveUI() {
   if (!isConnected) {
     return `
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:15px;color:var(--text-sub)">구글 드라이브에 연결하면 계좌 데이터를 백업/복원할 수 있습니다.</div>
+        <div style="font-size:14px;color:var(--text-sub)">구글 드라이브에 연결하면 계좌 데이터를 백업/복원할 수 있습니다.</div>
         <div><button class="btn btn-primary" onclick="connectGoogleDrive()">구글 드라이브 연결</button></div>
         ${email ? `<div style="font-size:11px;color:var(--text-muted)">이전 연결: ${esc(email)} (재연결 필요)</div>` : ''}
       </div>`;
@@ -2383,9 +2346,9 @@ function buildGdriveUI() {
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="color:var(--positive);font-weight:700">✅ 연결됨</span>
-        <span style="font-size:15px;color:var(--text-sub)">${esc(email)}</span>
+        <span style="font-size:14px;color:var(--text-sub)">${esc(email)}</span>
       </div>
-      <div style="font-size:15px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
+      <div style="font-size:13px;color:var(--text-sub)">마지막 백업: ${esc(lastBackup)}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" onclick="manualDriveBackup(event)">지금 백업하기</button>
         <button class="btn" onclick="loadFromDrive()">드라이브에서 불러오기</button>
@@ -2435,7 +2398,7 @@ function buildRecoSection() {
     : '';
 
   return `<div class="settings-card"><div class="settings-card-title">④ 추천 비중</div>
-    <div style="font-size:16px;color:var(--text-sub);margin-bottom:14px">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
+    <div style="font-size:14px;color:var(--text-sub);margin-bottom:12px">따르는 전략: <strong style="color:var(--text)">${followingText}</strong></div>
     ${switchDropdown}
     <button class="btn" onclick="checkRecoNow()">지금 확인</button>
     <span id="reco-check-result" style="margin-left:10px;font-size:12px;color:var(--text-sub);display:none"></span>
@@ -2811,11 +2774,11 @@ function buildAdvancedSection() {
     const acc = appData.accounts.find(a => a.id === s.coupledAccountId);
     const accLabel = acc ? esc(acc.name) : '<span style="color:var(--negative)">⚠️ 재지정 필요</span>';
     return `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:10px 10px">${esc(s.name)}</td>
-      <td style="padding:10px 10px">${accLabel}</td>
-      <td style="padding:10px 10px">${esc(s.lastDeployedVersion || '미배포')}</td>
-      <td style="padding:10px 10px">${strategyStatus(s)}</td>
-      <td style="padding:10px 10px;white-space:nowrap">
+      <td style="padding:6px 8px">${esc(s.name)}</td>
+      <td style="padding:6px 8px">${accLabel}</td>
+      <td style="padding:6px 8px">${esc(s.lastDeployedVersion || '미배포')}</td>
+      <td style="padding:6px 8px">${strategyStatus(s)}</td>
+      <td style="padding:6px 8px;white-space:nowrap">
         <button class="btn btn-sm" ${acc ? '' : 'disabled title="계좌를 먼저 재지정하세요"'} onclick="openStrategyDeployModal('${esc(s.id)}')">배포</button>
         <button class="btn btn-sm" onclick="openStrategyEditModal('${esc(s.id)}')">편집</button>
         <button class="btn btn-sm btn-danger" onclick="deleteStrategyV3('${esc(s.id)}')">삭제</button>
@@ -2831,12 +2794,12 @@ function buildAdvancedSection() {
     <div>
       <div class="settings-card-subtitle">전략별 비중 배포</div>
       <div style="overflow-x:auto">
-        <table style="border-collapse:collapse;font-size:15px;width:100%">
+        <table style="border-collapse:collapse;font-size:13px;width:100%">
           <thead><tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-sub)">
-            <th style="padding:10px 10px">전략</th><th style="padding:10px 10px">커플링 계좌</th>
-            <th style="padding:10px 10px">배포된 버전</th><th style="padding:10px 10px">상태</th><th style="padding:10px 10px">동작</th>
+            <th style="padding:6px 8px">전략</th><th style="padding:6px 8px">커플링 계좌</th>
+            <th style="padding:6px 8px">배포된 버전</th><th style="padding:6px 8px">상태</th><th style="padding:6px 8px">동작</th>
           </tr></thead>
-          <tbody>${rows || `<tr><td colspan="5" style="padding:14px 10px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
+          <tbody>${rows || `<tr><td colspan="5" style="padding:12px 8px;color:var(--text-sub)">아직 만든 전략이 없습니다.</td></tr>`}</tbody>
         </table>
       </div>
 
@@ -2917,7 +2880,7 @@ function renderSettingsTab() {
 function buildConsolidatedSectionV3() {
   const cons = appData.consolidated || [];
   const memberCheckboxes = appData.accounts.map(a =>
-    `<label style="font-size:15px;display:flex;align-items:center;gap:6px">
+    `<label style="font-size:13px;display:flex;align-items:center;gap:6px">
       <input type="checkbox" value="${esc(a.id)}"> ${esc(a.name)}
     </label>`
   ).join('');
