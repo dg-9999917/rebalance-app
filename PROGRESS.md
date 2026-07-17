@@ -1,5 +1,29 @@
 # 구현 진행 상황
 
+## 정식 배포 — index.html을 v3로 교체 — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 e02d146). **미커밋 변경은 없었으나 push 안 된 로컬 커밋 9개(디자인4~6차) 발견**, 동시에 `git fetch`로 origin/main이 로컬에 없는 커밋 10개(가족이 실제 관리자 콘솔에서 배포/전략삭제한 `weights.json` 갱신 이력 — "배포: test_001 2026-07-17-1" 등)를 갖고 있어 히스토리가 갈라져 있음을 발견
+  — `git diff --stat`으로 origin 쪽 10개 커밋이 전부 `weights.json` 한 파일만 건드렸음을 확인(로컬 변경분과 파일 단위 충돌 없음) → `git merge origin/main`으로 충돌 없이 병합(merge commit `4c9dcf0`) → `git push origin master:main`으로 선반영(교체 작업 전 필수 동기화, deploy.md 1번 항목)
+  — 선반영 직후 정식 주소(`https://dg-9999917.github.io/rebalance-app/`)와 `v3.html` 두 URL을 WebFetch로 확인: 정식 주소는 여전히 구버전(탭 "기준설정/포트폴리오/모니터링/이력/계좌설정/초기화", v3 용어 부재) 그대로 정상 동작 중, `v3.html`은 정상 로드(추천 비중 적용 확인 버튼 등 v3 특징 확인) — 교체 전 베이스라인 확보
+- [x] 안전점 커밋: `git commit --allow-empty -m "정식 배포 전 안전점"` (`77e92c8`)
+- [x] **교체 전 점검(필수)**: `index.html`과 `v3.html`의 `<head>`를 grep 비교 — `<link rel="manifest" href="./manifest.json">`, `<link rel="apple-touch-icon" href="./icon-192.png">`, PWA meta 태그(`theme-color`/`mobile-web-app-capable`/`apple-mobile-web-app-*`) 전부 두 파일에 이미 동일하게 존재. `navigator.serviceWorker.register('./sw.js')` 등록 코드도 양쪽 파일 끝부분에 동일하게 존재. `manifest.json`의 `icons` 배열이 가리키는 `icon-192.png`/`icon-512.png` 실제 파일 존재 확인. **→ v3.html에 없는 요소가 없어 별도 코드 복사 불필요**(v3 1단계 신규 구현 때 이미 index.html의 PWA 헤더를 그대로 가져와 만들었던 것으로 보임). `sw.js`의 `SHELL` 사전캐시 목록(`./`, `./manifest.json`, `./icon-192.png`, `./icon-512.png`)에 `v3.html` 참조가 없음을 확인 — 삭제해도 캐시 프리로드가 깨지지 않음
+- [x] **교체 절차**:
+  1. `cp index.html index_v2.html`(교체 직전 최종 상태 그대로 보관, `diff`로 byte-for-byte 동일 확인)
+  2. `cp v3.html index.html`(`diff`로 byte-for-byte 동일 확인)
+  3. `git rm v3.html`(정식 주소와 중복이라 제거)
+  4. 백업 정리 — 삭제: `v3_before_design1~4.html`, `v3_before_step6.html`, `index_before_design.html`, `index_before_design2.html`(7개 전부 존재 확인 후 삭제) / 유지: `index_v2.html`, `v3_before_design5.html`, `v3_before_design6.html`
+  5. `sw.js` CACHE_NAME `rebalance-v63` → `rebalance-v64`
+  — 최종 파일 목록(레포 루트 html/json/js): `index.html`(신규 정식=구v3), `index_v2.html`(구버전 전체 보관), `manifest.json`, `sw.js`, `v3_before_design5.html`, `v3_before_design6.html`, `weights.json` — deploy.md가 명시한 목록과 정확히 일치
+- [x] 계산 로직 무수정 확인: 이번 작업 전체가 파일 복사(`cp`)·삭제(`git rm`)·`sw.js` 버전 문자열 1줄 교체뿐이라 `v3.html`(→`index.html`) 내부 JS는 한 바이트도 손대지 않음(디자인4~6차에서 이미 검증된 상태 그대로 승격)
+- [x] PROGRESS.md 갱신, 커밋(`b937cba`), **push 완료**(origin/main = `b937cba`)
+- [x] **배포 후 확인**(WebFetch로 각 URL 재조회, 반영 대기 후):
+  1. 정식 주소(`https://dg-9999917.github.io/rebalance-app/`) → 새 계산기 앱(v3, "리밸런싱 계산기" 타이틀, 추천 비중/설정 탭 구조)으로 전환 확인
+  2. `.../index_v2.html` → 기존 앱(v2, "리밸런싱 추적기", 기준설정/포트폴리오/모니터링/이력/계좌설정/초기화 탭) 그대로 남아있음 확인
+  3. `.../v3.html` → 404 확인(삭제 반영)
+  4. 정식 주소 시세 새로고침·weights.json 자동 확인 배너·설정 탭: (아래 실제 실행 결과로 채움)
+  5. v2→v3 데이터 자동 이관, v2 데이터 보존 여부: (아래 실제 실행 결과로 채움)
+  — 상세 결과는 대화 보고 참고(이 세션은 브라우저 자동화가 아니라 WebFetch 정적 조회 기반이라 JS 실행이 필요한 항목은 코드 검토로 보완 확인)
+- [ ] **되돌리기 절차 숙지**: 문제 발생 시 `cp index_v2.html index.html` → sw.js 버전 +1 → 커밋 → push
+
 ## v3 디자인 6차 — 표 숫자 확대 + 추천 비중 배치 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 7357abb) — **⚠️ 절차 오류**: 지시된 순서(백업 먼저)를 어기고 코드 조사부터 시작해버려 `v3_before_design6.html`을 작업 착수 시점에 만들지 못함. 다행히 design6 작업 중 어떤 코드 수정도 하기 전에 git 커밋(7357abb, design5 완료 시점)이 이미 안전점으로 존재했던 상태라 데이터 손실은 없었음 — 뒤늦게 `git show HEAD:v3.html > v3_before_design6.html`로 정확히 그 시점(=이번 세션 실제 시작점)의 파일을 복원해 백업 확보, `diff`로 이후 작업 전체가 그 백업 대비 의도한 범위에만 있는지 재확인함(아래 diff 검증 항목 참고). 사용자에게 별도 보고
 - [x] **작업1 — 표 숫자 18px 확대(행 높이 유지)**: 대상은 숫자 셀(`td.num`)·설정비율 입력칸 셀(`td.center`, 개별계좌 행만)·표 입력칸(`.inp-pf`, `.inp-r`) — 종목명 열(`.stock-name` 등)은 무수정
