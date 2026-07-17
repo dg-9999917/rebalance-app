@@ -1,5 +1,19 @@
 # 구현 진행 상황
 
+## v3 디자인 4차 — 설정 탭 배치 개선 (v3.html) — 2026-07-17
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 0314f2f), `v3_before_design4.html` 백업 생성(byte-for-byte 동일 확인)
+- [x] **원인**: `#settings-content`가 `display:grid; grid-template-columns:1fr 1fr;`(행 정렬)이라 CSS Grid 특성상 같은 행에 놓인 두 카드가 행 높이를 공유함 — ①계좌관리가 길어지면 그 행의 높이 자체가 늘어나 옆의 ②종합계좌 칸도 강제로 같이 늘어나고, 그 밑의 ④추천비중이 밀려 내려가는 구조였음(CSS Grid 자체의 근본 한계라 grid 안에서는 해결 불가 — Grid Level 3의 masonry는 브라우저 지원 미비)
+- [x] **작업1 — 열 독립 쌓기**: `#settings-content`를 `display:flex`(데스크톱은 `flex-direction:row`)로 바꾸고, 그 아래 신규 `.settings-col`(각각 `display:flex; flex-direction:column; gap:20px`) 두 개를 실제 형제 flex 아이템으로 분리 — 각 열이 완전히 독립적인 세로 컨테이너라 한쪽 카드 높이가 반대쪽에 전혀 영향을 주지 않음. `renderSettingsTab()`이 `<div class="settings-col">①③⑤</div><div class="settings-col">②④⑥</div>` 형태로 감싸도록 수정(배분은 기존 그대로 유지, section builder 함수 자체는 무수정)
+- [x] **작업2 — 폭 확장**: `#settings-content`의 `max-width:720px/1120px` 전부 제거(화면 전체 폭 사용, 계산기 탭처럼 별도 `#app`/`body` 폭 제한이 없음을 확인 후 동일하게 맞춤), 데스크톱에서 `padding-left/right:36px`(열 사이 간격과 동일값)로 좌우 바깥 여백 통일. 카드 내부 패딩(fix7의 22px 24px)·계좌 목록 행/전략 테이블의 `flex:1`/`width:100%` 구조는 이미 넓은 폭에 자연스럽게 늘어나도록 되어 있어 추가 수정 불필요(버튼은 `.settings-list-actions`가 flex 마지막 아이템이라 자동으로 우측에 붙음, 확인함)
+- [x] **⚠️ 알아둘 점(디자인 판단, 완료조건에는 저촉 없음)**: "1열 폴백은 기존대로 유지"를 문자 그대로(정확히 ①②③④⑤⑥ 순서) 만족시키려면 flat DOM 순서를 유지해야 하는데, 그러면 열 독립 쌓기 자체가 CSS만으로는 불가능함(CSS Grid/멀티컬럼 모두 "특정 카드를 특정 열에" 배정하면서 동시에 "다른 열은 그 카드 높이에 영향받지 않게"를 만족 못 시킴 — 검토 결과, DOM을 열별로 실제로 묶는 것 외에 다른 CSS-only 해법이 없음을 확인). 따라서 이번 수정으로 **좁은 화면 1열 순서가 ①②③④⑤⑥ → ①③⑤②④⑥(좌열 전체 다음 우열 전체)로 바뀜** — 완료조건 3("좁은 화면에서 1열로 정상 폴백된다")은 구조적으로 문제없이 충족하지만, 순서 자체가 기존과 달라진 것은 사용자가 확인해야 할 부분이라 별도로 보고
+- [x] Node vm 검증: `renderSettingsTab()` 출력에 `.settings-col` wrapper가 정확히 2개, 첫 번째 wrapper(좌열) 안에 ①③⑤가, 두 번째 wrapper(우열) 안에 ②④⑥이 정확한 순서로 들어있음을 문자열 위치 비교로 확인. CSS 텍스트 파싱으로 `#settings-content`에 `max-width` 없음, `padding-left:36px`, 열 사이 `gap:36px`, `.settings-col`의 flex-column 규칙이 모두 정확히 반영됐음을 확인
+- [x] 이전 세션 회귀 테스트 전부 재실행(6단계 완료조건 1~6, 수정6차 절대주소/이름표시/표 마크업, 수정7차 현금경고배너 8개 시나리오) — 전부 PASS, 회귀 없음
+- [x] 계산 함수 6개(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight) + computeCashAmount/syncCashAmount/buildConsolidatedData/restoreFromDrive/sanitizeLoadedAppData/migrateAccountFromV2/migrateStockFromV2 git HEAD(0314f2f) 대비 byte-for-byte 동일 재검증 — 전부 OK(순수 CSS+렌더 진입점 조립 순서만 변경, 6개 builder 함수 본문 자체는 손대지 않음)
+- [x] index.html 무수정 확인(git diff 없음), 실제 weights.json도 무수정
+- [x] sw.js CACHE_NAME rebalance-v60 → rebalance-v61
+- [ ] (미수행) 실제 브라우저에서 데스크톱 폭으로 종합계좌 바로 아래 추천비중이 붙는지, 좁은 화면에서 ①③⑤②④⑥ 순서가 실제로 괜찮아 보이는지(사용자 확인 필요) 육안 확인 — 이번 세션은 코드 변경과 Node vm 시뮬레이션까지만 수행
+- [ ] **push는 사용자 지시 대기 중** — 커밋만 완료, origin/main에는 아직 반영 안 됨
+
 ## v3 수정 7차 — 현금 경고 배너 + 설정 탭 확대 (v3.html) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 929cfa4), `v3_before_design3.html` 백업 생성(byte-for-byte 동일 확인)
 - [x] **작업1 — 현금 음수 경고 배너**: 신규 `renderCashWarnBanner(p0, cash)` 공용 헬퍼 + 개별 계좌용 `evaluateCashWarning()`(내부에서 `computeCashAmount()`를 그대로 호출만 함, 무수정) 추가. `cash<0`일 때만 `⚠️ 전체 자금(...)이 매수 원가 합계(...)보다 작습니다 — 전체 자금을 확인해 주세요.` 문구를 콤마 포맷으로 표시, 닫기 버튼 없음. HTML에 `#reco-banner` 위에 `#cash-warn-banner` 신규(연한 주황/노랑, 다크모드 별도 색상)

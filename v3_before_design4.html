@@ -356,22 +356,19 @@
     .placeholder strong { display: block; margin-bottom: 6px; font-size: 15px; color: var(--text); }
 
     /* ── 설정 탭 ──────────────────────────────────────────── */
-    /* 800px 이하: #settings-content·.settings-col 둘 다 세로 flex라 카드 6장이
-       ①②③④⑤⑥ 순서로 이어서 쌓임(양쪽 gap 값이 같아 이음매 없이 한 열처럼 보임) */
     #settings-content {
-      padding: 20px 16px 60px;
+      max-width: 720px; margin: 0 auto; padding: 20px 16px 60px;
       display: flex; flex-direction: column; gap: 20px;
     }
-    .settings-col { display: flex; flex-direction: column; gap: 20px; }
-    /* 데스크톱(폭 800px 초과): 좌·우 열이 각각 독립적으로 카드를 쌓음(grid 행 정렬 방식이던
-       기존 구조는 한쪽 카드가 길면 반대쪽에 빈 공간이 생기는 문제가 있어 flex 2컬럼으로 교체).
-       폭 제한 없이 화면 전체를 쓰고, 좌우 바깥 여백을 열 사이 간격(36px)과 동일하게 맞춤 */
+    /* 데스크톱(폭 800px 초과): 설정 카드 2열 그리드, 800px 이하는 위 1열 flex 유지 */
     @media (min-width: 801px) {
       #settings-content {
-        flex-direction: row; align-items: flex-start;
-        padding-left: 36px; padding-right: 36px; gap: 36px;
+        max-width: 1120px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: 20px 36px;
       }
-      .settings-col { flex: 1; min-width: 0; }
     }
     .settings-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -2908,19 +2905,13 @@ function resetAllV3() {
 function renderSettingsTab() {
   const container = document.getElementById('settings-content');
   if (!container) return;
-  // 좌우 열을 각각의 컨테이너로 분리(디자인 4차) — 배분은 기존 그대로:
-  // 좌 = ①계좌관리·③드라이브·⑤고급 / 우 = ②종합계좌·④추천비중·⑥초기화
   container.innerHTML =
-    `<div class="settings-col">` +
-      buildAccountsSection() +
-      buildDriveSection() +
-      buildAdvancedSection() +
-    `</div>` +
-    `<div class="settings-col">` +
-      buildConsolidatedSectionV3() +
-      buildRecoSection() +
-      buildResetSection() +
-    `</div>`;
+    buildAccountsSection() +
+    buildConsolidatedSectionV3() +
+    buildDriveSection() +
+    buildRecoSection() +
+    buildAdvancedSection() +
+    buildResetSection();
 }
 
 function buildConsolidatedSectionV3() {
