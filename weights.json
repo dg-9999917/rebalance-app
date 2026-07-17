@@ -2,10 +2,10 @@
   "profiles": [
     {
       "id": "s_mro8x1knr1d9",
-      "name": "test_001",
-      "version": "2026-07-17-2",
+      "name": "test_0000000000000000000000001",
+      "version": "2026-07-17-1",
       "date": "2026-07-17",
-      "memo": "",
+      "memo": "test_02",
       "stocks": [
         {
           "name": "엔비디아",
