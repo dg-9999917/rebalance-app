@@ -1,5 +1,16 @@
 # 구현 진행 상황
 
+## v3 수정 14차 — 새 계좌 추천 배너 버그 + 추천 종목 추가 버튼 (index.html 정식 앱) — 2026-07-20
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 65d0da2). `cp index.html index_before_fix14.html` 먼저 실행 후 안전점 커밋(`d7208f7`)
+- [x] **작업 1 진단 — 배너 미표시 원인(실측 위치)**:
+  — `evaluateRecoBanner()`(배너 판정 함수) 자체는 정상이지만, 이를 재호출하는 경로가 `onAccountChange()`(계좌 드롭다운 전환) 한 곳뿐이었음. **새 계좌 생성 함수 `addAccountV3()`는 `activateAccount()` 이후 `renderAll()`만 호출하고 `evaluateRecoBanner()`를 부르지 않음** — 이게 "새 계좌 생성 후 계산기로 가도 배너가 안 뜸"의 직접 원인. 게다가 탭 전환 클릭 핸들러(`.tab-btn` 리스너, `data-tab==='calc'` 분기)도 `renderAll()`만 호출해 배너 재판정이 없었으므로, 계산기 탭에 재진입하는 것만으로도 배너가 살아나지 않았음
+  — `DISMISSED_RECO_KEY`(`v3_dismissedReco`) 저장 구조가 계좌 구분 없는 **전역** 1개 맵이었음 — 한 계좌에서 "선택 안내" 배너를 닫으면(`dismissSelectPrompt()`) `map['__select__']`에 추천 서명이 전역 저장되고, 이후 만든 새 계좌도 같은 추천 서명이면 이 전역 기록에 걸려 배너가 뜨지 않음(지시문이 짚은 두 번째 유력 후보가 실제 원인으로 확인됨)
+- [x] **작업 1 수정**: (a) `renderAll()` 끝에 `evaluateRecoBanner();` 1줄 추가 — 이 함수가 불리는 모든 경로(계좌 생성/전환/탭 진입/백업 복원 등)에서 배너가 항상 재평가되도록 단일 지점으로 통합. (b) `DISMISSED_RECO_KEY` 저장 구조를 `{ [accountId]: {...} }` 계좌별로 변경, `getAccountDismissedMap()`/`setAccountDismissedMap()` 헬퍼 추가 후 `evaluateRecoBanner()`·`dismissSelectPrompt()`·`dismissGonePrompt()`·`dismissRecoBanner()` 4곳을 전역 `getDismissedMap()`/`setDismissedMap()` 대신 이 헬퍼로 교체. 기존 계좌의 동작이 그대로 유지되도록 `migrateDismissedRecoToPerAccount()`를 만들어 초기 실행부(`loadState()` 직후)에서 1회만 옛 전역 기록을 **이관 시점에 존재하던 모든 계좌**에 복사(새로 만드는 계좌는 이 복사본을 물려받지 않음) — 계산 함수는 무수정
+- [x] **작업 2 — [추천 종목 추가] 버튼**: 종목 추가 폼의 `+ 종목 추가` 버튼 오른쪽에 동일 스타일(`btn btn-primary btn-sm`)로 추가. 핸들러 `addRecoStockClick()`은 **새 적용 로직 없이** 기존 함수만 그대로 호출: 전략 미선택 → `openStrategySelectScreen()`(여러 전략이면 선택 카드, 1개면 바로 `startApplyReco`), 선택돼 있으면 `startApplyReco(selectedId)` → 이후는 배너와 동일한 `openRecoModal()`/`confirmApplyReco()` 흐름 그대로 재사용. 버전이 이미 적용된 상태(`profile.version === state.meta.appliedRecoVersion`)면 alert("이미 추천 구성이 적용되어 있습니다.")만 띄우고 종료
+- [x] **브라우저 실측 검증 완료**(Playwright + chromium, 로컬 정적 서버로 실제 index.html 구동, weights.json abs URL은 라우트 차단해 상대경로 폴백 강제): 빈 새 로컬스토리지에서 acc_1에 Case A 배너 노출 확인 → `dismissSelectPrompt()`로 닫힘 확인 → 설정 탭에서 새 계좌 생성(새로고침 없이) → 계산기 탭 전환만으로 새 계좌에 배너 재노출 확인(계좌 생성 시점에 이미 `renderAll()`이 재평가하므로 탭 전환 전부터도 내부적으로는 이미 세팅돼 있었음) → `추천 종목 추가` 클릭 시 전략 2개라 선택 화면 노출 → 카드 선택 시 미리보기 모달 노출 → 적용 확정 시 종목 30개·버전·선택전략 정상 반영 → 같은 버튼 재클릭 시 "이미 추천 구성이 적용되어 있습니다." alert 확인 → acc_1로 되돌아가면 그 계좌의 dismiss 상태는 그대로 유지(배너 계속 숨김) 확인 — 완료조건 1~3 전부 실측 통과
+- [x] `git diff`(안전점 `d7208f7` 대비)에서 계산 함수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight 등) 및 `confirmApplyReco()`·`buildRecoDiff()` 등 기존 적용 로직 본문 grep 결과 없음(무수정, 호출만 추가) 확인
+- [x] sw.js CACHE_NAME rebalance-v69 → rebalance-v70
+
 ## v3 수정 13차 — 시세 버튼 스타일 + 설정비율 합계 즉시 갱신 (index.html 정식 앱) — 2026-07-17
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 bd3b65a). `git fetch`로 origin에 로컬에 없는 커밋 3개 발견 — "배포: 방어형 2026-07-17-5"가 또 두 번 찍혀있었음(수정12차 배포 직후 push 이전에 사용자가 테스트했거나 캐시된 구버전으로 테스트했을 가능성 — 이번 세션 지시 범위 밖이라 별도 조치는 하지 않음, 필요시 후속 확인 권장). `git diff --stat`으로 weights.json만 변경(8줄)됨을 확인 후 `--ff-only` 병합
 - [x] **지시대로 순서 엄수**: 병합 직후 코드를 전혀 건드리지 않고 **`cp index.html index_before_fix13.html`부터 먼저 실행**(byte-for-byte 동일 확인) → 그 다음 안전점 커밋(`8d57e0e`) → 그 이후에만 진단·수정 시작(지난 두 세션의 "작업 후 백업" 재발 방지)

@@ -1226,6 +1226,10 @@ function renderTable() {
       <span class="meta-label">&nbsp;</span>
       <button class="btn btn-primary btn-sm" onclick="addStockFromForm()">+ 종목 추가</button>
     </div>
+    <div class="meta-field" style="justify-content:flex-end">
+      <span class="meta-label">&nbsp;</span>
+      <button class="btn btn-primary btn-sm" onclick="addRecoStockClick()">추천 종목 추가</button>
+    </div>
   </div>`;
 
   wrap.innerHTML = html;
@@ -1329,6 +1333,10 @@ function renderAll() {
     renderSummary();
     renderTable();
   }
+  // 수정 14차 — 계좌 생성 직후·계좌 전환·계산기 탭 진입 등 renderAll()이 불리는 모든 경로에서
+  // 배너 판정이 항상 재실행되도록 여기 한 곳에 모음(이전엔 onAccountChange()만 개별 호출해서,
+  // 새 계좌 생성(addAccountV3)이나 탭 클릭만으로는 배너가 재평가되지 않았음)
+  evaluateRecoBanner();
 }
 
 // 계산기 탭 뷰만 다시 그림 (fetchPrices 등에서 호출) — 계좌/종합 모드에 맞게 분기
@@ -1592,9 +1600,9 @@ function normalizeRecoData(raw) {
   return [];
 }
 
-const DISMISSED_RECO_KEY = 'v3_dismissedReco'; // { [profileId]: version, '__select__': signature, '<id>::gone': 'true' }
-let recoProfiles = [];        // 최근 조회한 weights.json의 정규화된 프로필 목록
-let activeRecoProfile = null; // 현재 미리보기 모달(reco-modal)에 띄워진 프로필(가족쪽 적용 대상)
+// 수정 14차 — 계좌별 { [accountId]: { [profileId]: version, '__select__': signature, '<id>::gone': 'true' } }.
+// 원래 전역 1개(계좌 구분 없음)라 한 계좌에서 닫은 배너가 다른(새) 계좌의 배너까지 막는 버그가 있었음.
+const DISMISSED_RECO_KEY = 'v3_dismissedReco';
 
 function getDismissedMap() {
   try { return JSON.parse(localStorage.getItem(DISMISSED_RECO_KEY) || '{}'); } catch (e) { return {}; }
@@ -1602,6 +1610,33 @@ function getDismissedMap() {
 function setDismissedMap(map) {
   try { localStorage.setItem(DISMISSED_RECO_KEY, JSON.stringify(map)); } catch (e) {}
 }
+// 예전 전역 형식({ profileId: version, ... })을 계좌별 형식으로 1회 이관 — 이관 시점에 이미 존재하던
+// 모든 계좌에 옛 전역 기록을 그대로 복사해 기존 계좌의 배너 동작은 바뀌지 않게 하고, 이후 새로 만드는
+// 계좌는 이 복사본을 물려받지 않으므로 항상 새 배너 판정을 받는다.
+function migrateDismissedRecoToPerAccount() {
+  const map = getDismissedMap();
+  if (map.__perAccount__) return;
+  const legacyKeys = Object.keys(map).filter(k => k !== '__perAccount__' && typeof map[k] !== 'object');
+  const legacy = {};
+  legacyKeys.forEach(k => { legacy[k] = map[k]; delete map[k]; });
+  if (Object.keys(legacy).length) {
+    (appData.accounts || []).forEach(acc => { map[acc.id] = { ...legacy }; });
+  }
+  map.__perAccount__ = true;
+  setDismissedMap(map);
+}
+function getAccountDismissedMap() {
+  const map = getDismissedMap();
+  return map[appData.activeAccountId] || {};
+}
+function setAccountDismissedMap(accMap) {
+  const map = getDismissedMap();
+  map[appData.activeAccountId] = accMap;
+  setDismissedMap(map);
+}
+let recoProfiles = [];        // 최근 조회한 weights.json의 정규화된 프로필 목록
+let activeRecoProfile = null; // 현재 미리보기 모달(reco-modal)에 띄워진 프로필(가족쪽 적용 대상)
+
 function recoSignature(profiles) { return profiles.map(p => p.id + ':' + p.version).sort().join(','); }
 
 function hideRecoBanner() {
@@ -1675,7 +1710,7 @@ function evaluateRecoBanner() {
   }
 
   const selectedId = state.meta.selectedStrategyId;
-  const dismissedMap = getDismissedMap();
+  const dismissedMap = getAccountDismissedMap();
 
   // Case A: 아직 따르는 전략이 없음 — 선택 화면으로 유도
   if (!selectedId) {
@@ -1724,21 +1759,21 @@ function evaluateRecoBanner() {
 }
 
 function dismissSelectPrompt() {
-  const map = getDismissedMap();
+  const map = getAccountDismissedMap();
   map['__select__'] = recoSignature(recoProfiles);
-  setDismissedMap(map);
+  setAccountDismissedMap(map);
   hideRecoBanner();
 }
 function dismissGonePrompt(profileId) {
-  const map = getDismissedMap();
+  const map = getAccountDismissedMap();
   map[profileId + '::gone'] = 'true';
-  setDismissedMap(map);
+  setAccountDismissedMap(map);
   hideRecoBanner();
 }
 function dismissRecoBanner(profileId, version) {
-  const map = getDismissedMap();
+  const map = getAccountDismissedMap();
   map[profileId] = version;
-  setDismissedMap(map);
+  setAccountDismissedMap(map);
   hideRecoBanner();
 }
 
@@ -1773,6 +1808,18 @@ function startApplyReco(profileId) {
   if (!profile) return;
   activeRecoProfile = profile;
   openRecoModal();
+}
+
+// 수정 14차 — 종목 추가 폼의 [추천 종목 추가] 버튼. 배너의 [적용하기]와 동일한 흐름을 그대로
+// 재사용(openStrategySelectScreen/startApplyReco → 미리보기 모달 → 적용) — 새 적용 로직은 만들지 않음.
+function addRecoStockClick() {
+  if (!recoProfiles.length) { alert('추천 비중 데이터가 없습니다.'); return; }
+  const selectedId = state.meta.selectedStrategyId;
+  if (!selectedId) { openStrategySelectScreen(); return; }
+  const profile = recoProfiles.find(p => p.id === selectedId);
+  if (!profile) { alert('선택하신 추천이 종료되었습니다. 설정 탭에서 다른 전략을 선택해 주세요.'); return; }
+  if (profile.version === state.meta.appliedRecoVersion) { alert('이미 추천 구성이 적용되어 있습니다.'); return; }
+  startApplyReco(profile.id);
 }
 
 // 두 종목 목록(ticker+market 매칭 키)을 비교해 added/changed/excluded 구조로 반환.
@@ -3214,6 +3261,7 @@ function buildConsolidatedSectionV3() {
 // ═══════════════════════════════════════════════════════════════════
 
 loadState();
+migrateDismissedRecoToPerAccount();
 renderAll();
 renderSettingsTab();
 loadPriceServerUrl();
