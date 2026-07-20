@@ -1,5 +1,15 @@
 # 구현 진행 상황
 
+## v3 수정 15차 — [추천 종목 추가] 버튼 "데이터 없음" 오류 (index.html 정식 앱) — 2026-07-20
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 fe5c347, 병합 이후 추가 변경 없이 클린). `cp index.html index_before_fix15.html` 먼저 실행 후 안전점 커밋(`6de0a79`)
+- [x] **원인 확인(실측 위치)**: `addRecoStockClick()`(fix14에서 추가한 버튼 핸들러, index.html)가 전역 `recoProfiles` 캐시만 읽고 `if (!recoProfiles.length) { alert('추천 비중 데이터가 없습니다.'); return; }`로 즉시 실패 처리하고 있었음. 이 캐시는 페이지 로드 시 백그라운드로 도는 `checkRecoWeights()`(비동기 fetch) 또는 설정 탭의 "지금 확인" 수동 호출로만 채워지는데, 새 계좌를 만들고 그 fetch가 끝나기 전에 바로 클릭하거나(레이스), fetch 자체가 실패(오프라인 등)한 뒤라면 캐시가 계속 비어 있어 버튼 자체에는 재시도 경로가 전혀 없었음 — 지시문의 추정("배너 판정용으로 미리 읽어둔 캐시에만 의존")이 실제 원인과 일치
+- [x] **수정 위치**: `addRecoStockClick()` 하나만 교체(다른 함수 무수정). 캐시(`recoProfiles.length`)가 있으면 기존과 동일하게 즉시 진행(불필요한 재조회 없음). 비어 있을 때만 버튼을 "불러오는 중..."으로 비활성화하고 기존 `fetchWeightsJson()`(절대 주소→실패 시 상대경로 1회 폴백, `cache:'no-store'`— checkRecoWeights와 동일 함수 재사용, 새 fetch 로직 없음) + `normalizeRecoData()`를 그대로 호출해 즉시 재조회. 결과에 따라 3분기: fetch 자체 실패(`data===null`, 오프라인 등) → "추천 데이터를 불러올 수 없습니다 — 인터넷 연결을 확인해 주세요", fetch는 성공했지만 프로필 0개(관리자가 실제로 전부 내린 상태 — 네트워크 문제 아님) → 기존 문구 "추천 비중 데이터가 없습니다" 유지, 성공 → 캐시(`recoProfiles`) 갱신 후 기존 전략선택/미리보기/적용 흐름 그대로 진행. `finally`에서 버튼 상태 항상 원복
+- [x] **작업 3 점검(배너 쪽 동일 약점 여부)**: `checkRecoWeights()`는 fetch 실패해도 `lastRecoCheckTs`를 갱신하고 조용히 return하는데, `visibilitychange`(화면 복귀)와 `setInterval(30분)`이 거는 `checkRecoWeightsThrottled()`가 60초 쿨다운 이후 자동으로 재시도하도록 fix10에서 이미 구성돼 있어 — 실제로 재확인되면 회복됨(코드 재확인으로 검증, 별도 수정 불필요). 이번 버그는 "버튼에 재시도 경로가 아예 없었다"는 것이었고, 배너는 이미 자동 재시도 경로가 있었던 차이
+- [x] Playwright 실측 검증(로컬 정적 서버 + weights.json 라우트 모킹 3가지 시나리오): (A) 초기 로드부터 네트워크 완전 차단 → 새 계좌 생성 직후(대기 없이) 버튼 클릭 → "인터넷 연결을 확인해 주세요" alert, 버튼 disabled/텍스트 정상 복원 확인 → (B) 네트워크 복구 후(2개 프로필 모킹) 같은 버튼 재클릭 → 클릭 중 "불러오는 중..." 텍스트 확인 → 전략 선택 화면 → 카드 선택 → 미리보기 모달 → 적용 확정까지 기존 흐름대로 정상 동작(종목 반영·버전 갱신) 확인 → (C) fetch는 성공하지만 프로필 0개(현재 운영 중인 실제 weights.json이 이 상태였음 — "유령 전략 제거" 커밋으로 두 프로필 모두 삭제된 상태) → "추천 비중 데이터가 없습니다"(네트워크 오류 문구 아님) 확인 — 완료조건 1·2 전부 실측 통과
+- [x] `git diff`(안전점 `6de0a79` 대비)에서 계산 함수·`confirmApplyReco`/`buildRecoDiff`/`openStrategySelectScreen`/`startApplyReco`/`fetchWeightsJson`/`checkRecoWeights`/`evaluateRecoBanner` 등 적용·배너 로직 본문 grep 결과 없음(무수정) — 변경은 `addRecoStockClick()` 함수 본문 교체(데이터 로드 방식만) + 버튼에 `id` 속성 1개 추가뿐
+- [x] sw.js CACHE_NAME rebalance-v70 → rebalance-v71
+- [x] 참고: 검증 중 발견 — 실제 운영 weights.json이 현재 프로필 0개 상태(직전 세션에서 "유령 전략 제거" 2건이 두 전략을 모두 지움). 이번 수정과는 무관하지만, 관리자가 새 추천을 배포하기 전까지는 배너·버튼 모두 "데이터 없음"으로 정상 동작함 — 버그 아님
+
 ## v3 수정 14차 — 새 계좌 추천 배너 버그 + 추천 종목 추가 버튼 (index.html 정식 앱) — 2026-07-20
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 65d0da2). `cp index.html index_before_fix14.html` 먼저 실행 후 안전점 커밋(`d7208f7`)
 - [x] **작업 1 진단 — 배너 미표시 원인(실측 위치)**:
