@@ -1,5 +1,22 @@
 # 구현 진행 상황
 
+## v3 수정 16차 — 계좌 복사(고급 탭) · 빈 전략 배포 가드 · [추천 종목 추가] 버튼 숨김 (index.html 정식 앱) — 2026-07-21
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 1467b1a). `git fetch`로 origin에 로컬에 없는 커밋 2개 발견 — "배포: 가족사랑_방어형/홍매화_공격형 2026-07-21-1", `weights.json` diff 확인 결과 **두 전략 모두 stocks:[] (종목 0개)로 실제 배포됨** — fix16.md 배경 설명(관리자가 새 배포용 계좌를 채울 방법이 없어 종목 0개 전략이 경고 없이 배포된 사례)과 정확히 일치하는 실물 증거. `git diff --stat`으로 weights.json만 변경됨을 확인 후 `--ff-only` 병합. `cp index.html index_before_fix16.html`(byte-for-byte 동일 확인) 먼저 실행 후 안전점 커밋(`15628a0`) — 순서 엄수(과거 이탈 사례 재발 없음)
+- [x] **작업 A — 계좌 복사(설정 > 고급)**: 신규 `copyAccountV3()` — 원본 계좌 드롭다운(`#copy-acc-src`, 고급 섹션 신규 소구역 "계좌 복사")에서 고른 계좌를 `src.state.stocks.map(...)`로 **각 종목을 새 객체로 생성**(`id/name/ticker/market/r/adjR`만 원본값 복사, `c0`은 market 기준 재계산, `price/q/avg`는 0으로 리셋 — CASH 행도 배열에 그대로 포함되되 값은 0에서 시작해 기존 `syncCashAmount()` 자동 계산에 맡김) → 새 계좌 `{ id:'acc_'+Date.now(), name, state:{ meta:{p0:0,fx0:0,fxN:0,priceMode:'curr'}, stocks } }`로 `appData.accounts.push` — **`addAccountV3()`와 동일한 id 발급 방식·계좌 데이터 구조를 그대로 재사용**, 새 데이터 구조·병렬 로직 없음. meta에 `selectedStrategyId`/`selectedStrategyName`/`appliedRecoVersion`을 아예 넣지 않아 전략 미연결 상태로 시작(작업 B가 해결하려는 "닭과 달걀" 문제의 실제 해법). 이름 입력은 `prompt(기본값: 원본이름_복사)`, 빈 값이면 생성 안 함. 완료 후 `renderSettingsTab()`+`renderAccountDropdown()`으로 계좌 관리 목록·드롭다운 양쪽에 즉시 반영
+- [x] **작업 B — 빈 전략 배포 가드**: `confirmStrategyDeploy(strategyId)`(index.html) 시작부, `acc` 확보 직후·`buildStrategyDeployPayload()` 호출(=GET/PUT으로 이어지는 흐름의 시작) **이전**에 `acc.state.stocks.filter(st => st.market !== 'CASH').length === 0` 검사 추가 — 참이면 지정된 문구로 `alert()` 후 `return`(payload도 안 만들고 `deployProfilesWithRetry` 자체가 호출되지 않으므로 GET/PUT 요청이 전혀 나가지 않음). 가드 이후의 배포 흐름(재GET→병합→PUT, 409 재시도 헬퍼 `deployProfilesWithRetry`)은 한 글자도 수정하지 않음
+- [x] **작업 C — [추천 종목 추가] 버튼 화면 숨김**: 버튼을 감싸는 `.meta-field` div에 `display:none` 추가 + 지정 문구로 HTML 주석(템플릿 리터럴이 만드는 마크업이 HTML이라 `//`가 아닌 `<!-- -->` 사용 — DOM에 그대로 남는 `//` 텍스트 노드가 되는 것을 피함). `addRecoStockClick()` 함수 본문과 이 함수가 호출하는 `openStrategySelectScreen`/`startApplyReco`/`openRecoModal`/`confirmApplyReco` 등은 전부 무수정(grep으로 위치·존재 확인, 배너 경유 적용 흐름이 계속 정상 재사용함)
+- [x] Node vm 검증(신규 하네스 — `document.getElementById`/`prompt`/`alert`/`fetch`를 스텁, 실제 `index.html`의 inline script를 그대로 vm 컨텍스트에 로드해 실행):
+  — 시나리오1: 종목 3개(KR/US/CASH, adjR 합 100.0)인 `acc_1`을 복사 → 복사본도 종목 3개, adjR 합 100(동일 숫자), avg·q 전부 0, p0=0, meta에 `selectedStrategyId`/`appliedRecoVersion` 없음, CASH 행 포함 — 전부 확인
+  — 시나리오2: 복사본 종목 객체가 원본과 다른 참조(`===` 비교 false)임을 확인한 뒤 복사본의 `adjR`·`meta.p0`를 변경 → 원본 값(40, 1000000)이 전혀 바뀌지 않음을 확인(깊은 복사 검증)
+  — 시나리오3: CASH만 있는(종목 0개) 계좌를 커플링한 전략에 `confirmStrategyDeploy()` 호출 → 지정 alert 문구 확인, 이 호출 동안 `fetch` 호출 0회(GET/PUT 전혀 안 나감), `lastDeployedVersion`도 null 그대로 유지
+  — 시나리오4: 종목이 있는 별도 전략(`acc_1` 커플링)은 같은 함수 호출에서 가드를 통과해 `fetch`가 실제로 호출됨(정상 배포 흐름이 막히지 않음)을 확인
+  — 시나리오5: 렌더된 마크업 문자열에서 `#btn-add-reco-stock`을 감싼 div에 `display:none`이 포함되고 바로 위 `+ 종목 추가` 버튼은 별도 div라 영향 없음을 grep으로 확인. `addRecoStockClick` 함수 정의(1820행)와 버튼의 `onclick` 참조 둘 다 그대로 존재
+  — 시나리오6(새로고침 후 유지)은 `copyAccountV3()`가 기존 `saveState()`(다른 모든 계좌 생성/수정 함수와 동일 경로, localStorage 저장)를 그대로 호출하므로 별도 저장 로직이 없어 기존 계좌 생성과 동일하게 보장됨 — 코드 경로 확인으로 갈음(브라우저 실측은 미수행)
+  — `node --check`(inline script를 `new Function()`으로 파싱) 구문 오류 없음
+- [x] `git diff`(안전점 `15628a0` 대비)에서 계산 함수(getBasePrice/calcUnit/priceKRW/avgKRW/evalVal/currWeight/per1/computeCashAmount/syncCashAmount)·`deployProfilesWithRetry`·`putRemoteProfiles`·`rebalance_app_v2` grep 결과 없음(무수정) 확인 — 변경분이 정확히 위 3개 작업 범위(신규 함수 1개, 기존 함수 시작부에 가드 6줄, HTML 마크업 2곳)에만 있음
+- [x] sw.js CACHE_NAME rebalance-v71 → rebalance-v72
+- [ ] **실제 브라우저 확인 필요**: 계좌 복사 UI(고급 탭 소구역) 실제 클릭 흐름, 빈 전략 배포 시 alert·GitHub 커밋 미발생, 버튼 숨김 후 레이아웃 — 이번 세션은 Node vm 시뮬레이션까지만 수행
+
 ## v3 수정 15차 — [추천 종목 추가] 버튼 "데이터 없음" 오류 (index.html 정식 앱) — 2026-07-20
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 fe5c347, 병합 이후 추가 변경 없이 클린). `cp index.html index_before_fix15.html` 먼저 실행 후 안전점 커밋(`6de0a79`)
 - [x] **원인 확인(실측 위치)**: `addRecoStockClick()`(fix14에서 추가한 버튼 핸들러, index.html)가 전역 `recoProfiles` 캐시만 읽고 `if (!recoProfiles.length) { alert('추천 비중 데이터가 없습니다.'); return; }`로 즉시 실패 처리하고 있었음. 이 캐시는 페이지 로드 시 백그라운드로 도는 `checkRecoWeights()`(비동기 fetch) 또는 설정 탭의 "지금 확인" 수동 호출로만 채워지는데, 새 계좌를 만들고 그 fetch가 끝나기 전에 바로 클릭하거나(레이스), fetch 자체가 실패(오프라인 등)한 뒤라면 캐시가 계속 비어 있어 버튼 자체에는 재시도 경로가 전혀 없었음 — 지시문의 추정("배너 판정용으로 미리 읽어둔 캐시에만 의존")이 실제 원인과 일치
