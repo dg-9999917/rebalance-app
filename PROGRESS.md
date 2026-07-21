@@ -1,5 +1,20 @@
 # 구현 진행 상황
 
+## v3 수정 17차 — 보유수량 0인 종목의 필요매매가 표시되지 않는 문제 수정 (index.html 정식 앱) — 2026-07-21
+- [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 2a2f9c6). `git fetch`로 origin에 로컬에 없는 커밋 3개 발견 — 관리자가 fix16에서 새로 만든 "계좌 복사" 기능을 실제로 사용해 "공격형_test_01_배포"/"방어형_test_01_배포"를 배포했다가 제거한 이력(`weights.json`만 변경) — `--ff-only` 병합. `cp index.html index_before_fix17.html`(byte-for-byte 동일 확인) 먼저 실행 후 안전점 커밋(`3c7c29c`)
+- [x] **원인은 지시문 1번에 이미 확정돼 있어 재진단 없이 그대로 적용** — grep으로 두 위치를 실측 확인해 지시문 기술과 일치함을 검증만 함: `renderTable()` 1110행, `updateRows()` 1275행의 필요매매 표시 조건이 둘 다 `!isCash && unit > 0 && s.q > 0`(보유수량 있어야만 표시)이라 v3 핵심 시나리오(신규 계좌, 전체 자금만 입력하고 매수 수량 계산)에서 전종목 q=0이라 필요매매가 전부 '—'로 가려짐
+- [x] **수정**: 두 위치의 조건을 `!isCash && unit > 0 && (s.q > 0 || s.adjR > 0)`로 동일하게 변경(지시문 3번 원문 그대로, 다른 로직 무변경) — 보유 0이어도 설정비율이 있으면 필요매매(+N) 표시, 보유 0·설정비율 0인 행만 '—' 유지
+- [x] Node vm 검증(신규 하네스 — 실제 `index.html`의 inline script를 그대로 로드해 `renderTable()`/`updateRows()`를 직접 실행, `wrap.innerHTML`에 담긴 실제 렌더 결과와 `pf-need-*` DOM 스텁의 실제 `textContent`를 그대로 읽음 — 로직 재구현 없이 앱 코드 자체의 출력만 확인):
+  — 전제(지시문 4번과 동일): 전체 자금 100,000,000원, 환율 1,474.40, 보유수량 전부 0
+  — 시나리오1 삼성전자(KR, 262,500원, 설정비율10): **+38.10** 표시 (기대값과 정확히 일치)
+  — 시나리오2 엔비디아(US, $203.28, 설정비율5): **+16.68** 표시 (기대값과 정확히 일치)
+  — 시나리오3 브로드컴(설정비율0·보유0): **—** 유지 확인
+  — 시나리오4 삼성전자 q=38 입력 후 `updateRows()` 실행: **+0.10** 즉시 갱신 확인(updateRows 경로도 renderTable과 동일 조건이라 깜빡임 없음)
+  — 시나리오5 회귀: 보유수량 있는 기존 계좌(엔비디아 q=3, adjR=5)도 여전히 정상 표시(**+13.68**) — 기존 표시 방식이 깨지지 않음
+  — 시나리오6 현금 행: 자동계산 분기(`isAutoCash`)는 이번 조건 변경과 무관한 별도 분기라 그대로 **-15,000,000원**(원화, 부호·서식 기존과 동일) 정상 표시
+- [x] `git diff`(안전점 `3c7c29c` 대비)가 정확히 두 줄(1110행·1275행)만 바뀌었음을 확인 — `calcUnit`/`getBasePrice`/`priceKRW`/`avgKRW`/`evalVal`/`currWeight`/`isAutoCash` 분기 등은 grep 결과 없음(무수정)
+- [x] sw.js CACHE_NAME rebalance-v72 → rebalance-v73
+
 ## v3 수정 16차 — 계좌 복사(고급 탭) · 빈 전략 배포 가드 · [추천 종목 추가] 버튼 숨김 (index.html 정식 앱) — 2026-07-21
 - [x] 시작 전 PROGRESS.md·git log 확인(직전 커밋 1467b1a). `git fetch`로 origin에 로컬에 없는 커밋 2개 발견 — "배포: 가족사랑_방어형/홍매화_공격형 2026-07-21-1", `weights.json` diff 확인 결과 **두 전략 모두 stocks:[] (종목 0개)로 실제 배포됨** — fix16.md 배경 설명(관리자가 새 배포용 계좌를 채울 방법이 없어 종목 0개 전략이 경고 없이 배포된 사례)과 정확히 일치하는 실물 증거. `git diff --stat`으로 weights.json만 변경됨을 확인 후 `--ff-only` 병합. `cp index.html index_before_fix16.html`(byte-for-byte 동일 확인) 먼저 실행 후 안전점 커밋(`15628a0`) — 순서 엄수(과거 이탈 사례 재발 없음)
 - [x] **작업 A — 계좌 복사(설정 > 고급)**: 신규 `copyAccountV3()` — 원본 계좌 드롭다운(`#copy-acc-src`, 고급 섹션 신규 소구역 "계좌 복사")에서 고른 계좌를 `src.state.stocks.map(...)`로 **각 종목을 새 객체로 생성**(`id/name/ticker/market/r/adjR`만 원본값 복사, `c0`은 market 기준 재계산, `price/q/avg`는 0으로 리셋 — CASH 행도 배열에 그대로 포함되되 값은 0에서 시작해 기존 `syncCashAmount()` 자동 계산에 맡김) → 새 계좌 `{ id:'acc_'+Date.now(), name, state:{ meta:{p0:0,fx0:0,fxN:0,priceMode:'curr'}, stocks } }`로 `appData.accounts.push` — **`addAccountV3()`와 동일한 id 발급 방식·계좌 데이터 구조를 그대로 재사용**, 새 데이터 구조·병렬 로직 없음. meta에 `selectedStrategyId`/`selectedStrategyName`/`appliedRecoVersion`을 아예 넣지 않아 전략 미연결 상태로 시작(작업 B가 해결하려는 "닭과 달걀" 문제의 실제 해법). 이름 입력은 `prompt(기본값: 원본이름_복사)`, 빈 값이면 생성 안 함. 완료 후 `renderSettingsTab()`+`renderAccountDropdown()`으로 계좌 관리 목록·드롭다운 양쪽에 즉시 반영

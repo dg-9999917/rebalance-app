@@ -1107,7 +1107,7 @@ function renderTable() {
           else if (need > 0) { needStr = '+' + fmtNum(need) + '원'; needCls = 'val-pos'; }
           else { needStr = fmtNum(need) + '원'; needCls = 'val-neg'; }
         }
-      } else if (!isCash && unit > 0 && s.q > 0) {
+      } else if (!isCash && unit > 0 && (s.q > 0 || s.adjR > 0)) {
         if (Math.abs(need) < 0.0001) { needStr = '0'; }
         else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
         else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
@@ -1272,7 +1272,7 @@ function updateRows() {
           else if (need > 0) { needStr = '+' + fmtNum(need) + '원'; needCls = 'val-pos'; }
           else { needStr = fmtNum(need) + '원'; needCls = 'val-neg'; }
         }
-      } else if (!isCash && unit > 0 && s.q > 0) {
+      } else if (!isCash && unit > 0 && (s.q > 0 || s.adjR > 0)) {
         if (Math.abs(need) < 0.0001) { needStr = '0'; }
         else if (need > 0) { needStr = '+' + fmtDec(need, 2); needCls = 'val-pos'; }
         else { needStr = fmtDec(need, 2); needCls = 'val-neg'; }
