@@ -1,14 +1,6 @@
 {
   "profiles": [
     {
-      "id": "s_mrowsmgyefvo",
-      "name": "가족사랑_방어형",
-      "version": "2026-07-21-1",
-      "date": "2026-07-21",
-      "memo": "TEST_01",
-      "stocks": []
-    },
-    {
       "id": "s_mrowsxrl13gv",
       "name": "홍매화_공격형",
       "version": "2026-07-21-1",
