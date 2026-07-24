@@ -192,21 +192,21 @@
     {
       "id": "s_mru7zasf82ea",
       "name": "홍매화_공격형",
-      "version": "2026-07-24-1",
+      "version": "2026-07-24-2",
       "date": "2026-07-24",
-      "memo": "test",
+      "memo": "복구",
       "stocks": [
         {
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 5
+          "r": 6
         },
         {
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 7
+          "r": 6
         },
         {
           "name": "샌디스크",
