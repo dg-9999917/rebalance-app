@@ -192,21 +192,21 @@
     {
       "id": "s_mru7zasf82ea",
       "name": "홍매화_공격형",
-      "version": "2026-07-23-1",
-      "date": "2026-07-23",
-      "memo": "테슬라 편출 알파벳, GE버노바 상향 _0723",
+      "version": "2026-07-24-1",
+      "date": "2026-07-24",
+      "memo": "test",
       "stocks": [
         {
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 6
+          "r": 5
         },
         {
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 6
+          "r": 7
         },
         {
           "name": "샌디스크",
