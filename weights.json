@@ -192,21 +192,21 @@
     {
       "id": "s_mru7zasf82ea",
       "name": "홍매화_공격형",
-      "version": "2026-07-28-1",
-      "date": "2026-07-28",
-      "memo": "현금 20% - 7월28일",
+      "version": "2026-08-03-1",
+      "date": "2026-08-03",
+      "memo": "현금 5% - 8월3일",
       "stocks": [
         {
           "name": "엔비디아",
           "ticker": "NVDA",
           "market": "US",
-          "r": 6
+          "r": 8
         },
         {
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 6
+          "r": 7
         },
         {
           "name": "샌디스크",
@@ -218,7 +218,7 @@
           "name": "마벨테크놀로지",
           "ticker": "MRVL",
           "market": "US",
-          "r": 5
+          "r": 4
         },
         {
           "name": "SK 하이닉스 ADR",
@@ -242,19 +242,19 @@
           "name": "알파벳",
           "ticker": "GOOGL",
           "market": "US",
-          "r": 7
+          "r": 8
         },
         {
           "name": "아마존",
           "ticker": "AMZN",
           "market": "US",
-          "r": 3
+          "r": 4
         },
         {
           "name": "메타",
           "ticker": "META",
           "market": "US",
-          "r": 6
+          "r": 5
         },
         {
           "name": "마이크로소프트",
@@ -320,13 +320,13 @@
           "name": "삼성생명",
           "ticker": "032830",
           "market": "KR",
-          "r": 3
+          "r": 4
         },
         {
           "name": "SK텔레콤",
           "ticker": "017670",
           "market": "KR",
-          "r": 3
+          "r": 4
         },
         {
           "name": "현대차",
@@ -338,19 +338,19 @@
           "name": "현대모비스",
           "ticker": "012330",
           "market": "KR",
-          "r": 4
+          "r": 5
         },
         {
           "name": "SK하이닉스",
           "ticker": "000660",
           "market": "KR",
-          "r": 10
+          "r": 12
         },
         {
           "name": "삼성전자",
           "ticker": "005930",
           "market": "KR",
-          "r": 16
+          "r": 23
         },
         {
           "name": "삼성전기",
@@ -368,7 +368,7 @@
           "name": "현금",
           "ticker": "CASH",
           "market": "CASH",
-          "r": 20
+          "r": 5
         }
       ]
     }
