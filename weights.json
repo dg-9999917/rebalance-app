@@ -192,9 +192,9 @@
     {
       "id": "s_mru7zasf82ea",
       "name": "홍매화_공격형",
-      "version": "2026-08-03-1",
-      "date": "2026-08-03",
-      "memo": "현금 5% - 8월3일",
+      "version": "2026-08-05-1",
+      "date": "2026-08-05",
+      "memo": "8월4일",
       "stocks": [
         {
           "name": "엔비디아",
@@ -224,7 +224,7 @@
           "name": "SK 하이닉스 ADR",
           "ticker": "SKHY",
           "market": "US",
-          "r": 6
+          "r": 8
         },
         {
           "name": "브로드컴",
@@ -242,13 +242,13 @@
           "name": "알파벳",
           "ticker": "GOOGL",
           "market": "US",
-          "r": 8
+          "r": 10
         },
         {
           "name": "아마존",
           "ticker": "AMZN",
           "market": "US",
-          "r": 4
+          "r": 5
         },
         {
           "name": "메타",
@@ -266,7 +266,7 @@
           "name": "팔란티어",
           "ticker": "PLTR",
           "market": "US",
-          "r": 1
+          "r": 1.5
         },
         {
           "name": "스페이스 X",
@@ -284,7 +284,7 @@
           "name": "샌트러스에너지",
           "ticker": "LEU",
           "market": "US",
-          "r": 0.5
+          "r": 1
         },
         {
           "name": "GE버노바",
@@ -344,7 +344,7 @@
           "name": "SK하이닉스",
           "ticker": "000660",
           "market": "KR",
-          "r": 12
+          "r": 10
         },
         {
           "name": "삼성전자",
@@ -368,7 +368,7 @@
           "name": "현금",
           "ticker": "CASH",
           "market": "CASH",
-          "r": 5
+          "r": 1
         }
       ]
     }
