@@ -192,9 +192,9 @@
     {
       "id": "s_mru7zasf82ea",
       "name": "홍매화_공격형",
-      "version": "2026-08-05-1",
-      "date": "2026-08-05",
-      "memo": "8월4일",
+      "version": "2026-08-18-1",
+      "date": "2026-08-18",
+      "memo": "8월18일",
       "stocks": [
         {
           "name": "엔비디아",
@@ -206,7 +206,13 @@
           "name": "TSMC",
           "ticker": "TSM",
           "market": "US",
-          "r": 7
+          "r": 6
+        },
+        {
+          "name": "마이크론테크놀로지",
+          "ticker": "MU",
+          "market": "US",
+          "r": 5
         },
         {
           "name": "샌디스크",
@@ -248,13 +254,13 @@
           "name": "아마존",
           "ticker": "AMZN",
           "market": "US",
-          "r": 5
+          "r": 3
         },
         {
           "name": "메타",
           "ticker": "META",
           "market": "US",
-          "r": 5
+          "r": 3
         },
         {
           "name": "마이크로소프트",
@@ -302,7 +308,7 @@
           "name": "삼양식품",
           "ticker": "003230",
           "market": "KR",
-          "r": 1
+          "r": 2
         },
         {
           "name": "한화에어로스페이스",
@@ -314,13 +320,13 @@
           "name": "LIG D&A",
           "ticker": "079550",
           "market": "KR",
-          "r": 1
+          "r": 2
         },
         {
           "name": "삼성생명",
           "ticker": "032830",
           "market": "KR",
-          "r": 4
+          "r": 5
         },
         {
           "name": "SK텔레콤",
@@ -344,13 +350,13 @@
           "name": "SK하이닉스",
           "ticker": "000660",
           "market": "KR",
-          "r": 10
+          "r": 5
         },
         {
           "name": "삼성전자",
           "ticker": "005930",
           "market": "KR",
-          "r": 23
+          "r": 25
         },
         {
           "name": "삼성전기",
