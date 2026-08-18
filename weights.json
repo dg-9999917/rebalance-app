@@ -3,9 +3,9 @@
     {
       "id": "s_mru7z11wpvvu",
       "name": "가족사랑_방어형",
-      "version": "2026-08-05-1",
-      "date": "2026-08-05",
-      "memo": "8월 4일",
+      "version": "2026-08-18-1",
+      "date": "2026-08-18",
+      "memo": "8월18일",
       "stocks": [
         {
           "name": "엔비디아",
@@ -16,6 +16,12 @@
         {
           "name": "TSMC",
           "ticker": "TSM",
+          "market": "US",
+          "r": 5
+        },
+        {
+          "name": "마이크론테크놀로지",
+          "ticker": "MU",
           "market": "US",
           "r": 5
         },
@@ -59,13 +65,13 @@
           "name": "아마존",
           "ticker": "AMZN",
           "market": "US",
-          "r": 4
+          "r": 3
         },
         {
           "name": "메타",
           "ticker": "META",
           "market": "US",
-          "r": 6
+          "r": 3
         },
         {
           "name": "마이크로소프트",
@@ -119,7 +125,7 @@
           "name": "삼양식품",
           "ticker": "003230",
           "market": "KR",
-          "r": 1
+          "r": 1.5
         },
         {
           "name": "한화에어로스페이스",
@@ -131,7 +137,7 @@
           "name": "LIG D&A",
           "ticker": "079550",
           "market": "KR",
-          "r": 1
+          "r": 2
         },
         {
           "name": "삼성생명",
@@ -161,7 +167,7 @@
           "name": "SK하이닉스",
           "ticker": "000660",
           "market": "KR",
-          "r": 6
+          "r": 4
         },
         {
           "name": "삼성전자",
@@ -185,7 +191,7 @@
           "name": "현금",
           "ticker": "CASH",
           "market": "CASH",
-          "r": 2
+          "r": 1.5
         }
       ]
     },
